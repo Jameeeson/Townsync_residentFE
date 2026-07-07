@@ -28,7 +28,7 @@ export class ApiClientError extends Error {
   }
 }
 
-export interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers" | "method"> {
+export interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers"> {
   accessToken?: string;
   body?: BodyInit | Record<string, unknown> | null;
   headers?: HeadersInit;

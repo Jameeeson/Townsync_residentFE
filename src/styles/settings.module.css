@@ -1,0 +1,122 @@
+.container {
+  width: 100%;
+  padding: 32px 24px 40px;
+  background-color: #f8fafc;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.header { margin-bottom: 32px; }
+.pageTitle { font-size: 28px; font-weight: 800; color: #0f172a; margin: 0; }
+.pageDesc { color: #64748b; font-size: 14px; margin-top: 4px; }
+
+.mainLayout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 40px;
+}
+
+/* Navigation */
+.nav { display: flex; flex-direction: column; gap: 4px; position: sticky; top: 32px; }
+.navItem {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-radius: 8px; font-size: 14px; font-weight: 600; color: #64748b;
+  background: none; border: none; cursor: pointer; text-align: left; transition: 0.2s;
+}
+.navItem:hover { background: #f1f5f9; }
+.navItem.active { background: #eff6ff; color: #1e3a8a; }
+.navDivider { border: 0; border-top: 1px solid #e2e8f0; margin: 12px 0; }
+.signOut { color: #94a3b8; }
+
+/* Grids */
+.settingsGrid { display: grid; grid-template-columns: 1fr 320px; gap: 32px; align-items: start; }
+.twoColGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+/* Cards */
+.card {
+  background: white; border: 1px solid #e2e8f0;
+  border-radius: 12px; padding: 24px; margin-bottom: 24px;
+}
+.cardHeaderRow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.cardTitle { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0; }
+.cardSubtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+.avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; }
+
+/* Forms */
+.formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.inputGroup { display: flex; flex-direction: column; gap: 8px; }
+.inputGroup label { font-size: 12px; font-weight: 700; color: #64748b; }
+.inputGroup input {
+  padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #fcfcfc; font-size: 14px;
+}
+.disabledInput { background: #f1f5f9 !important; cursor: not-allowed; }
+
+.unitDetailsSection { margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 24px; }
+.sectionLabel { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 16px; }
+.unitGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.infoText { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; margin-top: 12px; }
+
+.cardActions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 32px; }
+.saveBtn { background: #002294; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.cancelBtn { background: white; border: 1px solid #e2e8f0; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+
+/* Toggles & Switch */
+.toggleRow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.toggleBox { background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
+.toggleLabel { font-size: 14px; font-weight: 700; }
+.toggleSub { font-size: 9px; font-weight: 800; color: #94a3b8; }
+.toggleItem { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border: 1px solid #f1f5f9; border-radius: 8px; font-size: 14px; }
+
+.switch { width: 38px; height: 20px; background: #cbd5e1; border-radius: 20px; padding: 2px; cursor: pointer; transition: 0.2s; }
+.switchOn { background: #002294; }
+.switchKnob { width: 16px; height: 16px; background: white; border-radius: 50%; transition: 0.2s; }
+.switchOn .switchKnob { transform: translateX(18px); }
+
+/* Sidebar Helpers */
+.emergencyCard { background: #1e3a8a; color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px; }
+.emergencyCard p { font-size: 16px; font-weight: 700; margin: 12px 0 8px; }
+.emergencyCard span { font-size: 12px; opacity: 0.8; line-height: 1.5; display: block; }
+.priorityBadge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 40px; font-size: 10px; font-weight: 800; width: fit-content; margin-top: 16px; }
+
+.healthItem { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+.healthOk { color: #15803d; font-weight: 700; }
+.healthBar { width: 100%; height: 4px; background: #f1f5f9; border-radius: 2px; }
+.healthFill { width: 100%; height: 100%; background: #15803d; border-radius: 2px; }
+
+/* Security Specifics */
+.sessionHeader { display: flex; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #f1f5f9; }
+.sessionItem { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #f1f5f9; }
+.sessionIconWrapper { width: 44px; height: 44px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #64748b; }
+.sessionDevice { font-size: 14px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+.currentBadge { background: #dcfce7; color: #15803d; font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
+.sessionMeta { font-size: 12px; color: #94a3b8; }
+.revokeBtn { margin-left: auto; border: 1px solid #e2e8f0; background: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+.shieldCircle { width: 48px; height: 48px; background: #dcfce7; color: #15803d; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+.statusBox { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+.badgeGreen { color: #15803d; font-weight: 700; }
+.securityTipCard { background: #1e3a8a; padding: 24px; border-radius: 12px; color: white; font-size: 13px; line-height: 1.6; text-align: left; margin-top: 24px; }
+.whiteLink { color: white; font-weight: 700; text-decoration: underline; display: flex; align-items: center; gap: 4px; margin-top: 12px; }
+
+/* Sticky Footer */
+.stickyFooter {
+  position: sticky; bottom: 0; background: white;
+  margin: 0 -24px -40px; padding: 20px 48px;
+  display: flex; justify-content: flex-end; gap: 16px;
+  border-top: 1px solid #e2e8f0; z-index: 10;
+}
+.textBtn { background: none; border: none; color: #64748b; font-weight: 600; cursor: pointer; }
+.textLink { background: none; border: none; color: #002294; font-weight: 700; font-size: 12px; cursor: pointer; text-decoration: underline; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .settingsGrid { grid-template-columns: 1fr; }
+  .sideColumn { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+}
+
+@media (max-width: 768px) {
+  .mainLayout { grid-template-columns: 1fr; }
+  .sideColumn { grid-template-columns: 1fr; }
+  .twoColGrid, .unitGrid, .toggleRow { grid-template-columns: 1fr; }
+}

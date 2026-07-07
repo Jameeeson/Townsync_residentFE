@@ -1,0 +1,281 @@
+.container {
+  padding: 40px;
+  background-color: #f8fafc;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  color: #1e293b;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header & Navigation */
+.navRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.breadcrumb {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.titleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+}
+
+.titleMain h1 {
+  font-size: 32px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 12px 0;
+}
+
+.badgeGroup {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+}
+
+.inProgress { background: #dcfce7; color: #15803d; }
+.urgent { background: #fee2e2; color: #b91c1c; }
+
+.actionGroup {
+  display: flex;
+  gap: 12px;
+}
+
+.btnPrimary {
+  background: #002c8b;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.btnSecondary {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Main Layout Grid */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 32px;
+}
+
+/* Detail Card Styling */
+.mainCard {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 24px;
+  background: #fcfdfe;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.metaItem label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.metaItem span {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.contentBody {
+  padding: 32px;
+}
+
+.contentBody h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #0f172a;
+}
+
+.description {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #475569;
+  margin-bottom: 32px;
+}
+
+.attachmentContainer {
+  width: 160px;
+  height: 160px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+/* AI Insights Reimagined */
+.aiInsightBox {
+  margin-top: 24px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  border-radius: 12px;
+  padding: 24px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.aiInsightBox::after {
+  content: '🤖';
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  font-size: 80px;
+  opacity: 0.1;
+}
+
+.aiHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 16px;
+}
+
+.aiGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.aiStatItem {
+  background: rgba(255,255,255,0.1);
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.aiStatLabel {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.aiStatValue {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Timeline Sidebar */
+.timelineCard {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.timelineTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.timelineItem {
+  position: relative;
+  padding-left: 32px;
+  padding-bottom: 32px;
+}
+
+.timelineItem:last-child { padding-bottom: 0; }
+
+.timelineItem::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: #f1f5f9;
+}
+
+.timelineItem:last-child::before { display: none; }
+
+.timelineDot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #cbd5e1;
+  z-index: 1;
+}
+
+.dotActive {
+  background: #1e3a8a;
+  border-color: #1e3a8a;
+  box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.1);
+}
+
+.timelineDate {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.timelineHeading {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.timelineText {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}

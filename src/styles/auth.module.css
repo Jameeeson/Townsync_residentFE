@@ -1,72 +1,175 @@
-.authShell {
+.page {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #0f172a;
 }
 
-.authCard {
-  width: min(100%, 560px);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow);
-  padding: 32px;
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.authStack {
-  display: grid;
-  gap: 18px;
+.cardHeader {
+  padding: 32px 32px 0;
+  text-align: center;
 }
 
-.authBadge {
+.icon {
   display: inline-flex;
-  width: fit-content;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--surface-muted);
-  color: var(--primary-strong);
-  font-size: 0.875rem;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  color: var(--primary);
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: #0f172a;
 }
 
-.authTitle {
+.subtitle {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 1.05;
+  font-size: 0.875rem;
+  color: #64748b;
 }
 
-.authCopy {
-  margin: 0;
-  color: var(--text-secondary);
-  max-width: 48ch;
-}
-
-.authForm {
+.form {
+  padding: 24px 32px;
   display: grid;
   gap: 16px;
-  margin-top: 8px;
 }
 
 .field {
   display: grid;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  color: var(--text-secondary);
-  font-size: 0.95rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fff;
 }
 
-.field input {
-  min-height: 48px;
-  padding: 0 14px;
-}
-
-.primaryButton {
-  min-height: 50px;
+.inputWrap input {
+  flex: 1;
   border: 0;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  border-radius: 0;
+  min-height: 40px;
+  padding: 0;
+  background: transparent;
+}
+
+.inputWrap input:focus {
+  outline: none;
+}
+
+.inputIcon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.togglePassword {
+  border: 0;
+  background: none;
+  color: #94a3b8;
+  padding: 4px;
+}
+
+.options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+}
+
+.forgotLink {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.forgotLink:hover {
+  text-decoration: underline;
+}
+
+.submitBtn {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--primary);
   color: #fff;
-  font-weight: 700;
+  font-weight: 600;
+}
+
+.submitBtn:hover {
+  background: var(--primary-strong);
+}
+
+.cardFooter {
+  padding: 16px 32px;
+  background: #f1f5f9;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.cardFooter a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.cardFooter a:hover {
+  text-decoration: underline;
+}
+
+.pageFooter {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.pageFooterLinks {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.pageFooterLinks a {
+  color: #94a3b8;
+  text-decoration: none;
+}
+
+.pageFooterLinks a:hover {
+  text-decoration: underline;
 }

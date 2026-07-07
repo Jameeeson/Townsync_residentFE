@@ -1,0 +1,282 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f6f8fc;
+  color: #10203a;
+}
+
+.header {
+  min-height: 100vh;
+  display: grid;
+  align-items: start;
+  position: relative;
+  background-image: url('/images/hero.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: #fff;
+}
+
+.header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.58), rgba(15, 23, 42, 0.58));
+}
+
+.header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 92px 24px 88px;
+  text-align: center;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.heroBadge {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(39, 83, 204, 0.1);
+  color: #2753cc;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  margin: 18px 0 14px;
+  font-size: clamp(2.4rem, 4vw, 4.2rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+
+.heroCopy {
+  max-width: 700px;
+  margin: 0 auto;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #2753cc 0%, #12349f 100%);
+  color: #fff;
+}
+
+.secondaryButton {
+  background: #fff;
+  color: #12349f;
+  border: 1px solid rgba(18, 52, 159, 0.16);
+}
+
+.main {
+  flex: 1;
+  display: grid;
+  gap: 32px;
+  padding: 48px 24px 80px;
+}
+
+.ecosystemSection {
+  padding: 80px 10%;
+  background-color: white;
+}
+
+.sectionTitle {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0a1d4a;
+  margin-bottom: 40px;
+}
+
+.ecosystemContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 50px; /* Slight overlap effect */
+}
+
+.qrCard {
+  background-color: #ebf2ff;
+  border-radius: 12px;
+  padding: 40px;
+  width: 90%;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #dbeafe;
+}
+
+.qrContent {
+  position: relative;
+  z-index: 2;
+  max-width: 600px;
+}
+
+.iconBlue { color: #2563eb; margin-bottom: 15px; }
+
+.qrCard h3 { font-size: 1.25rem; color: #1e293b; margin-bottom: 12px; }
+.qrCard p { font-size: 0.9rem; color: #475569; line-height: 1.6; }
+
+.tagRow { display: flex; gap: 10px; margin-top: 20px; }
+.tag {
+  background: white;
+  border: 1px solid #e2e8f0;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.shieldWatermark {
+  position: absolute;
+  right: -20px;
+  bottom: -40px;
+  color: white;
+  opacity: 0.5;
+}
+
+.loggingCard {
+  background-color: #1d4ed8;
+  color: white;
+  padding: 40px;
+  border-radius: 12px;
+  width: 85%;
+  align-self: flex-end;
+  margin-top: -30px; /* Pull it up to overlap/stagger */
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.loggingCard h3 { margin: 15px 0 10px; font-size: 1.25rem; }
+.loggingCard p { font-size: 0.95rem; opacity: 0.9; line-height: 1.6; }
+
+/* --- Dark Section --- */
+.darkSection {
+  background-image: linear-gradient(rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.9)), 
+                    url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80'); /* Replace with your geometric pattern image */
+  background-size: cover;
+  padding: 100px 10%;
+  text-align: left;
+}
+
+.darkTitle {
+  color: white;
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 60px;
+}
+
+.dataGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  max-width: 1000px;
+}
+
+.glassCard {
+  background: rgba(255, 255, 255, 0.85); /* Semi-transparent white */
+  padding: 35px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.glassIconWrapper {
+  background: #dbeafe;
+  color: #1e40af;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.glassCard h3 { font-size: 1rem; color: #0f172a; margin-bottom: 12px; }
+.glassCard p { font-size: 0.85rem; color: #475569; line-height: 1.6; }
+
+.centeredCard {
+  grid-column: 1 / span 2; /* Spans across both columns */
+  justify-self: center;
+  width: 60%;
+}
+
+/* --- Footer --- */
+.securityFooter {
+  padding: 30px 5%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.75rem;
+}
+
+.aboutFooter {
+  padding: 40px 8%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #e2e8f0;
+}
+
+.footerBrandSide p {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 5px;
+}
+
+.footerLinkSide {
+  display: flex;
+  gap: 20px;
+}
+
+.footerLinkSide a {
+  font-size: 0.75rem;
+  color: #1e293b;
+  text-decoration: none;
+  font-weight: 600;
+}
+@media (max-width: 768px) {
+  .qrCard, .loggingCard, .centeredCard { width: 100%; align-self: center; margin-top: 0; }
+  .dataGrid { grid-template-columns: 1fr; }
+  .securityFooter { flex-direction: column; gap: 15px; text-align: center; }
+}
+
+
+@media (max-width: 900px) {
+  .featureGrid,
+  .darkGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    padding-top: 64px;
+    padding-bottom: 60px;
+  }
+}

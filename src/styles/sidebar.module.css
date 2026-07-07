@@ -1,0 +1,159 @@
+/* 1. BASE SIDEBAR (DESKTOP) */
+.sidebar {
+  width: 260px;
+  height: 100vh;
+  background-color: #002c8b; /* Deep Navy from earlier designs */
+  color: white;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  padding: 24px;
+}
+
+/* 2. BRAND SECTION */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+
+.brandLogo {
+  width: 32px;
+  height: 32px;
+  background: white;
+  color: #002c8b;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.brandText {
+  font-weight: 700;
+  line-height: 1.2;
+  font-size: 15px;
+}
+
+.brandText span {
+  font-weight: 400;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* 3. NAVIGATION LINKS */
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.navLink:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.navLinkActive {
+  background: white !important;
+  color: #002c8b !important;
+  font-weight: 700;
+}
+
+/* 4. USER PROFILE SECTION */
+.user {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  background: #3b82f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.userName { font-size: 13px; font-weight: 700; }
+.userUnit { font-size: 11px; opacity: 0.7; }
+
+/* 5. MOBILE OVERRIDES */
+.mobileHeader {
+  display: none; /* Hidden on desktop */
+}
+
+.burgerBtn {
+  background: none;
+  border: none;
+  color: #002c8b;
+  cursor: pointer;
+  padding: 8px;
+}
+
+@media (max-width: 1023px) {
+  .mobileHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: white;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 1001;
+  }
+
+  .mobileBrand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    color: #002c8b;
+  }
+
+  /* Slide the sidebar out of view by default on mobile */
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: 20px 0 50px rgba(0,0,0,0.1);
+  }
+
+  /* Slide it in when state is open */
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+
+  .overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 999;
+  }
+}
