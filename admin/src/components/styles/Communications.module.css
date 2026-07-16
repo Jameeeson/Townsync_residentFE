@@ -1,0 +1,88 @@
+.container { width: 100%; color: #0f172a; margin: 0; }
+.header { margin-bottom: 2rem; }
+.titleArea h1 { font-size: 2rem; font-weight: 800; color: #0b1a2d; margin: 0; }
+.titleArea p { color: #64748b; font-size: 1rem; margin-top: 0.4rem; }
+
+/* Tabs */
+.tabNav { display: flex; gap: 2rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 2rem; }
+.tabNav button { background: none; border: none; padding: 1rem 0; color: #64748b; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; position: relative; }
+.activeTab { color: #2441b4 !important; }
+.activeTab::after { content: ""; position: absolute; bottom: -1px; left: 0; right: 0; height: 3px; background-color: #2441b4; }
+
+/* Stats */
+.statsGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+.statCard { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; min-height: 140px; }
+.statIconHeader { display: flex; justify-content: space-between; align-items: flex-start; }
+.statLabel { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 0; }
+.statValue { font-size: 2rem; font-weight: 700; margin-top: 0.5rem; }
+.iconBox { background: #eff6ff; padding: 8px; border-radius: 6px; }
+
+/* Layout */
+.mainGrid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+@media (min-width: 1024px) { .mainGrid { grid-template-columns: 1.8fr 1fr; } }
+
+.card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.cardHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.cardHeader h2 { font-size: 1.15rem; font-weight: 700; margin: 0; }
+.sidebar h3 { font-size: 1rem; margin-bottom: 1.25rem; }
+
+/* Forms & UI Elements */
+.formGroup { margin-bottom: 1.5rem; }
+.formGroup label { display: block; font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 0.5rem; }
+.formGroup input { width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; font-size: 0.95rem; }
+
+.editor { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.toolbar { background: #f8fafc; padding: 8px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 12px; color: #64748b; }
+.editor textarea { width: 100%; border: none; padding: 1rem; font-family: inherit; resize: vertical; }
+
+.dropzone { border: 1px dashed #cbd5e1; background: #f1f5f9; padding: 2rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #64748b; font-size: 0.9rem; margin-top: 1rem; }
+.textLink { background: none; border: none; color: #2441b4; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+.selectBox { position: relative; display: flex; align-items: center; }
+.selectBox select { width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; appearance: none; background: white; }
+.selectBox svg { position: absolute; right: 12px; color: #64748b; }
+
+.iconInput { position: relative; display: flex; align-items: center; }
+.iconInput svg { position: absolute; left: 12px; color: #64748b; }
+.iconInput input { width: 100%; padding: 0.75rem 0.75rem 0.75rem 2.5rem; border: 1px solid #e2e8f0; border-radius: 8px; }
+
+.checkbox { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; margin-bottom: 1rem; }
+.urgentBanner { background: #fff1f2; padding: 1rem; border-radius: 8px; margin: 1.5rem 0; color: #dc2626; font-weight: 700; }
+
+.primaryBtn { width: 100%; padding: 0.85rem; background: #2441b4; color: white; border: none; border-radius: 8px; font-weight: 700; margin-bottom: 0.75rem; cursor: pointer; }
+.secondaryBtn { width: 100%; padding: 0.85rem; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 700; cursor: pointer; }
+
+/* AI Table & Content */
+.tableWrapper { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; text-align: left; }
+.table th { padding: 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 700; }
+.table td { padding: 1.25rem 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; }
+
+.userCell { display: flex; align-items: center; gap: 12px; }
+.avatarSmall { width: 36px; height: 36px; background: #dbeafe; color: #1e40af; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 0.7rem; flex-shrink: 0; }
+.userCell span { display: block; font-size: 0.75rem; color: #64748b; }
+
+.confidenceRow { display: flex; align-items: center; gap: 12px; min-width: 120px; }
+.confidenceBarBase { flex: 1; height: 6px; background: #f1f5f9; border-radius: 3px; }
+.confidenceBarFill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+.confidenceRow span { font-weight: 700; font-size: 0.8rem; min-width: 32px; }
+
+.loadMoreBtn { width: 100%; padding: 1rem; background: none; border: none; color: #2441b4; font-weight: 700; cursor: pointer; margin-top: 1rem; }
+
+/* Widgets */
+.chartMock { display: flex; align-items: flex-end; gap: 12px; height: 140px; margin-bottom: 1rem; }
+.bar { flex: 1; background: #2441b4; border-radius: 4px 4px 0 0; }
+.chartLabels { display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; }
+
+.tagCloud { display: flex; flex-wrap: wrap; gap: 8px; }
+.tagGreen { background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.tagBlue { background: #eff6ff; color: #1e40af; padding: 6px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.tagRed { background: #fff1f2; color: #991b1b; padding: 6px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.tagMuted { background: #f1f5f9; color: #64748b; padding: 6px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+
+/* Subtext & Trends */
+.subTrend { color: #10b981; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px; margin-top: 0.5rem; }
+.subTrendDanger { color: #dc2626; font-size: 0.8rem; font-weight: 600; margin-top: 0.5rem; font-style: italic; }
+.progressBase { height: 6px; background: #f1f5f9; border-radius: 3px; margin-top: 1rem; }
+.progressBar { height: 100%; border-radius: 3px; }
+.subText { font-size: 0.85rem; color: #64748b; font-weight: 400; }
