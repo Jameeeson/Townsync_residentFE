@@ -1,0 +1,246 @@
+.page {
+  display: grid;
+  gap: 1.35rem;
+}
+
+.header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  color: var(--navy-900);
+  letter-spacing: -0.03em;
+}
+
+.kicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--navy-600);
+  margin-bottom: 0.35rem;
+}
+
+.lede {
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.profileCard {
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.photoWrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 1rem;
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: #fff;
+  background:
+    linear-gradient(145deg, rgba(12, 31, 61, 0.2), rgba(12, 31, 61, 0.55)),
+    linear-gradient(145deg, #5b7db5, #1a3d6e);
+}
+
+.editPhoto {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--navy-600);
+  border: 2px solid #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.profileCard h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--navy-900);
+  letter-spacing: -0.02em;
+}
+
+.shiftId {
+  display: inline-flex;
+  margin-top: 0.55rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--navy-50);
+  color: var(--navy-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.role {
+  margin-top: 0.65rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.panels {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.sectionTitle {
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--navy-800);
+  margin-bottom: 0.55rem;
+  padding-left: 0.2rem;
+}
+
+.card {
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.row,
+.linkRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 1rem;
+  text-align: left;
+  background: transparent;
+  border-bottom: 1px solid var(--line-soft);
+  transition: background 0.2s var(--ease);
+}
+
+.row:last-child,
+.linkRow:last-child {
+  border-bottom: none;
+}
+
+.linkRow:hover,
+.row:hover {
+  background: var(--surface-tint);
+}
+
+.rowIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--navy-700);
+  background: var(--navy-50);
+  flex-shrink: 0;
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.rowText strong {
+  color: var(--navy-900);
+  font-size: 0.95rem;
+}
+
+.rowText span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.chevron {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.toggle {
+  width: 52px;
+  height: 32px;
+  min-width: 52px;
+  min-height: 32px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  padding: 3px;
+  transition: background 0.2s var(--ease);
+  flex-shrink: 0;
+}
+
+.toggle span {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s var(--ease);
+}
+
+.toggleOn {
+  background: var(--navy-600);
+}
+
+.toggleOn span {
+  transform: translateX(20px);
+}
+
+.linkRow {
+  min-height: 64px;
+}
+
+.logout {
+  height: 50px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: #fff;
+  font-weight: 750;
+  box-shadow: 0 10px 22px rgba(185, 28, 28, 0.25);
+  transition: filter 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.logout:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.version {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

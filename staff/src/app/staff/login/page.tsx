@@ -1,0 +1,219 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  IconAlert,
+  IconArrowRight,
+  IconEye,
+  IconEyeOff,
+  IconHeadset,
+  IconLock,
+  IconShieldUser,
+  IconUser,
+} from "@/components/icons";
+import styles from "./login.module.css";
+
+export default function StaffLoginPage() {
+  const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+
+    const form = new FormData(e.currentTarget);
+    const identity = String(form.get("identity") ?? "").trim();
+    const password = String(form.get("password") ?? "");
+
+    if (!identity) {
+      setError("Enter your employee ID or work email.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setLoading(true);
+    window.setTimeout(() => {
+      // Frontend-only gate: demo credentials for local preview.
+      const ok =
+        (identity.toLowerCase() === "id-8842" ||
+          identity.toLowerCase() === "james.rivera@townsync.local") &&
+        password === "staff123";
+
+      if (!ok) {
+        setLoading(false);
+        setError(
+          "Invalid credentials. Use id-8842 / staff123 for this frontend preview.",
+        );
+        return;
+      }
+
+      try {
+        window.sessionStorage.setItem(
+          "townsync.staff.previewSession",
+          JSON.stringify({ identity, at: Date.now() }),
+        );
+      } catch {
+        /* sessionStorage may be unavailable */
+      }
+      router.push("/staff/dashboard");
+    }, 700);
+  }
+
+  function showSoon(label: string) {
+    setNotice(`${label} will be available when account services are connected.`);
+    setError(null);
+  }
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.visual} aria-hidden>
+        <div className={styles.visualOverlay} />
+        <div className={styles.visualContent}>
+          <p className={styles.visualEyebrow}>TownSync Property Management</p>
+          <h1 className={styles.visualTitle}>
+            Secure operations
+            <br />
+            for every community
+          </h1>
+          <p className={styles.visualCopy}>
+            Gate access, maintenance, and visitor control — unified for on-site
+            staff.
+          </p>
+          <ul className={styles.visualList}>
+            <li>Live gate scanner & visitor verification</li>
+            <li>Shift tasks with priority routing</li>
+            <li>Role-based staff portal access</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className={styles.panel}>
+        <div className={styles.cardWrap}>
+          <div className={styles.mobileBrand}>
+            <span className={styles.mobileMark}>TS</span>
+            <strong>TownSync</strong>
+          </div>
+
+          <form className={styles.card} onSubmit={onSubmit} noValidate>
+            <div className={styles.logo}>
+              <IconShieldUser size={28} />
+            </div>
+            <h2 className={styles.title}>Staff Portal</h2>
+            <p className={styles.subtitle}>Management and Operations Access</p>
+
+            <div className={styles.warning} role="status">
+              <IconAlert size={16} />
+              <span>Restricted access: authorized personnel only</span>
+            </div>
+
+            <label className={styles.field}>
+              <span>Employee ID or Work Email</span>
+              <div className={styles.inputWrap}>
+                <IconUser size={18} className={styles.inputIcon} />
+                <input
+                  name="identity"
+                  type="text"
+                  placeholder="id-8842"
+                  autoComplete="username"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "login-error" : undefined}
+                  required
+                />
+              </div>
+            </label>
+
+            <label className={styles.field}>
+              <span>Password</span>
+              <div className={styles.inputWrap}>
+                <IconLock size={18} className={styles.inputIcon} />
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  aria-invalid={Boolean(error)}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  className={styles.eyeBtn}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((v) => !v)}
+                >
+                  {showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                </button>
+              </div>
+            </label>
+
+            {error ? (
+              <p id="login-error" className={styles.error} role="alert">
+                {error}
+              </p>
+            ) : null}
+            {notice ? (
+              <p className={styles.notice} role="status">
+                {notice}
+              </p>
+            ) : null}
+
+            <div className={styles.forgotRow}>
+              <button
+                type="button"
+                className={styles.textLink}
+                onClick={() => showSoon("Password recovery")}
+              >
+                Forgot Password?
+              </button>
+            </div>
+
+            <button type="submit" className={styles.submit} disabled={loading}>
+              {loading ? (
+                <span className={styles.spinner} aria-hidden />
+              ) : null}
+              <span>{loading ? "Signing in…" : "Sign In"}</span>
+              {!loading ? <IconArrowRight size={18} /> : null}
+            </button>
+
+            <p className={styles.demoHint}>
+              Preview: <code>id-8842</code> / <code>staff123</code>
+            </p>
+          </form>
+
+          <footer className={styles.footer}>
+            <p>© 2026 TownSync Property Management. All rights reserved.</p>
+            <p>System v4.2.1-stable · Node: SG-PROD-01</p>
+            <div className={styles.footerLinks}>
+              <button
+                type="button"
+                className={styles.footerBtn}
+                onClick={() => showSoon("Administrator contact")}
+              >
+                <IconHeadset size={14} /> Contact Administrator
+              </button>
+              <span aria-hidden>·</span>
+              <button
+                type="button"
+                className={styles.footerBtn}
+                onClick={() =>
+                  setNotice("Portal status: Online (frontend preview).")
+                }
+              >
+                Portal Status
+              </button>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </div>
+  );
+}

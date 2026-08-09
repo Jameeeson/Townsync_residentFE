@@ -1,0 +1,68 @@
+.region {
+  position: fixed;
+  z-index: 120;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  gap: 0.55rem;
+  width: min(100% - 2rem, 360px);
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-lg);
+  animation: fade-up 0.28s var(--ease) both;
+}
+
+.toast p {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.info {
+  border-left: 4px solid var(--navy-500);
+}
+
+.success {
+  border-left: 4px solid var(--success);
+}
+
+.warning {
+  border-left: 4px solid var(--warning);
+}
+
+.danger {
+  border-left: 4px solid var(--danger);
+}
+
+.dismiss {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.dismiss:hover {
+  background: var(--navy-50);
+  color: var(--navy-800);
+}
+
+@media (max-width: 960px) {
+  .region {
+    bottom: 5.5rem;
+  }
+}
