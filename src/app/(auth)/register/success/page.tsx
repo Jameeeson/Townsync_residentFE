@@ -29,8 +29,8 @@ export default function RegisterSuccessPage() {
         </div>
         <h1 className={styles.successTitle}>Request Submitted</h1>
         <p className={styles.successText}>
-          Your access request has been sent to the property administration. You will receive an
-          email with your login credentials once verified.
+          Your access request has been sent to the property administration. You can log in with the
+          password you created once your account is approved.
         </p>
         <Link className={styles.btnPrimary} href="/login" style={{ width: "100%" }}>
           Return to Login

@@ -1,38 +1,75 @@
 "use client";
-import React from 'react';
+
+import React from "react";
 import styles from "@/styles/SuccessModal.module.css";
-import { Check, Download, Landmark, X } from "lucide-react";
+import { Check, Download, Landmark } from "lucide-react";
+
+type PaymentData = {
+  date: string;
+  description: string;
+  inv: string;
+  amount: string;
+  status: string;
+};
 
 interface SuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
-  data: any;
+  data: PaymentData;
 }
 
 export default function SuccessModal({ isOpen, onClose, data }: SuccessModalProps) {
   if (!isOpen) return null;
 
+  const isPaid = data.status === "Paid";
+  const title = isPaid ? "Payment Receipt" : "Invoice Details";
+  const subtitle = isPaid
+    ? "Thank you for your timely payment."
+    : `${data.status} balance — pay at the admin office or online when available.`;
+
+  function downloadReceipt() {
+    const content = [
+      "TownSync Official Receipt",
+      `Invoice: ${data.inv}`,
+      `Description: ${data.description}`,
+      `Date: ${data.date}`,
+      `Amount: ${data.amount}`,
+      `Status: ${data.status}`,
+      "",
+      "Breakdown",
+      "Monthly HOA Dues: ₱ 1,200.00",
+      "Water & Sewage: ₱ 150.00",
+      "Trash Disposal: ₱ 100.00",
+    ].join("\n");
+
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${data.inv.replace(/\s+/g, "-").toLowerCase()}-receipt.txt`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        {/* Blue Header Section */}
         <div className={styles.blueHeader}>
           <div className={styles.successIcon}>
             <Check size={32} strokeWidth={3} />
           </div>
-          <h2 className={styles.title}>Payment Successful</h2>
-          <p className={styles.subtitle}>Thank you for your timely payment, John.</p>
+          <h2 className={styles.title}>{title}</h2>
+          <p className={styles.subtitle}>{subtitle}</p>
         </div>
 
-        {/* Receipt Content Section */}
         <div className={styles.content}>
           <div className={styles.mainInfo}>
             <div>
-              <label>DATE PAID</label>
+              <label>{isPaid ? "DATE PAID" : "INVOICE DATE"}</label>
               <p>{data.date}</p>
             </div>
             <div className={styles.textRight}>
-              <label>AMOUNT PAID</label>
+              <label>{isPaid ? "AMOUNT PAID" : "AMOUNT DUE"}</label>
               <p className={styles.amountPaid}>{data.amount}</p>
             </div>
           </div>
@@ -62,16 +99,15 @@ export default function SuccessModal({ isOpen, onClose, data }: SuccessModalProp
             <span>{data.amount}</span>
           </div>
 
-          <button className={styles.downloadBtn}>
+          <button type="button" className={styles.downloadBtn} onClick={downloadReceipt}>
             <Download size={18} /> Download PDF Receipt
           </button>
 
-          <button className={styles.closeTextBtn} onClick={onClose}>
+          <button type="button" className={styles.closeTextBtn} onClick={onClose}>
             Close Receipt
           </button>
         </div>
 
-        {/* Footer Brand */}
         <footer className={styles.footer}>
           <Landmark size={14} /> Official TownSync Documentation
         </footer>

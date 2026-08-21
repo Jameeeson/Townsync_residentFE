@@ -89,10 +89,10 @@ export default function Home() {
             </div>
           </div>
           <div className={styles.footerLinks}>
-            <a href="#">Contact Management</a>
-            <a href="#">Help Center</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">Privacy Policy</a>
+            <a href="/support">Contact Management</a>
+            <a href="/support">Help Center</a>
+            <a href="/terms">Terms of Service</a>
+            <a href="/privacy">Privacy Policy</a>
           </div>
         </div>
       </footer>

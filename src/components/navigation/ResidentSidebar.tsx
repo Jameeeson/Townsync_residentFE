@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,6 +13,8 @@ import {
   Wrench,
 } from "lucide-react";
 import styles from "@/styles/dashboard.module.css";
+import { fetchMe } from "@/lib/api/auth";
+import { getAccessToken } from "@/lib/apiClient";
 
 const navItems = [
   { href: "/resident", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -25,6 +27,26 @@ const navItems = [
 export function ResidentSidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [fullName, setFullName] = useState("Resident");
+  const [unit, setUnit] = useState("—");
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await fetchMe();
+        if (cancelled) return;
+        setFullName(me.full_name || me.email || "Resident");
+        setUnit(me.unit_number || "—");
+      } catch {
+        // keep defaults when unauthenticated / API down
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <>
@@ -71,13 +93,18 @@ export function ResidentSidebar() {
           })}
         </nav>
 
-        <div className={styles.user}>
+        <Link
+          href="/resident/settings"
+          className={styles.user}
+          onClick={() => setMobileOpen(false)}
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
           <div className={styles.avatar} />
           <div className={styles.userInfo}>
-            <div className={styles.userName}>John Smith</div>
-            <div className={styles.userUnit}>Unit 42</div>
+            <div className={styles.userName}>{fullName}</div>
+            <div className={styles.userUnit}>{unit}</div>
           </div>
-        </div>
+        </Link>
       </aside>
     </>
   );

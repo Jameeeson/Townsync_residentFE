@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, Search } from "lucide-react";
 import { RegisterShell } from "@/components/register/RegisterShell";
+import { ApiClientError } from "@/lib/apiClient";
+import { registerResident } from "@/lib/api/auth";
 import { getRegisterData, saveRegisterData } from "@/lib/registerStorage";
 import styles from "@/styles/register.module.css";
 
@@ -16,7 +18,11 @@ export default function RegisterDetailsPage() {
     idType: "National ID",
     email: "",
     unit: "",
+    password: "",
+    confirmPassword: "",
   });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const data = getRegisterData();
@@ -29,29 +35,75 @@ export default function RegisterDetailsPage() {
       return;
     }
 
-    setForm({
+    setForm((prev) => ({
+      ...prev,
       fullName: data.fullName,
       idNumber: data.idNumber,
       idType: data.idType || "National ID",
       email: data.email,
       unit: data.unit,
-    });
+    }));
   }, [router]);
 
   function updateField(key: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    saveRegisterData(form);
-    router.push("/register/success");
+    setError("");
+
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    saveRegisterData({
+      fullName: form.fullName,
+      idNumber: form.idNumber,
+      idType: form.idType,
+      email: form.email,
+      unit: form.unit,
+    });
+
+    try {
+      await registerResident({
+        name: form.fullName,
+        email: form.email,
+        id_type: form.idType,
+        id_number: form.idNumber,
+        address: form.unit,
+        password: form.password,
+      });
+      router.push("/register/success");
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Registration failed.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <RegisterShell showHeading title="Register">
       <form className={styles.card} onSubmit={handleSubmit}>
         <h2 className={styles.cardTitle}>Extracted Information</h2>
+
+        {error ? (
+          <p style={{ color: "#b91c1c", fontSize: 14, marginBottom: 12 }} role="alert">
+            {error}
+          </p>
+        ) : null}
 
         <div className={styles.field}>
           <label htmlFor="fullName">Full Name</label>
@@ -109,13 +161,41 @@ export default function RegisterDetailsPage() {
           </div>
         </div>
 
+        <div className={styles.field}>
+          <label htmlFor="password">Create Password</label>
+          <input
+            id="password"
+            type="password"
+            value={form.password}
+            onChange={(e) => updateField("password", e.target.value)}
+            placeholder="At least 8 characters"
+            minLength={8}
+            required
+            autoComplete="new-password"
+          />
+        </div>
+
+        <div className={styles.field}>
+          <label htmlFor="confirmPassword">Confirm Password</label>
+          <input
+            id="confirmPassword"
+            type="password"
+            value={form.confirmPassword}
+            onChange={(e) => updateField("confirmPassword", e.target.value)}
+            placeholder="Re-enter password"
+            minLength={8}
+            required
+            autoComplete="new-password"
+          />
+        </div>
+
         <div className={styles.actions}>
           <Link className={styles.btnSecondary} href="/register/scan">
             Cancel
           </Link>
-          <button className={styles.btnPrimary} type="submit">
-            Next Step
-            <ArrowRight size={16} />
+          <button className={styles.btnPrimary} type="submit" disabled={loading}>
+            {loading ? "Submitting…" : "Submit Application"}
+            {!loading ? <ArrowRight size={16} /> : null}
           </button>
         </div>
       </form>

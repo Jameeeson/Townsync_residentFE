@@ -98,10 +98,10 @@ export default function AboutPage() {
           <p>© 2024 TownSync Property Management. All rights reserved.</p>
         </div>
         <div className={styles.footerLinkSide}>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Terms of Service</a>
-          <a href="#">Cookie Policy</a>
-          <a href="#">Support</a>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Service</a>
+          <a href="/cookies">Cookie Policy</a>
+          <a href="/support">Support</a>
         </div>
       </footer>
       </section>

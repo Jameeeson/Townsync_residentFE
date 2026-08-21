@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Bell, ChevronDown, X } from "lucide-react";
 import styles from "@/styles/dashboard.module.css";
@@ -60,9 +61,13 @@ export function ResidentHeader() {
           <ChevronDown size={14} className={open ? styles.chevronOpen : styles.chevron} />
         </button>
 
-        <button type="button" className={styles.profileButton} aria-label="Resident profile">
+        <Link
+          href="/resident/settings"
+          className={styles.profileButton}
+          aria-label="Open account settings"
+        >
           <span className={styles.profileAvatar}>JS</span>
-        </button>
+        </Link>
 
         <aside className={`${styles.announcementPanel} ${open ? styles.announcementPanelOpen : ""}`} aria-live="polite">
           <div className={styles.announcementPanelHeader}>

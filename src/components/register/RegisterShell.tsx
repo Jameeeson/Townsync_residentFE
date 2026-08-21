@@ -41,9 +41,9 @@ export function RegisterShell({
       <footer className={styles.footer}>
         <span>© 2026 TownSync Property Management. All rights reserved.</span>
         <div className={styles.footerLinks}>
-          <Link href="#">Privacy Policy</Link>
-          <Link href="#">Terms of Service</Link>
-          <Link href="#">Contact Support</Link>
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/terms">Terms of Service</Link>
+          <Link href="/support">Contact Support</Link>
         </div>
       </footer>
     </div>

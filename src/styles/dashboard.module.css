@@ -192,6 +192,9 @@
   border: 0;
   background: transparent;
   padding: 0;
+  display: inline-flex;
+  cursor: pointer;
+  text-decoration: none;
 }
 
 .profileAvatar {

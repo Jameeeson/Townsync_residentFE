@@ -1,53 +1,53 @@
 "use client";
-import React, { useState } from 'react';
-import styles from "@/styles/history.module.css";
-import { 
-  Calendar, Wind, Droplets, Battery, 
-  CheckCircle, Users, ArrowLeft 
-} from "lucide-react";
 
-interface MaintenanceTicket {
-  id: string;
-  title: string;
-  status: string;
-  category: string;
-  date: string;
-  priority: string;
-  vendor: string;
-  desc: string;
-  icon: React.ReactNode;
-}
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import styles from "@/styles/history.module.css";
+import { Calendar, Wrench, ArrowLeft } from "lucide-react";
+import { ApiClientError } from "@/lib/apiClient";
+import { MaintenanceTicket, listMaintenanceTickets } from "@/lib/api/resident";
 
 export default function HistoryPage() {
+  const [tickets, setTickets] = useState<MaintenanceTicket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<MaintenanceTicket | null>(null);
+  const [filter, setFilter] = useState<"all" | "completed">("all");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const tickets: MaintenanceTicket[] = [
-    {
-      id: "REQ-2023-084",
-      title: "AC Unit Leaking",
-      status: "In Progress",
-      category: "HVAC",
-      date: "Oct 12, 2023",
-      priority: "High Priority",
-      vendor: "Mike's HVAC Co.",
-      desc: "The air conditioning unit in the master bedroom has started leaking water down the wall. It happens after an hour of use.",
-      icon: <Wind size={12} />
-    },
-    {
-      id: "REQ-2023-071",
-      title: "Kitchen Sink Slow Drain",
-      status: "Pending",
-      category: "Plumbing",
-      date: "Oct 08, 2023",
-      priority: "Medium",
-      vendor: "TBD",
-      desc: "The kitchen sink is taking a very long time to drain. Possible clog in the main pipe.",
-      icon: <Droplets size={12} />
-    }
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await listMaintenanceTickets();
+        if (!cancelled) setTickets(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiClientError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "Failed to load tickets."
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  // Logic: On Desktop, show first ticket by default. On Mobile, show nothing until clicked.
-  const activeTicket = selectedTicket || tickets[0];
+  const filtered =
+    filter === "completed"
+      ? tickets.filter((t) => t.status === "Completed")
+      : tickets;
+
+  const activeTicket =
+    selectedTicket && filtered.some((t) => t.id === selectedTicket.id)
+      ? selectedTicket
+      : filtered[0] ?? null;
 
   return (
     <div className={styles.container}>
@@ -57,91 +57,148 @@ export default function HistoryPage() {
       </div>
 
       <nav className={styles.tabs}>
-        <a className={styles.tab} href="/resident/maintenance">Current Support</a>
+        <Link className={styles.tab} href="/resident/maintenance">
+          Current Support
+        </Link>
         <div className={`${styles.tab} ${styles.activeTab}`}>Maintenance History</div>
       </nav>
 
+      {error ? <p style={{ color: "#b91c1c" }}>{error}</p> : null}
+      {loading ? <p>Loading tickets…</p> : null}
+
       <div className={styles.mainLayout}>
-        {/* Sidebar - Hidden on mobile when a ticket is open */}
         <aside className={`${styles.sidebar} ${selectedTicket ? styles.sidebarHidden : ""}`}>
           <div className={styles.filters}>
-            <button className={`${styles.filterBtn} ${styles.filterBtnActive}`}>All</button>
-            <button className={styles.filterBtn}>Completed</button>
+            <button
+              type="button"
+              className={`${styles.filterBtn} ${filter === "all" ? styles.filterBtnActive : ""}`}
+              onClick={() => {
+                setFilter("all");
+                setSelectedTicket(null);
+              }}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`${styles.filterBtn} ${
+                filter === "completed" ? styles.filterBtnActive : ""
+              }`}
+              onClick={() => {
+                setFilter("completed");
+                setSelectedTicket(null);
+              }}
+            >
+              Completed
+            </button>
           </div>
 
           <div className={styles.requestList}>
-            {tickets.map((ticket) => (
-              <div 
+            {filtered.map((ticket) => (
+              <div
                 key={ticket.id}
-                className={`${styles.requestCard} ${activeTicket.id === ticket.id ? styles.requestCardActive : ""}`}
+                className={`${styles.requestCard} ${
+                  activeTicket?.id === ticket.id ? styles.requestCardActive : ""
+                }`}
                 onClick={() => setSelectedTicket(ticket)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") setSelectedTicket(ticket);
+                }}
+                role="button"
+                tabIndex={0}
               >
                 <div className={styles.cardHeader}>
-                  <span className={styles.requestId}>{ticket.id}</span>
-                  <span className={`${styles.badge} ${ticket.status === 'In Progress' ? styles.inProgress : styles.pending}`}>
+                  <span className={styles.requestId}>#{ticket.id}</span>
+                  <span
+                    className={`${styles.badge} ${
+                      ticket.status === "In Progress"
+                        ? styles.inProgress
+                        : ticket.status === "Completed"
+                          ? styles.inProgress
+                          : styles.pending
+                    }`}
+                  >
                     • {ticket.status}
                   </span>
                 </div>
-                <div className={styles.cardTitle}>{ticket.title}</div>
+                <div className={styles.cardTitle}>{ticket.subject}</div>
                 <div className={styles.cardMeta}>
-                  <span><Calendar size={12} /> {ticket.date}</span>
-                  <span>{ticket.icon} {ticket.category}</span>
+                  <span>
+                    <Calendar size={12} /> {ticket.created_at}
+                  </span>
+                  <span>
+                    <Wrench size={12} /> {ticket.category}
+                  </span>
                 </div>
               </div>
             ))}
+            {!loading && filtered.length === 0 ? (
+              <p style={{ padding: 16, color: "#64748b", fontSize: 14 }}>
+                No tickets yet.
+              </p>
+            ) : null}
           </div>
         </aside>
 
-        {/* Detail View - Fixed overlay on mobile when open */}
-        <main className={`${styles.detailView} ${selectedTicket ? styles.detailViewOpen : ""}`}>
-          
-          {/* Back Button - Only functional/visible on Mobile */}
-          <button className={styles.mobileBackButton} onClick={() => setSelectedTicket(null)}>
-            <ArrowLeft size={18} /> Back to Requests
-          </button>
+        {activeTicket ? (
+          <main
+            className={`${styles.detailView} ${selectedTicket ? styles.detailViewOpen : ""}`}
+          >
+            <button
+              type="button"
+              className={styles.mobileBackButton}
+              onClick={() => setSelectedTicket(null)}
+            >
+              <ArrowLeft size={18} /> Back to Requests
+            </button>
 
-          <div className={styles.detailHeader}>
-            <h2 style={{ fontSize: '24px', fontWeight: 800 }}>{activeTicket.title}</h2>
-            <span className={`${styles.badge} ${styles.inProgress}`} style={{ padding: '6px 12px' }}>
-              • {activeTicket.status}
-            </span>
-          </div>
-          <div className={styles.detailTicket}>Ticket #{activeTicket.id}</div>
+            <div className={styles.detailHeader}>
+              <h2 style={{ fontSize: "24px", fontWeight: 800 }}>{activeTicket.subject}</h2>
+              <span
+                className={`${styles.badge} ${styles.inProgress}`}
+                style={{ padding: "6px 12px" }}
+              >
+                • {activeTicket.status}
+              </span>
+            </div>
+            <div className={styles.detailTicket}>Ticket #{activeTicket.id}</div>
 
-          <div className={styles.infoGrid}>
-            <div>
-              <div className={styles.infoLabel}>Submitted</div>
-              <div className={styles.infoValue}>{activeTicket.date}</div>
-            </div>
-            <div>
-              <div className={styles.infoLabel}>Category</div>
-              <div className={styles.infoValue}>{activeTicket.category}</div>
-            </div>
-            <div>
-              <div className={styles.infoLabel}>Priority</div>
-              <div className={styles.infoValue} style={{ color: '#9a3412' }}>{activeTicket.priority}</div>
-            </div>
-            <div>
-              <div className={styles.infoLabel}>Vendor</div>
-              <div className={styles.infoValue}>{activeTicket.vendor}</div>
-            </div>
-          </div>
-
-          <div className={styles.descriptionSection}>
-            <h4>Description</h4>
-            <p className={styles.descriptionText}>{activeTicket.desc}</p>
-          </div>
-
-          <div className={styles.timelineSection}>
-            <h3 className={styles.timelineTitle}>Activity</h3>
-            <div className={styles.timelineItem}>
-              <div className={styles.timelineIcon}><Users size={20} /></div>
-              <div className={styles.timelineCard}>
-                <p style={{ fontSize: '13px', margin: 0 }}>Vendor assigned to the task.</p>
+            <div className={styles.infoGrid}>
+              <div>
+                <div className={styles.infoLabel}>Submitted</div>
+                <div className={styles.infoValue}>{activeTicket.created_at}</div>
+              </div>
+              <div>
+                <div className={styles.infoLabel}>Category</div>
+                <div className={styles.infoValue}>{activeTicket.category}</div>
+              </div>
+              <div>
+                <div className={styles.infoLabel}>Priority</div>
+                <div className={styles.infoValue} style={{ color: "#9a3412" }}>
+                  {activeTicket.priority_level}
+                </div>
+              </div>
+              <div>
+                <div className={styles.infoLabel}>Status</div>
+                <div className={styles.infoValue}>{activeTicket.status}</div>
               </div>
             </div>
-          </div>
-        </main>
+
+            <div className={styles.descriptionSection}>
+              <h4>Description</h4>
+              <p className={styles.descriptionText}>{activeTicket.detailed_description}</p>
+            </div>
+
+            <div style={{ marginTop: 24 }}>
+              <Link
+                href={`/resident/maintenance/ticket?id=${activeTicket.id}`}
+                style={{ color: "#1e3a8a", fontWeight: 600, fontSize: 14 }}
+              >
+                Open full ticket details →
+              </Link>
+            </div>
+          </main>
+        ) : null}
       </div>
     </div>
   );

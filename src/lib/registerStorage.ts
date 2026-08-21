@@ -7,6 +7,7 @@ export interface RegisterData {
   idType: string;
   email: string;
   unit: string;
+  password: string;
 }
 
 const STORAGE_KEY = "townsync_register_data";
@@ -18,6 +19,7 @@ export const emptyRegisterData = (): RegisterData => ({
   idType: "National ID",
   email: "",
   unit: "",
+  password: "",
 });
 
 export function getRegisterData(): RegisterData {

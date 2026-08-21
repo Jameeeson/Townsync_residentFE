@@ -190,6 +190,9 @@
   font-size: 14px;
   resize: none;
   min-height: 48px;
+  font: inherit;
+  color: inherit;
+  outline: none;
 }
 
 .sendBtn {

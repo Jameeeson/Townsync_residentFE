@@ -107,10 +107,10 @@ export default function SecurityPage() {
            <Shield size={18} fill="#0a1d4a"/> TownSync
         </div>
         <div className={styles.footerLinks}>
-           <a href="#">Privacy Policy</a>
-           <a href="#">Terms of Service</a>
-           <a href="#">Cookie Policy</a>
-           <a href="#">Support</a>
+           <a href="/privacy">Privacy Policy</a>
+           <a href="/terms">Terms of Service</a>
+           <a href="/cookies">Cookie Policy</a>
+           <a href="/support">Support</a>
         </div>
         <div className={styles.footerCopyright}>
            © 2024 TownSync Property Management. All rights reserved.

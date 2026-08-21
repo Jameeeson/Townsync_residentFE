@@ -1,5 +1,4 @@
-const DEFAULT_API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
+import { getBackendUrl } from "@/lib/config";
 
 const ACCESS_TOKEN_STORAGE_KEY = "townsync_access_token";
 
@@ -30,7 +29,7 @@ export class ApiClientError extends Error {
 
 export interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers"> {
   accessToken?: string;
-  body?: BodyInit | Record<string, unknown> | null;
+  body?: BodyInit | Record<string, unknown> | object | null;
   headers?: HeadersInit;
 }
 
@@ -40,12 +39,42 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && Object.getPrototypeOf(value) === Object.prototype;
 }
 
+function shouldJsonSerialize(body: ApiRequestOptions["body"]): body is object {
+  if (body == null) return false;
+  if (typeof FormData !== "undefined" && body instanceof FormData) return false;
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) return false;
+  if (typeof Blob !== "undefined" && body instanceof Blob) return false;
+  if (typeof ArrayBuffer !== "undefined" && body instanceof ArrayBuffer) return false;
+  return typeof body === "object";
+}
+
 function normalizeBaseUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
 
-  return `${DEFAULT_API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const base = getBackendUrl();
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export function formatApiErrorDetail(payload: FastApiErrorPayload | null, fallback: string): string {
+  if (!payload) {
+    return fallback;
+  }
+
+  if (typeof payload.detail === "string") {
+    return payload.detail;
+  }
+
+  if (Array.isArray(payload.detail)) {
+    return payload.detail.map((item) => item.msg).filter(Boolean).join("; ") || fallback;
+  }
+
+  if (typeof payload.message === "string") {
+    return payload.message;
+  }
+
+  return fallback;
 }
 
 export function getAccessToken(): string | null {
@@ -76,11 +105,27 @@ function resolveAccessToken(explicitToken: string | undefined): string | null {
   return explicitToken ?? getAccessToken();
 }
 
-function buildHeaders(headers: HeadersInit | undefined, accessToken: string | null, hasJsonBody: boolean): Headers {
+function buildHeaders(
+  headers: HeadersInit | undefined,
+  accessToken: string | null,
+  body: ApiRequestOptions["body"]
+): Headers {
   const requestHeaders = new Headers(headers);
+  const hasJsonBody = shouldJsonSerialize(body);
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const isUrlEncoded = typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams;
 
   if (hasJsonBody && !requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json");
+  }
+
+  if (isUrlEncoded && !requestHeaders.has("Content-Type")) {
+    requestHeaders.set("Content-Type", "application/x-www-form-urlencoded");
+  }
+
+  // Let the browser set multipart boundary for FormData
+  if (isFormData) {
+    requestHeaders.delete("Content-Type");
   }
 
   if (accessToken && !requestHeaders.has("Authorization")) {
@@ -121,23 +166,19 @@ async function parseErrorPayload(response: Response): Promise<FastApiErrorPayloa
 export async function apiFetch<TResponse>(path: string, options: ApiRequestOptions = {}): Promise<TResponse> {
   const { accessToken, body, headers, ...requestInit } = options;
   const resolvedAccessToken = resolveAccessToken(accessToken);
-  const hasJsonBody = isPlainObject(body);
-  const requestBody = hasJsonBody ? JSON.stringify(body) : body;
+  const hasJsonBody = shouldJsonSerialize(body);
+  const requestBody = hasJsonBody ? JSON.stringify(body) : (body as BodyInit | null | undefined);
 
   const response = await fetch(normalizeBaseUrl(path), {
     ...requestInit,
     body: requestBody,
     credentials: "include",
-    headers: buildHeaders(headers, resolvedAccessToken, hasJsonBody),
+    headers: buildHeaders(headers, resolvedAccessToken, body),
   });
 
   if (!response.ok) {
     const payload = await parseErrorPayload(response);
-    const message =
-      typeof payload?.detail === "string"
-        ? payload.detail
-        : payload?.message ?? `Request failed with status ${response.status}`;
-
+    const message = formatApiErrorDetail(payload, `Request failed with status ${response.status}`);
     throw new ApiClientError(response.status, message, payload);
   }
 
@@ -148,13 +189,13 @@ export const apiClient = {
   get<TResponse>(path: string, options: ApiClientMethodOptions = {}): Promise<TResponse> {
     return apiFetch<TResponse>(path, { ...options, method: "GET" });
   },
-  post<TResponse>(path: string, body: ApiRequestOptions["body"], options: ApiClientMethodOptions = {}): Promise<TResponse> {
+  post<TResponse>(path: string, body: ApiRequestOptions["body"] = null, options: ApiClientMethodOptions = {}): Promise<TResponse> {
     return apiFetch<TResponse>(path, { ...options, body, method: "POST" });
   },
-  put<TResponse>(path: string, body: ApiRequestOptions["body"], options: ApiClientMethodOptions = {}): Promise<TResponse> {
+  put<TResponse>(path: string, body: ApiRequestOptions["body"] = null, options: ApiClientMethodOptions = {}): Promise<TResponse> {
     return apiFetch<TResponse>(path, { ...options, body, method: "PUT" });
   },
-  patch<TResponse>(path: string, body: ApiRequestOptions["body"], options: ApiClientMethodOptions = {}): Promise<TResponse> {
+  patch<TResponse>(path: string, body: ApiRequestOptions["body"] = null, options: ApiClientMethodOptions = {}): Promise<TResponse> {
     return apiFetch<TResponse>(path, { ...options, body, method: "PATCH" });
   },
   delete<TResponse>(path: string, options: ApiClientMethodOptions = {}): Promise<TResponse> {
