@@ -57,7 +57,7 @@ export function ResidentSidebar() {
         aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
         aria-expanded={mobileOpen}
       >
-        {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+        {mobileOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
       </button>
 
       <div
@@ -86,7 +86,7 @@ export function ResidentSidebar() {
                 className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
                 onClick={() => setMobileOpen(false)}
               >
-                <Icon size={18} />
+                <Icon size={18} aria-hidden="true" />
                 {label}
               </Link>
             );
@@ -99,7 +99,14 @@ export function ResidentSidebar() {
           onClick={() => setMobileOpen(false)}
           style={{ textDecoration: "none", color: "inherit" }}
         >
-          <div className={styles.avatar} />
+          <div className={styles.avatar} aria-hidden="true">
+            {fullName
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part[0]?.toUpperCase() ?? "")
+              .join("") || "R"}
+          </div>
           <div className={styles.userInfo}>
             <div className={styles.userName}>{fullName}</div>
             <div className={styles.userUnit}>{unit}</div>

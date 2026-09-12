@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { Eye, EyeOff, Home, Lock, Mail } from "lucide-react";
+import { Eye, EyeOff, Home, Loader2, Lock, Mail } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { fetchMe, login } from "@/lib/api/auth";
 import styles from "@/styles/auth.module.css";
@@ -48,7 +48,7 @@ export default function LoginPage() {
       <div className={styles.card}>
         <div className={styles.cardHeader}>
           <div className={styles.icon}>
-            <Home size={28} strokeWidth={1.5} />
+            <Home size={28} strokeWidth={1.5} aria-hidden="true" />
           </div>
           <h1 className={styles.title}>Resident Login</h1>
           <p className={styles.subtitle}>Access your TownSync community portal</p>
@@ -56,7 +56,7 @@ export default function LoginPage() {
 
         <form className={styles.form} onSubmit={handleSubmit}>
           {error ? (
-            <p style={{ color: "#b91c1c", fontSize: 14, margin: "0 0 12px" }} role="alert">
+            <p className={styles.errorText} role="alert">
               {error}
             </p>
           ) : null}
@@ -64,7 +64,7 @@ export default function LoginPage() {
           <div className={styles.field}>
             <label htmlFor="email">Email Address</label>
             <div className={styles.inputWrap}>
-              <Mail className={styles.inputIcon} size={16} />
+              <Mail className={styles.inputIcon} size={16} aria-hidden="true" />
               <input
                 id="email"
                 type="email"
@@ -79,7 +79,7 @@ export default function LoginPage() {
           <div className={styles.field}>
             <label htmlFor="password">Password</label>
             <div className={styles.inputWrap}>
-              <Lock className={styles.inputIcon} size={16} />
+              <Lock className={styles.inputIcon} size={16} aria-hidden="true" />
               <input
                 id="password"
                 type={showPassword ? "text" : "password"}
@@ -94,7 +94,7 @@ export default function LoginPage() {
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
               </button>
             </div>
           </div>
@@ -110,7 +110,13 @@ export default function LoginPage() {
           </div>
 
           <button className={styles.submitBtn} type="submit" disabled={loading}>
-            {loading ? "Logging in…" : "Log In"}
+            {loading ? (
+              <>
+                <Loader2 size={16} className="ts-spin" aria-hidden="true" /> Logging in…
+              </>
+            ) : (
+              "Log In"
+            )}
           </button>
         </form>
 

@@ -5,7 +5,6 @@ import styles from "@/styles/legal.module.css";
 export default function CookiesPage() {
   return (
     <LegalShell>
-      <p className={styles.eyebrow}>Legal</p>
       <h1 className={styles.title}>Cookie Policy</h1>
       <p className={styles.lead}>
         TownSync uses essential cookies to keep you signed in and remember basic portal

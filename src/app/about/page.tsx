@@ -1,15 +1,17 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { TopNav } from "@/components/navigation/TopNav";
+import { HeroBackground } from "@/components/landing/HeroBackground";
 import sharedStyles from "@/styles/resident.module.css";
 import styles from "@/styles/about.module.css";
 import { Sparkles, Paintbrush, Network, Eye, Zap, Users } from 'lucide-react';
 export default function AboutPage() {
   return (
     <div className={sharedStyles.landing}>
-      <header className={sharedStyles.heroBanner}>
+      <header className={`${sharedStyles.heroBanner} ${sharedStyles.heroBannerHome}`}>
+        <HeroBackground />
         <TopNav />
-        <div className={sharedStyles.heroContent}>
-          <div className={styles.heroBadge}>Our Story</div>
+        <div className={`${sharedStyles.heroContent} ts-fade-in-up`}>
           <h1 className={sharedStyles.heroTitle}>Modernizing Community Management.</h1>
           <p className={sharedStyles.heroSubtitle}>
             TownSync helps townhouse communities coordinate maintenance, communication, and
@@ -41,18 +43,18 @@ export default function AboutPage() {
         </div>
 
         <div className={styles.missionVisual}>
-          <div className={styles.missionGrid}>
-            <div className={styles.whiteCard}>
+          <div className={`${styles.missionGrid} ts-stagger`}>
+            <div className={styles.whiteCard} style={{ "--ts-stagger-i": 0 } as CSSProperties}>
               <Sparkles className={styles.iconBlue} size={28} />
               <h3>AI-Driven</h3>
-              <p>Automating complex workflow Prioritys with precision, including our 24/7 Agentic Maintenance Chat for instant resident support.</p>
+              <p>Automating complex workflow priorities with precision, including our 24/7 Agentic Maintenance Chat for instant resident support.</p>
             </div>
-            <div className={styles.blueCard}>
+            <div className={styles.blueCard} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
               <Paintbrush className={styles.iconWhite} size={28} />
               <h3>Intuitive Design</h3>
               <p>Crafting experiences that feel natural and effortless.</p>
             </div>
-            <div className={`${styles.whiteCard} ${styles.wideCard}`}>
+            <div className={`${styles.whiteCard} ${styles.wideCard}`} style={{ "--ts-stagger-i": 2 } as CSSProperties}>
                <div className={styles.wideCardContent}>
                   <div>
                     <h3 className={styles.greenText}>Scalable Infrastructure</h3>
@@ -64,6 +66,7 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+      </section>
 
       {/* Core Values Section */}
       <section className={styles.valuesSection}>
@@ -72,18 +75,18 @@ export default function AboutPage() {
           <p>The principles that guide every line of code we write.</p>
         </div>
 
-        <div className={styles.valuesGrid}>
-          <div className={sharedStyles.featureCard}>
+        <div className={`${styles.valuesGrid} ts-stagger`}>
+          <div className={sharedStyles.featureCard} style={{ "--ts-stagger-i": 0 } as CSSProperties}>
             <div className={sharedStyles.iconWrapper}><Eye size={20} /></div>
             <h3>Transparency</h3>
             <p>Real-time data access for all stakeholders. No hidden fees, no opaque processes.</p>
           </div>
-          <div className={sharedStyles.featureCard}>
+          <div className={sharedStyles.featureCard} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
             <div className={sharedStyles.iconWrapper}><Zap size={20} /></div>
             <h3>Efficiency</h3>
             <p>Doing more with less. We optimize every touchpoint to save time and resources.</p>
           </div>
-          <div className={sharedStyles.featureCard}>
+          <div className={sharedStyles.featureCard} style={{ "--ts-stagger-i": 2 } as CSSProperties}>
             <div className={sharedStyles.iconWrapper}><Users size={20} /></div>
             <h3>Security First</h3>
             <p>Strengthens community security procedures through real-time QR-based verification and automated entry tracking.</p>
@@ -95,7 +98,7 @@ export default function AboutPage() {
       <footer className={styles.aboutFooter}>
         <div className={styles.footerBrandSide}>
           <div className={sharedStyles.footerBrand}>TownSync</div>
-          <p>© 2024 TownSync Property Management. All rights reserved.</p>
+          <p>© 2026 TownSync Property Management. All rights reserved.</p>
         </div>
         <div className={styles.footerLinkSide}>
           <a href="/privacy">Privacy Policy</a>
@@ -104,7 +107,6 @@ export default function AboutPage() {
           <a href="/support">Support</a>
         </div>
       </footer>
-      </section>
     </div>
   );
 }

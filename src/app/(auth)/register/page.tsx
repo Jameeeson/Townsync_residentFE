@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { CSSProperties } from "react";
 import { DoorOpen, KeyRound } from "lucide-react";
 import { RegisterShell } from "@/components/register/RegisterShell";
 import { saveRegisterData, type RegisterRole } from "@/lib/registerStorage";
@@ -20,7 +21,7 @@ export default function RegisterRolePage() {
   }
 
   return (
-    <RegisterShell>
+    <RegisterShell step={1}>
       <div className={styles.card}>
         <h1 className={styles.cardTitle}>What is your relation to the unit?</h1>
         <p className={styles.cardSubtitle}>
@@ -28,9 +29,14 @@ export default function RegisterRolePage() {
           correctly.
         </p>
 
-        <div className={styles.roleList} role="radiogroup" aria-label="Your relation to the unit">
+        <div
+          className={`${styles.roleList} ts-stagger`}
+          role="radiogroup"
+          aria-label="Your relation to the unit"
+        >
           <label
             className={`${styles.roleOption} ${role === "homeowner" ? styles.roleOptionSelected : ""}`}
+            style={{ "--ts-stagger-i": 0 } as CSSProperties}
           >
             <input
               className={styles.radio}
@@ -49,6 +55,7 @@ export default function RegisterRolePage() {
 
           <label
             className={`${styles.roleOption} ${role === "tenant" ? styles.roleOptionSelected : ""}`}
+            style={{ "--ts-stagger-i": 1 } as CSSProperties}
           >
             <input
               className={styles.radio}

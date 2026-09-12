@@ -8,13 +8,19 @@ interface RegisterShellProps {
   showHeading?: boolean;
   title?: string;
   subtitle?: string;
+  step?: number;
+  totalSteps?: number;
 }
+
+const STEP_LABELS = ["Choose Role", "Scan ID", "Your Details", "Done"];
 
 export function RegisterShell({
   children,
   showHeading = false,
   title,
   subtitle,
+  step,
+  totalSteps = 4,
 }: RegisterShellProps) {
   return (
     <div className={styles.page}>
@@ -27,6 +33,24 @@ export function RegisterShell({
           Sign In
         </Link>
       </header>
+
+      {typeof step === "number" ? (
+        <div className={styles.stepIndicator} aria-label={`Step ${step} of ${totalSteps}`}>
+          <span className={styles.stepLabel}>
+            Step {step} of {totalSteps} — {STEP_LABELS[step - 1]}
+          </span>
+          <div className={styles.stepTrack}>
+            {Array.from({ length: totalSteps }, (_, i) => (
+              <span
+                key={i}
+                className={`${styles.stepSegment} ${
+                  i < step ? styles.stepSegmentFilled : ""
+                } ${i === step - 1 ? styles.stepSegmentCurrent : ""}`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <main className={styles.main}>
         {showHeading && title ? (

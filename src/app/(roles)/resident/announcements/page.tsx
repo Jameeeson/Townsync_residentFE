@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import { Megaphone } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { Announcement, listAnnouncements } from "@/lib/api/resident";
 import styles from "@/styles/dashboard.module.css";
@@ -38,7 +40,7 @@ export default function AnnouncementsPage() {
 
   return (
     <>
-      <section className={styles.welcomeCard}>
+      <section className={`${styles.welcomeCard} ts-fade-in-up`}>
         <div>
           <h1 className={styles.welcomeTitle}>Announcements</h1>
           <p className={styles.welcomeUnit}>Community updates from property management</p>
@@ -50,24 +52,42 @@ export default function AnnouncementsPage() {
         </div>
       </section>
 
-      <section className={styles.card}>
-        {loading ? <p>Loading…</p> : null}
-        {error ? <p style={{ color: "#b91c1c" }}>{error}</p> : null}
-        {!loading && !error && announcements.length === 0 ? (
-          <p>No announcements yet.</p>
-        ) : null}
-        <div className={styles.announcementGrid}>
-          {announcements.map((item) => (
-            <article key={item.id} className={styles.announcementCard}>
-              <h3>{item.title}</h3>
-              <p>{item.content}</p>
-              <span className={styles.announcementDate}>
-                {item.created_at}
-                {item.category ? ` • ${item.category}` : ""}
-              </span>
-            </article>
-          ))}
-        </div>
+      <section className={`${styles.card} ts-fade-in-up`}>
+        {loading ? (
+          <div className={`${styles.announcementGrid} ts-stagger`} aria-busy="true" aria-label="Loading announcements">
+            {[0, 1].map((i) => (
+              <div key={i} className={styles.announcementCard} style={{ "--ts-stagger-i": i } as CSSProperties}>
+                <div className="ts-skeleton" style={{ width: "70%", height: 16, marginBottom: 10 }}>Loading</div>
+                <div className="ts-skeleton" style={{ width: "100%", height: 40, marginBottom: 10 }}>Loading</div>
+                <div className="ts-skeleton" style={{ width: "40%", height: 12 }}>Loading</div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <p className="ts-badge ts-badge-danger" role="alert">{error}</p>
+        ) : announcements.length === 0 ? (
+          <div className={`${styles.placeholder} ts-fade-in`}>
+            <Megaphone size={24} className={styles.placeholderIcon} aria-hidden="true" />
+            <p>No announcements yet. Check back soon for community updates.</p>
+          </div>
+        ) : (
+          <div className={`${styles.announcementGrid} ts-stagger`}>
+            {announcements.map((item, i) => (
+              <article
+                key={item.id}
+                className={styles.announcementCard}
+                style={{ "--ts-stagger-i": i } as CSSProperties}
+              >
+                <h3>{item.title}</h3>
+                <p>{item.content}</p>
+                <span className={styles.announcementDate}>
+                  {item.created_at}
+                  {item.category ? ` • ${item.category}` : ""}
+                </span>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
     </>
   );

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { Home } from "lucide-react";
+import { Home, Loader2 } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { forgotPassword } from "@/lib/api/auth";
 import styles from "@/styles/auth.module.css";
@@ -50,8 +50,8 @@ export default function ForgotPasswordPage() {
         </div>
 
         {sent ? (
-          <div style={{ padding: "0 32px 32px", textAlign: "center" }}>
-            <p style={{ color: "#065f46", marginBottom: 20 }}>
+          <div style={{ padding: "0 32px 32px", textAlign: "center" }} className="ts-fade-in-up">
+            <p className={styles.successText} style={{ marginBottom: 20 }}>
               If an account exists for that email, reset instructions are on the way.
             </p>
             <Link className={styles.submitBtn} href="/login" style={{ display: "inline-flex" }}>
@@ -61,7 +61,7 @@ export default function ForgotPasswordPage() {
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>
             {error ? (
-              <p style={{ color: "#b91c1c", fontSize: 14, margin: "0 0 12px" }} role="alert">
+              <p className={styles.errorText} role="alert">
                 {error}
               </p>
             ) : null}
@@ -78,7 +78,13 @@ export default function ForgotPasswordPage() {
               </div>
             </div>
             <button className={styles.submitBtn} type="submit" disabled={loading}>
-              {loading ? "Sending…" : "Send Reset Link"}
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="ts-spin" aria-hidden="true" /> Sending…
+                </>
+              ) : (
+                "Send Reset Link"
+              )}
             </button>
           </form>
         )}

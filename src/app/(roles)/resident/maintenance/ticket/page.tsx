@@ -4,19 +4,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import styles from "@/styles/ticketdetail.module.css";
-import {
-  ArrowLeft,
-  MessageSquare,
-  AlertCircle,
-  RefreshCcw,
-  Bot,
-} from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import {
   MaintenanceTicket,
   cancelMaintenanceTicket,
   getMaintenanceTicket,
 } from "@/lib/api/resident";
+import { badgeClassName, priorityTone, statusTone } from "@/lib/maintenanceStatus";
 
 function TicketDetail() {
   const router = useRouter();
@@ -31,7 +26,7 @@ function TicketDetail() {
 
   useEffect(() => {
     if (!Number.isFinite(ticketId)) {
-      setError("Missing ticket id. Open a ticket from history.");
+      setError("Missing ticket id. Open a ticket from the maintenance page.");
       setLoading(false);
       return;
     }
@@ -71,7 +66,7 @@ function TicketDetail() {
     setCancelling(true);
     try {
       await cancelMaintenanceTicket(ticket.id);
-      router.push("/resident/maintenance/history");
+      router.push("/resident/maintenance");
     } catch (err) {
       setError(
         err instanceof ApiClientError
@@ -85,15 +80,20 @@ function TicketDetail() {
   }
 
   if (loading) {
-    return <p style={{ padding: 24 }}>Loading ticket…</p>;
+    return (
+      <div className={styles.container} aria-busy="true" aria-label="Loading ticket">
+        <div className="ts-skeleton" style={{ width: 240, height: 28, marginBottom: 16 }}>Loading</div>
+        <div className="ts-skeleton" style={{ width: "100%", maxWidth: 640, height: 200 }}>Loading</div>
+      </div>
+    );
   }
 
   if (error || !ticket) {
     return (
       <div className={styles.container}>
-        <p style={{ color: "#b91c1c" }}>{error || "Ticket not found"}</p>
-        <Link href="/resident/maintenance/history" className={styles.backBtn}>
-          <ArrowLeft size={16} /> Back to history
+        <p className={styles.errorBanner} role="alert">{error || "Ticket not found"}</p>
+        <Link href="/resident/maintenance" className={styles.backBtn}>
+          <ArrowLeft size={16} /> Back to maintenance
         </Link>
       </div>
     );
@@ -105,8 +105,8 @@ function TicketDetail() {
         <div className={styles.breadcrumb}>
           Maintenance &gt; <strong>Ticket #{ticket.id}</strong>
         </div>
-        <Link href="/resident/maintenance/history" className={styles.backBtn}>
-          <ArrowLeft size={16} /> Return to Maintenance Center
+        <Link href="/resident/maintenance" className={styles.backBtn}>
+          <ArrowLeft size={16} /> Return to Maintenance
         </Link>
       </div>
 
@@ -114,11 +114,9 @@ function TicketDetail() {
         <div className={styles.titleMain}>
           <h1>{ticket.subject}</h1>
           <div className={styles.badgeGroup}>
-            <span className={`${styles.badge} ${styles.inProgress}`}>
-              <RefreshCcw size={12} /> {ticket.status}
-            </span>
-            <span className={`${styles.badge} ${styles.urgent}`}>
-              <AlertCircle size={12} /> {ticket.priority_level}
+            <span className={badgeClassName(statusTone(ticket.status))}>{ticket.status}</span>
+            <span className={badgeClassName(priorityTone(ticket.priority_level))}>
+              {ticket.priority_level}
             </span>
           </div>
         </div>
@@ -126,7 +124,6 @@ function TicketDetail() {
           <Link
             href={`/resident/maintenance/chat?id=${ticket.id}`}
             className={styles.btnPrimary}
-            style={{ textDecoration: "none" }}
           >
             <MessageSquare size={18} /> Message Management
           </Link>
@@ -148,16 +145,16 @@ function TicketDetail() {
           <div className={styles.mainCard}>
             <div className={styles.metaGrid}>
               <div className={styles.metaItem}>
+                <label>Ticket ID</label>
+                <span>#{ticket.id}</span>
+              </div>
+              <div className={styles.metaItem}>
                 <label>Submitted</label>
                 <span>{ticket.created_at}</span>
               </div>
               <div className={styles.metaItem}>
                 <label>Category</label>
                 <span>{ticket.category}</span>
-              </div>
-              <div className={styles.metaItem}>
-                <label>Priority</label>
-                <span>{ticket.priority_level}</span>
               </div>
             </div>
 
@@ -166,37 +163,13 @@ function TicketDetail() {
               <p className={styles.description}>{ticket.detailed_description}</p>
             </div>
           </div>
-
-          <div className={styles.aiInsightBox}>
-            <div className={styles.aiHeader}>
-              <Bot size={20} /> Ticket details
-            </div>
-            <div className={styles.aiGrid}>
-              <div className={styles.aiStatItem}>
-                <div className={styles.aiStatLabel}>Status</div>
-                <div className={styles.aiStatValue}>{ticket.status}</div>
-              </div>
-              <div className={styles.aiStatItem}>
-                <div className={styles.aiStatLabel}>Category</div>
-                <div className={styles.aiStatValue}>{ticket.category}</div>
-              </div>
-              <div className={styles.aiStatItem}>
-                <div className={styles.aiStatLabel}>Priority</div>
-                <div className={styles.aiStatValue}>{ticket.priority_level}</div>
-              </div>
-              <div className={styles.aiStatItem}>
-                <div className={styles.aiStatLabel}>Ticket ID</div>
-                <div className={styles.aiStatValue}>#{ticket.id}</div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <aside>
           <div className={styles.timelineCard}>
             <h3 className={styles.timelineTitle}>Activity Timeline</h3>
             {(ticket.activity_timeline ?? []).length === 0 ? (
-              <p className={styles.timelineText}>No activity events yet.</p>
+              <p className={styles.timelineEmpty}>No activity events yet.</p>
             ) : (
               (ticket.activity_timeline as Array<Record<string, unknown>>).map((event, index) => (
                 <div key={index} className={styles.timelineItem}>
@@ -222,7 +195,7 @@ function TicketDetail() {
 
 export default function TicketDetailPage() {
   return (
-    <Suspense fallback={<p style={{ padding: 24 }}>Loading…</p>}>
+    <Suspense fallback={<div className={styles.container} aria-busy="true" />}>
       <TicketDetail />
     </Suspense>
   );

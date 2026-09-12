@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { ArrowRight, Search } from "lucide-react";
 import { RegisterShell } from "@/components/register/RegisterShell";
 import { ApiClientError } from "@/lib/apiClient";
@@ -95,98 +96,100 @@ export default function RegisterDetailsPage() {
   }
 
   return (
-    <RegisterShell showHeading title="Register">
+    <RegisterShell step={3} showHeading title="Register">
       <form className={styles.card} onSubmit={handleSubmit}>
         <h2 className={styles.cardTitle}>Extracted Information</h2>
 
         {error ? (
-          <p style={{ color: "#b91c1c", fontSize: 14, marginBottom: 12 }} role="alert">
+          <p className={styles.errorText} role="alert">
             {error}
           </p>
         ) : null}
 
-        <div className={styles.field}>
-          <label htmlFor="fullName">Full Name</label>
-          <input
-            id="fullName"
-            value={form.fullName}
-            onChange={(e) => updateField("fullName", e.target.value)}
-            required
-          />
-        </div>
-
-        <div className={styles.field}>
-          <label htmlFor="idNumber">ID Number</label>
-          <input
-            id="idNumber"
-            value={form.idNumber}
-            onChange={(e) => updateField("idNumber", e.target.value)}
-            required
-          />
-        </div>
-
-        <div className={styles.field}>
-          <label htmlFor="idType">ID Type</label>
-          <input
-            id="idType"
-            value={form.idType}
-            onChange={(e) => updateField("idType", e.target.value)}
-            required
-          />
-        </div>
-
-        <div className={styles.field}>
-          <label htmlFor="email">Type your email</label>
-          <input
-            id="email"
-            type="email"
-            value={form.email}
-            onChange={(e) => updateField("email", e.target.value)}
-            placeholder="Email Address"
-            required
-          />
-        </div>
-
-        <div className={styles.field}>
-          <label htmlFor="unit">Block and Lot / Unit Number</label>
-          <div className={styles.searchWrap}>
-            <Search className={styles.searchIcon} size={16} />
+        <div className="ts-stagger">
+          <div className={styles.field} style={{ "--ts-stagger-i": 0 } as CSSProperties}>
+            <label htmlFor="fullName">Full Name</label>
             <input
-              id="unit"
-              value={form.unit}
-              onChange={(e) => updateField("unit", e.target.value)}
-              placeholder="Search for your unit..."
+              id="fullName"
+              value={form.fullName}
+              onChange={(e) => updateField("fullName", e.target.value)}
               required
             />
           </div>
-        </div>
 
-        <div className={styles.field}>
-          <label htmlFor="password">Create Password</label>
-          <input
-            id="password"
-            type="password"
-            value={form.password}
-            onChange={(e) => updateField("password", e.target.value)}
-            placeholder="At least 8 characters"
-            minLength={8}
-            required
-            autoComplete="new-password"
-          />
-        </div>
+          <div className={styles.field} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
+            <label htmlFor="idNumber">ID Number</label>
+            <input
+              id="idNumber"
+              value={form.idNumber}
+              onChange={(e) => updateField("idNumber", e.target.value)}
+              required
+            />
+          </div>
 
-        <div className={styles.field}>
-          <label htmlFor="confirmPassword">Confirm Password</label>
-          <input
-            id="confirmPassword"
-            type="password"
-            value={form.confirmPassword}
-            onChange={(e) => updateField("confirmPassword", e.target.value)}
-            placeholder="Re-enter password"
-            minLength={8}
-            required
-            autoComplete="new-password"
-          />
+          <div className={styles.field} style={{ "--ts-stagger-i": 2 } as CSSProperties}>
+            <label htmlFor="idType">ID Type</label>
+            <input
+              id="idType"
+              value={form.idType}
+              onChange={(e) => updateField("idType", e.target.value)}
+              required
+            />
+          </div>
+
+          <div className={styles.field} style={{ "--ts-stagger-i": 3 } as CSSProperties}>
+            <label htmlFor="email">Type your email</label>
+            <input
+              id="email"
+              type="email"
+              value={form.email}
+              onChange={(e) => updateField("email", e.target.value)}
+              placeholder="Email Address"
+              required
+            />
+          </div>
+
+          <div className={styles.field} style={{ "--ts-stagger-i": 4 } as CSSProperties}>
+            <label htmlFor="unit">Block and Lot / Unit Number</label>
+            <div className={styles.searchWrap}>
+              <Search className={styles.searchIcon} size={16} />
+              <input
+                id="unit"
+                value={form.unit}
+                onChange={(e) => updateField("unit", e.target.value)}
+                placeholder="Search for your unit..."
+                required
+              />
+            </div>
+          </div>
+
+          <div className={styles.field} style={{ "--ts-stagger-i": 5 } as CSSProperties}>
+            <label htmlFor="password">Create Password</label>
+            <input
+              id="password"
+              type="password"
+              value={form.password}
+              onChange={(e) => updateField("password", e.target.value)}
+              placeholder="At least 8 characters"
+              minLength={8}
+              required
+              autoComplete="new-password"
+            />
+          </div>
+
+          <div className={styles.field} style={{ "--ts-stagger-i": 6 } as CSSProperties}>
+            <label htmlFor="confirmPassword">Confirm Password</label>
+            <input
+              id="confirmPassword"
+              type="password"
+              value={form.confirmPassword}
+              onChange={(e) => updateField("confirmPassword", e.target.value)}
+              placeholder="Re-enter password"
+              minLength={8}
+              required
+              autoComplete="new-password"
+            />
+          </div>
         </div>
 
         <div className={styles.actions}>

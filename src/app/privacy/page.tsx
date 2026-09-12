@@ -5,7 +5,6 @@ import styles from "@/styles/legal.module.css";
 export default function PrivacyPage() {
   return (
     <LegalShell>
-      <p className={styles.eyebrow}>Legal</p>
       <h1 className={styles.title}>Privacy Policy</h1>
       <p className={styles.lead}>
         TownSync collects account, unit, and service data only to operate your community portal,

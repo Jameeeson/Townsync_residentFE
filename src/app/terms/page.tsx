@@ -5,7 +5,6 @@ import styles from "@/styles/legal.module.css";
 export default function TermsPage() {
   return (
     <LegalShell>
-      <p className={styles.eyebrow}>Legal</p>
       <h1 className={styles.title}>Terms of Service</h1>
       <p className={styles.lead}>
         By using TownSync you agree to use the portal for legitimate resident and community

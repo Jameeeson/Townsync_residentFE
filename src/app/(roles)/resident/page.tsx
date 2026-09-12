@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { ApiClientError } from "@/lib/apiClient";
 import { DashboardSummary, getDashboardSummary } from "@/lib/api/resident";
 import styles from "@/styles/dashboard.module.css";
@@ -43,7 +44,26 @@ export default function ResidentDashboardPage() {
   }, []);
 
   if (loading) {
-    return <p className={styles.welcomeUnit}>Loading dashboard…</p>;
+    return (
+      <>
+        <section className={styles.welcomeCard} aria-busy="true" aria-label="Loading dashboard">
+          <div style={{ width: "100%" }}>
+            <div className="ts-skeleton" style={{ width: 220, height: 22, marginBottom: 8 }}>Loading</div>
+            <div className="ts-skeleton" style={{ width: 140, height: 14 }}>Loading</div>
+          </div>
+        </section>
+        <div className={styles.grid2}>
+          <div className={styles.card}>
+            <div className="ts-skeleton" style={{ width: 120, height: 14, marginBottom: 16 }}>Loading</div>
+            <div className="ts-skeleton" style={{ width: 160, height: 32, marginBottom: 8 }}>Loading</div>
+          </div>
+          <div className={styles.card}>
+            <div className="ts-skeleton" style={{ width: 120, height: 14, marginBottom: 16 }}>Loading</div>
+            <div className="ts-skeleton" style={{ width: "100%", height: 44, marginBottom: 8 }}>Loading</div>
+          </div>
+        </div>
+      </>
+    );
   }
 
   if (error || !data) {
@@ -51,7 +71,7 @@ export default function ResidentDashboardPage() {
       <section className={styles.welcomeCard}>
         <div>
           <h1 className={styles.welcomeTitle}>Dashboard</h1>
-          <p style={{ color: "#b91c1c" }}>{error || "No data"}</p>
+          <p className="ts-badge ts-badge-danger" role="alert" style={{ marginTop: 8 }}>{error || "No data"}</p>
           <Link className={styles.btnOutline} href="/login" style={{ marginTop: 12, display: "inline-flex" }}>
             Back to Login
           </Link>
@@ -62,7 +82,7 @@ export default function ResidentDashboardPage() {
 
   return (
     <>
-      <section className={styles.welcomeCard}>
+      <section className={`${styles.welcomeCard} ts-fade-in-up`}>
         <div>
           <h1 className={styles.welcomeTitle}>{data.welcome_message || "Welcome back!"}</h1>
           <p className={styles.welcomeUnit}>Unit: {data.unit_number || "—"}</p>
@@ -77,19 +97,23 @@ export default function ResidentDashboardPage() {
         </div>
       </section>
 
-      <div className={styles.grid2}>
-        <Link href="/resident/billing" className={styles.card} style={{ textDecoration: "none", color: "inherit" }}>
+      <div className={`${styles.grid2} ts-stagger`}>
+        <Link
+          href="/resident/billing"
+          className={styles.card}
+          style={{ textDecoration: "none", color: "inherit", "--ts-stagger-i": 0 } as CSSProperties}
+        >
           <h2 className={styles.cardTitle}>Outstanding Dues</h2>
           <p className={styles.duesAmount}>{formatMoney(data.outstanding_balance ?? 0)}</p>
           <p className={styles.duesStatus}>Payment due this week</p>
-          <div className={styles.duesNote}>View billing & payment history →</div>
+          <div className={styles.duesNote}>View billing &amp; payment history →</div>
         </Link>
 
-        <div className={styles.card}>
+        <div className={styles.card} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
           <h2 className={styles.cardTitle}>Active Tickets</h2>
           <div className={styles.ticketList}>
             {(data.recent_tickets ?? []).length === 0 ? (
-              <p className={styles.ticketDate}>No recent tickets</p>
+              <p className={styles.ticketDate}>No recent tickets. Report an issue to get started.</p>
             ) : (
               (data.recent_tickets ?? []).slice(0, 3).map((ticket) => (
                 <Link
@@ -118,7 +142,7 @@ export default function ResidentDashboardPage() {
         </div>
       </div>
 
-      <section className={styles.card}>
+      <section className={`${styles.card} ts-fade-in-up`}>
         <div className={styles.announcementsHeader}>
           <h2>Recent Announcements</h2>
           <Link className={styles.viewAll} href="/resident/announcements">
@@ -127,7 +151,7 @@ export default function ResidentDashboardPage() {
         </div>
         <div className={styles.announcementGrid}>
           {(data.latest_announcements ?? []).length === 0 ? (
-            <p className={styles.announcementDate}>No announcements yet</p>
+            <p className={styles.announcementDate}>No announcements yet.</p>
           ) : (
             (data.latest_announcements ?? []).slice(0, 2).map((item) => (
               <div key={item.id} className={styles.announcementCard}>

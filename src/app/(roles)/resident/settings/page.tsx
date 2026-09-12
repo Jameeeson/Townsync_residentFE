@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import styles from "@/styles/settings.module.css";
@@ -51,7 +52,7 @@ export default function AccountSettings() {
 
   return (
     <div className={styles.container}>
-      <header className={styles.header}>
+      <header className={`${styles.header} ts-fade-in-up`}>
         <h1 className={styles.pageTitle}>Account Settings</h1>
         <p className={styles.pageDesc}>
           Manage your personal information, notifications, and security preferences.
@@ -94,9 +95,11 @@ export default function AccountSettings() {
         </aside>
 
         <main className={styles.content}>
-          {activeTab === "profile" && <ProfileView />}
-          {activeTab === "notifications" && <NotificationsView />}
-          {activeTab === "security" && <SecurityView />}
+          <div key={activeTab} className="ts-fade-in">
+            {activeTab === "profile" && <ProfileView />}
+            {activeTab === "notifications" && <NotificationsView />}
+            {activeTab === "security" && <SecurityView />}
+          </div>
         </main>
       </div>
     </div>
@@ -173,7 +176,22 @@ function ProfileView() {
   }
 
   if (loading) {
-    return <p>Loading profile…</p>;
+    return (
+      <section className={styles.card} aria-busy="true" aria-label="Loading profile">
+        <div className={styles.cardHeaderRow}>
+          <div style={{ width: "100%" }}>
+            <div className="ts-skeleton" style={{ width: 200, height: 20, marginBottom: 8 }}>Loading</div>
+            <div className="ts-skeleton" style={{ width: 260, height: 14 }}>Loading</div>
+          </div>
+          <div className="ts-skeleton" style={{ width: 44, height: 44, borderRadius: "50%" }}>Loading</div>
+        </div>
+        <div className={styles.formGrid}>
+          <div className="ts-skeleton" style={{ height: 42 }}>Loading</div>
+          <div className="ts-skeleton" style={{ height: 42 }}>Loading</div>
+          <div className="ts-skeleton" style={{ height: 42 }}>Loading</div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -183,19 +201,13 @@ function ProfileView() {
           <h2 className={styles.cardTitle}>Profile Information</h2>
           <p className={styles.cardSubtitle}>Update your contact details and unit information.</p>
         </div>
-        <img src="/avatar-placeholder.jpg" alt="Profile" className={styles.avatar} />
+        <div className={styles.avatarFallback} aria-hidden="true">
+          {(displayName || "R").slice(0, 2).toUpperCase()}
+        </div>
       </div>
 
-      {saved ? (
-        <p className={styles.infoText} style={{ color: "#15803d", marginBottom: 16 }}>
-          Profile changes saved.
-        </p>
-      ) : null}
-      {error ? (
-        <p className={styles.infoText} style={{ color: "#b91c1c", marginBottom: 16 }}>
-          {error}
-        </p>
-      ) : null}
+      {saved ? <p className={styles.successBanner}>Profile changes saved.</p> : null}
+      {error ? <p className={styles.errorBanner} role="alert">{error}</p> : null}
 
       <div className={styles.formGrid}>
         <div className={styles.inputGroup}>
@@ -314,21 +326,22 @@ function NotificationsView() {
   }
 
   if (loading) {
-    return <p>Loading preferences…</p>;
+    return (
+      <div className={styles.tabContent} aria-busy="true" aria-label="Loading preferences">
+        <section className={styles.card}>
+          <div className="ts-skeleton" style={{ width: 140, height: 18, marginBottom: 16 }}>Loading</div>
+          <div className="ts-skeleton" style={{ height: 44, marginBottom: 10 }}>Loading</div>
+          <div className="ts-skeleton" style={{ height: 44, marginBottom: 10 }}>Loading</div>
+          <div className="ts-skeleton" style={{ height: 44 }}>Loading</div>
+        </section>
+      </div>
+    );
   }
 
   return (
     <div className={styles.tabContent}>
-      {saved ? (
-        <p className={styles.infoText} style={{ color: "#15803d", marginBottom: 12 }}>
-          Notification preferences saved.
-        </p>
-      ) : null}
-      {error ? (
-        <p className={styles.infoText} style={{ color: "#b91c1c", marginBottom: 12 }}>
-          {error}
-        </p>
-      ) : null}
+      {saved ? <p className={styles.successBanner}>Notification preferences saved.</p> : null}
+      {error ? <p className={styles.errorBanner} role="alert">{error}</p> : null}
 
       <div className={styles.settingsGrid}>
         <div className={styles.mainColumn}>
@@ -340,28 +353,34 @@ function NotificationsView() {
             <p className={styles.cardInfoText}>
               Backend stores channel-level preferences (email / SMS / push) for all notification types.
             </p>
-            <div className={styles.stackToggles}>
-              <ToggleItem
-                label="Email Notifications"
-                active={prefs.email_notifications}
-                onToggle={() =>
-                  setPrefs((p) => ({ ...p, email_notifications: !p.email_notifications }))
-                }
-              />
-              <ToggleItem
-                label="SMS Updates"
-                active={prefs.sms_notifications}
-                onToggle={() =>
-                  setPrefs((p) => ({ ...p, sms_notifications: !p.sms_notifications }))
-                }
-              />
-              <ToggleItem
-                label="Mobile App Push"
-                active={prefs.push_notifications}
-                onToggle={() =>
-                  setPrefs((p) => ({ ...p, push_notifications: !p.push_notifications }))
-                }
-              />
+            <div className={`${styles.stackToggles} ts-stagger`}>
+              <div style={{ "--ts-stagger-i": 0 } as CSSProperties}>
+                <ToggleItem
+                  label="Email Notifications"
+                  active={prefs.email_notifications}
+                  onToggle={() =>
+                    setPrefs((p) => ({ ...p, email_notifications: !p.email_notifications }))
+                  }
+                />
+              </div>
+              <div style={{ "--ts-stagger-i": 1 } as CSSProperties}>
+                <ToggleItem
+                  label="SMS Updates"
+                  active={prefs.sms_notifications}
+                  onToggle={() =>
+                    setPrefs((p) => ({ ...p, sms_notifications: !p.sms_notifications }))
+                  }
+                />
+              </div>
+              <div style={{ "--ts-stagger-i": 2 } as CSSProperties}>
+                <ToggleItem
+                  label="Mobile App Push"
+                  active={prefs.push_notifications}
+                  onToggle={() =>
+                    setPrefs((p) => ({ ...p, push_notifications: !p.push_notifications }))
+                  }
+                />
+              </div>
             </div>
           </section>
         </div>
@@ -529,8 +548,8 @@ function SecurityView() {
                 Revoke All Other Sessions
               </button>
             </div>
-            <div className={styles.sessionList}>
-              {sessions.map((session) => (
+            <div className={`${styles.sessionList} ts-stagger`}>
+              {sessions.map((session, i) => (
                 <SessionItem
                   key={session.id}
                   icon={session.icon}
@@ -539,6 +558,7 @@ function SecurityView() {
                   time={session.time}
                   current={session.current}
                   onRevoke={() => revokeSession(session.id)}
+                  staggerIndex={i}
                 />
               ))}
             </div>
@@ -605,30 +625,6 @@ function SecurityView() {
   );
 }
 
-function ToggleBox({
-  label,
-  sub,
-  active,
-  onToggle,
-}: {
-  label: string;
-  sub?: string;
-  active: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button type="button" className={styles.toggleBox} onClick={onToggle} aria-pressed={active}>
-      <div>
-        <div className={styles.toggleLabel}>{label}</div>
-        {sub && <div className={styles.toggleSub}>{sub}</div>}
-      </div>
-      <div className={`${styles.switch} ${active ? styles.switchOn : ""}`}>
-        <div className={styles.switchKnob} />
-      </div>
-    </button>
-  );
-}
-
 function ToggleItem({
   label,
   active,
@@ -655,6 +651,7 @@ function SessionItem({
   time,
   current,
   onRevoke,
+  staggerIndex,
 }: {
   icon: React.ReactNode;
   device: string;
@@ -662,9 +659,10 @@ function SessionItem({
   time: string;
   current?: boolean;
   onRevoke: () => void;
+  staggerIndex: number;
 }) {
   return (
-    <div className={styles.sessionItem}>
+    <div className={styles.sessionItem} style={{ "--ts-stagger-i": staggerIndex } as CSSProperties}>
       <div className={styles.sessionIconWrapper}>{icon}</div>
       <div className={styles.sessionInfo}>
         <div className={styles.sessionDevice}>

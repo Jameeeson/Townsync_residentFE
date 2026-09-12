@@ -100,7 +100,7 @@ export default function SuccessModal({ isOpen, onClose, data }: SuccessModalProp
           </div>
 
           <button type="button" className={styles.downloadBtn} onClick={downloadReceipt}>
-            <Download size={18} /> Download PDF Receipt
+            <Download size={18} /> Download Receipt
           </button>
 
           <button type="button" className={styles.closeTextBtn} onClick={onClose}>

@@ -207,3 +207,9 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+#ai
+.agents
+.claude
+.impeccable
+.CLAUDE.md
+CHANGES.md

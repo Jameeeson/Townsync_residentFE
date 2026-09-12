@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { Fragment } from "react";
+import type { CSSProperties } from "react";
 import { TopNav } from "@/components/navigation/TopNav";
+import { HeroBackground } from "@/components/landing/HeroBackground";
+import { IntroSequence } from "@/components/landing/IntroSequence";
 import styles from "@/styles/resident.module.css";
 import { Wrench, QrCode, FileText, Megaphone } from 'lucide-react';
 const features = [
@@ -34,10 +38,12 @@ const steps = [
 export default function Home() {
   return (
     <div className={styles.landing}>
-      <header className={styles.heroBanner}>
+      <IntroSequence />
+      <header className={`${styles.heroBanner} ${styles.heroBannerHome}`}>
+        <HeroBackground />
         <TopNav />
 
-        <div className={styles.heroContent}>
+        <div className={`${styles.heroContent} ts-fade-in-up`}>
           <h1 className={styles.heroTitle}>Smarter Community Living. Seamless Operations.</h1>
           <p className={styles.heroSubtitle}>
             The all-in-one centralized platform designed to enhance communication, streamline
@@ -55,30 +61,42 @@ export default function Home() {
         </div>
       </header>
 
-      <section id="features" className={styles.featuresSection}>
-        <h2 className={styles.sectionHeadingLeft}>Everything you need, in one place.</h2>
-        <div className={styles.featuresGrid}>
-          {features.map((f) => (
-            <div key={f.title} className={styles.featureCard}>
-              <div className={styles.iconWrapper}>{f.icon}</div>
-              <h3>{f.title}</h3>
-              <p>{f.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <main>
+        <section id="features" className={styles.featuresSection}>
+          <h2 className={styles.sectionHeadingLeft}>Everything you need, in one place.</h2>
+          <div className={`${styles.featuresGrid} ts-stagger`}>
+            {features.map((f, i) => (
+              <div
+                key={f.title}
+                className={styles.featureCard}
+                style={{ "--ts-stagger-i": i } as CSSProperties}
+              >
+                <div className={styles.iconWrapper} aria-hidden="true">{f.icon}</div>
+                <h3>{f.title}</h3>
+                <p>{f.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      <section className={styles.howItWorks}>
-        <h2 className={styles.sectionHeadingCenter}>How It Works</h2>
-        <div className={styles.stepsRow}>
-          {steps.map((s) => (
-            <div key={s.title} className={styles.stepCard}>
-              <div className={styles.stepNumber}>{s.idx}</div>
-              <p>{s.title}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+        <section className={styles.howItWorks}>
+          <h2 className={styles.sectionHeadingCenter}>How It Works</h2>
+          <div className={`${styles.stepsRow} ts-stagger`}>
+            {steps.map((s, i) => (
+              <Fragment key={s.title}>
+                {i > 0 ? <div className={styles.stepConnector} aria-hidden="true" /> : null}
+                <div
+                  className={styles.stepCard}
+                  style={{ "--ts-stagger-i": i } as CSSProperties}
+                >
+                  <div className={styles.stepNumber} aria-hidden="true">{s.idx}</div>
+                  <p>{s.title}</p>
+                </div>
+              </Fragment>
+            ))}
+          </div>
+        </section>
+      </main>
 
       <footer className={styles.siteFooter}>
         <div className={styles.footerContent}>

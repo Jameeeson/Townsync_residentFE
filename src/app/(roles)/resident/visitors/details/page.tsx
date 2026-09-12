@@ -139,13 +139,18 @@ function VisitorDetailsInner() {
   }
 
   if (loading) {
-    return <p style={{ padding: 24 }}>Loading pass…</p>;
+    return (
+      <div className={styles.container} aria-busy="true" aria-label="Loading pass">
+        <div className="ts-skeleton" style={{ width: 200, height: 24, marginBottom: 16 }}>Loading</div>
+        <div className="ts-skeleton" style={{ width: "100%", maxWidth: 600, height: 180 }}>Loading</div>
+      </div>
+    );
   }
 
   if (error && !pass) {
     return (
       <div className={styles.container}>
-        <p style={{ color: "#b91c1c" }}>{error}</p>
+        <p className={styles.errorNote} role="alert">{error}</p>
         <a href="/resident/visitors" className={styles.backLink}>
           <ArrowLeft size={16} /> Visitor Passes
         </a>
@@ -181,10 +186,8 @@ function VisitorDetailsInner() {
         )}
       </header>
 
-      {savedNote ? (
-        <p style={{ color: "#15803d", marginBottom: 16, fontWeight: 600 }}>{savedNote}</p>
-      ) : null}
-      {error ? <p style={{ color: "#b91c1c", marginBottom: 16 }}>{error}</p> : null}
+      {savedNote ? <p className={styles.savedNote}>{savedNote}</p> : null}
+      {error ? <p className={styles.errorNote} role="alert">{error}</p> : null}
 
       <div className={styles.mainLayout}>
         <div className={styles.contentColumn}>
@@ -195,13 +198,7 @@ function VisitorDetailsInner() {
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 700,
-                      border: "1px solid #cbd5e1",
-                      borderRadius: 6,
-                      padding: 8,
-                    }}
+                    className={styles.nameInput}
                   />
                 ) : (
                   <h2>{name}</h2>
@@ -209,31 +206,31 @@ function VisitorDetailsInner() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+            <div className={styles.fieldGrid}>
               <label>
-                <span style={{ display: "block", fontSize: 12, color: "#64748b" }}>Purpose</span>
+                <span className={styles.fieldLabel}>Purpose</span>
                 {editing ? (
                   <input
                     value={purpose}
                     onChange={(e) => setPurpose(e.target.value)}
-                    style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #cbd5e1" }}
+                    className={styles.fieldInput}
                   />
                 ) : (
-                  <strong>{purpose}</strong>
+                  <span className={styles.fieldValue}>{purpose}</span>
                 )}
               </label>
               <label>
-                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#64748b" }}>
+                <span className={styles.fieldLabelIcon}>
                   <Calendar size={14} /> Scheduled
                 </span>
                 {editing ? (
                   <input
                     value={scheduledAt}
                     onChange={(e) => setScheduledAt(e.target.value)}
-                    style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #cbd5e1" }}
+                    className={styles.fieldInput}
                   />
                 ) : (
-                  <strong>{scheduledAt}</strong>
+                  <span className={styles.fieldValue}>{scheduledAt}</span>
                 )}
               </label>
             </div>
@@ -242,38 +239,22 @@ function VisitorDetailsInner() {
 
         <aside className={styles.sideColumn}>
           <section className={styles.card}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <div className={styles.qrTokenHeader}>
               <Shield size={16} /> QR Token
             </div>
             {pass?.qr_token ? (
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+              <div className={styles.qrWrap}>
                 <QRCodeSVG value={pass.qr_token} size={140} />
               </div>
             ) : null}
-            <p style={{ fontSize: 12, wordBreak: "break-all" }}>{pass?.qr_token}</p>
-            <button type="button" className={styles.editBtn} onClick={downloadPass} style={{ marginTop: 12 }}>
-              <Download size={16} /> Download
-            </button>
+            <p className={styles.qrTokenText}>{pass?.qr_token}</p>
+            <div className={styles.downloadBtnWrap}>
+              <button type="button" className={styles.editBtn} onClick={downloadPass}>
+                <Download size={16} /> Download
+              </button>
+            </div>
             {!revoked ? (
-              <button
-                type="button"
-                onClick={() => void revokeAccess()}
-                style={{
-                  marginTop: 8,
-                  width: "100%",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #fecaca",
-                  background: "#fef2f2",
-                  color: "#b91c1c",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" className={styles.revokeBtn} onClick={() => void revokeAccess()}>
                 <XCircle size={16} /> Revoke Access
               </button>
             ) : null}
@@ -286,7 +267,7 @@ function VisitorDetailsInner() {
 
 export default function VisitorDetails() {
   return (
-    <Suspense fallback={<p style={{ padding: 24 }}>Loading…</p>}>
+    <Suspense fallback={<div className={styles.container} aria-busy="true" />}>
       <VisitorDetailsInner />
     </Suspense>
   );

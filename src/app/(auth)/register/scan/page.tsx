@@ -126,6 +126,7 @@ export default function RegisterScanPage() {
 
   return (
     <RegisterShell
+      step={2}
       showHeading
       title="Register"
       subtitle="Securely scan your ID to auto-fill your details and verify your residence."
@@ -144,7 +145,11 @@ export default function RegisterScanPage() {
             )}
             <div className={styles.viewfinderFrame} />
             <div className={styles.statusBadge}>
-              <span className={styles.statusDot} />
+              <span
+                className={`${styles.statusDot} ${
+                  status === "processing" ? styles.statusDotProcessing : ""
+                }`}
+              />
               {statusLabel}
             </div>
           </div>
@@ -228,7 +233,7 @@ export default function RegisterScanPage() {
                 <span>{progress}%</span>
               </div>
               <div className={styles.progressBar}>
-                <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+                <div className={styles.progressFill} style={{ transform: `scaleX(${progress / 100})` }} />
               </div>
             </div>
           ) : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import styles from "@/styles/qrpass.module.css";
 import {
@@ -12,6 +13,7 @@ import {
   User,
   Send,
   Check,
+  Ticket,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import DatePicker from "react-datepicker";
@@ -170,17 +172,15 @@ export default function PassesPage() {
             <div className={styles.successIcon}>
               <Check size={28} />
             </div>
-            <h2 style={{ marginBottom: "8px" }}>Pass Submitted!</h2>
-            <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "24px" }}>
+            <h2>Pass Submitted!</h2>
+            <p className={styles.modalDesc}>
               {lastGeneratedPass.name}&apos;s pass was submitted
               {lastGeneratedPass.status ? ` (${lastGeneratedPass.status})` : ""}.
             </p>
             <div className={styles.qrBorder} style={{ margin: "0 auto", width: "fit-content" }}>
               <QRCodeSVG value={lastGeneratedPass.qrToken} size={150} />
             </div>
-            <div style={{ marginTop: "12px", fontWeight: 700, color: "#1e3a8a" }}>
-              QR: {lastGeneratedPass.qrToken}
-            </div>
+            <div className={styles.modalQrToken}>QR: {lastGeneratedPass.qrToken}</div>
             <button className={styles.closeBtn} onClick={() => setShowSuccess(false)}>
               Done
             </button>
@@ -193,7 +193,7 @@ export default function PassesPage() {
         <p className={styles.pageDesc}>Manage access for your guests and view active passes.</p>
       </header>
 
-      {error ? <p style={{ color: "#b91c1c", marginBottom: 16 }}>{error}</p> : null}
+      {error ? <p className={styles.errorBanner} role="alert">{error}</p> : null}
 
       <div className={styles.layout}>
         <aside className={styles.formCard}>
@@ -254,45 +254,50 @@ export default function PassesPage() {
         <main>
           <div className={styles.activeHeader}>
             <div className={styles.activeTitle}>
-              <ShieldCheck size={18} color="#15803d" /> Active Passes
+              <ShieldCheck size={18} /> Active Passes
             </div>
             <div className={styles.limitText}>{usage}</div>
           </div>
 
-          <div className={styles.passesGrid}>
+          <div className={`${styles.passesGrid} ${passes.length > 0 ? "ts-stagger" : ""}`}>
             {loading ? (
-              <p style={{ color: "#94a3b8" }}>Loading passes…</p>
+              [0, 1, 2].map((i) => (
+                <div key={i} className={styles.passCardSkeleton} aria-hidden="true">
+                  <div className="ts-skeleton" style={{ height: 18, width: "55%", marginBottom: 8 }}>Loading</div>
+                  <div className="ts-skeleton" style={{ height: 12, width: "35%", marginBottom: 18 }}>Loading</div>
+                  <div className="ts-skeleton" style={{ height: 12, width: "70%", marginBottom: 8 }}>Loading</div>
+                  <div className="ts-skeleton" style={{ height: 12, width: "50%", marginBottom: 20 }}>Loading</div>
+                  <div className="ts-skeleton" style={{ height: 120 }}>Loading</div>
+                </div>
+              ))
             ) : passes.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "40px",
-                  color: "#94a3b8",
-                  border: "1px dashed #e2e8f0",
-                  borderRadius: "12px",
-                }}
-              >
-                No active passes yet. Create one on the left.
+              <div className={styles.emptyState}>
+                <Ticket size={28} className={styles.emptyIcon} aria-hidden="true" />
+                <p>No active passes yet. Create one on the left.</p>
               </div>
             ) : (
-              passes.map((pass) => (
-                <div key={pass.id} className={styles.passCard}>
+              passes.map((pass, i) => (
+                <div
+                  key={pass.id}
+                  className={styles.passCard}
+                  style={{ "--ts-stagger-i": i } as CSSProperties}
+                >
                   <div className={styles.cardTop}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                    <div className={styles.cardTitleRow}>
                       <span className={styles.visitorName}>{pass.name}</span>
                       {pass.purpose.toLowerCase().includes("vehicle") ? (
-                        <Car size={16} color="#94a3b8" />
+                        <Car size={16} />
                       ) : (
-                        <User size={16} color="#94a3b8" />
+                        <User size={16} />
                       )}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "12px" }}>
+                    <div className={styles.visitorMeta}>
                       {pass.purpose} · {pass.status}
                     </div>
-                    <div style={{ fontSize: "12px", display: "flex", gap: "8px", marginBottom: "4px" }}>
+                    <div className={styles.cardDetail}>
                       <Calendar size={14} /> {pass.scheduledAt}
                     </div>
-                    <div style={{ fontSize: "12px", display: "flex", gap: "8px" }}>
+                    <div className={styles.cardDetail}>
                       <Clock size={14} /> QR ready
                     </div>
                   </div>
@@ -300,7 +305,7 @@ export default function PassesPage() {
                     <button
                       type="button"
                       onClick={() => router.push(`/resident/visitors/details?id=${pass.id}`)}
-                      style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}
+                      className={styles.qrButton}
                       aria-label={`Open details for pass ${pass.id}`}
                     >
                       <div className={styles.qrBorder}>
@@ -308,9 +313,7 @@ export default function PassesPage() {
                       </div>
                     </button>
                   </div>
-                  <div style={{ textAlign: "center", padding: "8px", fontSize: "10px", fontWeight: 700 }}>
-                    #{pass.id}
-                  </div>
+                  <div className={styles.cardFooter}>#{pass.id}</div>
                 </div>
               ))
             )}

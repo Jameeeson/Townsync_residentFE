@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, ChevronDown, X } from "lucide-react";
 import styles from "@/styles/dashboard.module.css";
+import { fetchMe } from "@/lib/api/auth";
+import { getAccessToken } from "@/lib/apiClient";
 
 const announcements = [
   {
@@ -26,6 +28,31 @@ const announcements = [
 export function ResidentHeader() {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
+  const [initials, setInitials] = useState("R");
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await fetchMe();
+        if (cancelled) return;
+        const name = me.full_name || me.email || "";
+        const letters = name
+          .trim()
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part[0]?.toUpperCase() ?? "")
+          .join("");
+        if (letters) setInitials(letters);
+      } catch {
+        // keep default initials when unauthenticated / API down
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const reveal = () => setOpen(true);
 
@@ -56,9 +83,9 @@ export function ResidentHeader() {
           aria-label={open ? "Close announcements" : "Open announcements"}
           aria-expanded={open}
         >
-          <Bell size={18} />
+          <Bell size={18} aria-hidden="true" />
           <span>Announcements</span>
-          <ChevronDown size={14} className={open ? styles.chevronOpen : styles.chevron} />
+          <ChevronDown size={14} className={open ? styles.chevronOpen : styles.chevron} aria-hidden="true" />
         </button>
 
         <Link
@@ -66,7 +93,7 @@ export function ResidentHeader() {
           className={styles.profileButton}
           aria-label="Open account settings"
         >
-          <span className={styles.profileAvatar}>JS</span>
+          <span className={styles.profileAvatar}>{initials}</span>
         </Link>
 
         <aside className={`${styles.announcementPanel} ${open ? styles.announcementPanelOpen : ""}`} aria-live="polite">
@@ -84,7 +111,7 @@ export function ResidentHeader() {
               }}
               aria-label="Close announcements panel"
             >
-              <X size={16} />
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
 

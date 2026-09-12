@@ -22,7 +22,7 @@ export default function RegisterSuccessPage() {
   }, [router]);
 
   return (
-    <RegisterShell>
+    <RegisterShell step={4}>
       <div className={`${styles.card} ${styles.successCard}`}>
         <div className={styles.successIcon}>
           <CheckCircle2 size={36} />

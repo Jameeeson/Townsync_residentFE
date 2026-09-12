@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import type { CSSProperties } from "react";
+import { Loader2 } from "lucide-react";
 import { LegalShell } from "@/components/legal/LegalShell";
 import { ApiClientError } from "@/lib/apiClient";
 import { submitSupport } from "@/lib/api/resident";
@@ -43,7 +45,6 @@ export default function SupportPage() {
 
   return (
     <LegalShell>
-      <p className={styles.eyebrow}>Help</p>
       <h1 className={styles.title}>Contact Support</h1>
       <p className={styles.lead}>
         Reach property management for access issues, billing questions, or urgent community
@@ -57,31 +58,37 @@ export default function SupportPage() {
       ) : null}
 
       {error ? (
-        <p style={{ color: "#b91c1c", marginBottom: 16 }} role="alert">
+        <p className={styles.errorBox} role="alert">
           {error}
         </p>
       ) : null}
 
-      <form className={styles.form} onSubmit={handleSubmit}>
-        <div className={styles.field}>
+      <form className={`${styles.form} ts-stagger`} onSubmit={handleSubmit}>
+        <div className={styles.field} style={{ "--ts-stagger-i": 0 } as CSSProperties}>
           <label htmlFor="name">Full name</label>
           <input id="name" name="name" required placeholder="Alex Resident" />
         </div>
-        <div className={styles.field}>
+        <div className={styles.field} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
           <label htmlFor="email">Email</label>
           <input id="email" name="email" type="email" required placeholder="name@example.com" />
         </div>
-        <div className={styles.field}>
+        <div className={styles.field} style={{ "--ts-stagger-i": 2 } as CSSProperties}>
           <label htmlFor="topic">Topic</label>
           <input id="topic" name="topic" required placeholder="Billing, access, visitors..." />
         </div>
-        <div className={styles.field}>
+        <div className={styles.field} style={{ "--ts-stagger-i": 3 } as CSSProperties}>
           <label htmlFor="message">Message</label>
           <textarea id="message" name="message" required placeholder="How can we help?" />
         </div>
         <div className={styles.actions}>
           <button className={styles.primaryBtn} type="submit" disabled={loading}>
-            {loading ? "Sending…" : "Send Message"}
+            {loading ? (
+              <>
+                <Loader2 size={16} className="ts-spin" aria-hidden="true" /> Sending…
+              </>
+            ) : (
+              "Send Message"
+            )}
           </button>
           <a className={styles.secondaryBtn} href="mailto:support@townsync.app">
             Email support@townsync.app

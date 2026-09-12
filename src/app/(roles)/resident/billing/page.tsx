@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import styles from "@/styles/BillingPayments.module.css";
 import SuccessModal from "./success";
@@ -102,18 +103,18 @@ export default function BillingPayments() {
 
   return (
     <div className={styles.container}>
-      <header className={styles.header}>
+      <header className={`${styles.header} ts-fade-in-up`}>
         <h1 className={styles.pageTitle}>Billing & Payments</h1>
         <p className={styles.pageDesc}>
           Manage your resident ledger and upcoming dues securely.
         </p>
       </header>
 
-      {error ? <p style={{ color: "#b91c1c", marginBottom: 16 }}>{error}</p> : null}
-      {loading ? <p style={{ marginBottom: 16 }}>Loading billing…</p> : null}
+      {error ? <p className={styles.errorBanner} role="alert">{error}</p> : null}
+      {loading ? <p className={styles.loadingText}>Loading billing…</p> : null}
 
-      <div className={styles.topGrid}>
-        <section className={styles.balanceCard}>
+      <div className={`${styles.topGrid} ts-stagger`}>
+        <section className={styles.balanceCard} style={{ "--ts-stagger-i": 0 } as CSSProperties}>
           <div className={styles.balanceHeader}>
             <span className={styles.cardLabel}>CURRENT BALANCE</span>
             <div className={styles.dueBadge}>
@@ -132,7 +133,7 @@ export default function BillingPayments() {
           </div>
         </section>
 
-        <aside className={styles.announcementCard}>
+        <aside className={styles.announcementCard} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
           <div className={styles.announcementHeader}>
             <Megaphone size={18} className={styles.announceIcon} />
             <h3>Announcement</h3>
@@ -155,29 +156,17 @@ export default function BillingPayments() {
       <section className={styles.historySection}>
         <div className={styles.tableHeader}>
           <h2>Payment History</h2>
-          <div style={{ position: "relative" }}>
+          <div className={styles.filterWrap}>
             <button
               type="button"
               className={styles.filterBtn}
               onClick={() => setShowFilterMenu((v) => !v)}
+              aria-expanded={showFilterMenu}
             >
               <Filter size={14} /> Filter{statusFilter !== "All" ? `: ${statusFilter}` : ""}
             </button>
             {showFilterMenu ? (
-              <div
-                style={{
-                  position: "absolute",
-                  right: 0,
-                  top: "110%",
-                  background: "#fff",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 8,
-                  boxShadow: "0 8px 24px rgba(15,23,42,0.08)",
-                  minWidth: 140,
-                  zIndex: 10,
-                  overflow: "hidden",
-                }}
-              >
+              <div className={styles.filterMenu}>
                 {(["All", "Paid", "Unpaid", "Overdue"] as const).map((option) => (
                   <button
                     key={option}
@@ -186,18 +175,7 @@ export default function BillingPayments() {
                       setStatusFilter(option);
                       setShowFilterMenu(false);
                     }}
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "10px 14px",
-                      border: "none",
-                      background: statusFilter === option ? "#eff6ff" : "#fff",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#1e293b",
-                    }}
+                    className={`${styles.filterOption} ${statusFilter === option ? styles.filterOptionActive : ""}`}
                   >
                     {option}
                   </button>
@@ -244,7 +222,7 @@ export default function BillingPayments() {
               ))}
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: 24, color: "#64748b" }}>
+                  <td colSpan={5} className={styles.emptyRow}>
                     No payments match this filter.
                   </td>
                 </tr>
