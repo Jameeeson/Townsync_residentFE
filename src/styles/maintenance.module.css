@@ -1181,6 +1181,24 @@
   margin-bottom: var(--space-6);
 }
 
+.reviewDateInput {
+  width: 100%;
+  max-width: 220px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.reviewDateInput:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: var(--shadow-focus);
+}
+
 .reviewSectionLabel {
   font-size: 0.7rem;
   font-weight: 700;

@@ -33,15 +33,9 @@ export interface MaintenanceTicket {
   status: string;
   created_at: string;
   activity_timeline?: unknown[];
+  preferred_date?: string | null;
 }
 
-export interface AiChatResponse {
-  response: string;
-  suggested_fields?: {
-    category?: string;
-    priority_level?: string;
-  };
-}
 
 export async function listMaintenanceTickets(status?: string): Promise<MaintenanceTicket[]> {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
@@ -57,6 +51,7 @@ export async function createMaintenanceTicket(fields: {
   category: string;
   priority_level: string;
   detailed_description: string;
+  preferred_date?: string;
   images?: File[];
 }): Promise<MaintenanceTicket> {
   const form = new FormData();
@@ -64,6 +59,7 @@ export async function createMaintenanceTicket(fields: {
   form.set("category", fields.category);
   form.set("priority_level", fields.priority_level);
   form.set("detailed_description", fields.detailed_description);
+  if (fields.preferred_date) form.set("preferred_date", fields.preferred_date);
   fields.images?.forEach((file) => form.append("images", file));
   return apiClient.post<MaintenanceTicket>("/api/v1/resident/maintenance/tickets", form);
 }
@@ -77,8 +73,35 @@ export async function cancelMaintenanceTicket(
   });
 }
 
-export async function maintenanceAiChat(message: string): Promise<AiChatResponse> {
-  return apiClient.post<AiChatResponse>("/api/v1/resident/maintenance/ai-chat", { message });
+// --- Ticket chat (resident <-> assigned staff) ---
+
+export interface TicketChatMessage {
+  sender_user_id: number;
+  sender_role: string;
+  sender_name: string;
+  content: string;
+  timestamp: string;
+}
+
+export interface TicketChatThread {
+  ticket_id: number;
+  subject: string;
+  status: string;
+  resident_name: string;
+  staff_name: string | null;
+  staff_assigned: boolean;
+  messages: TicketChatMessage[];
+}
+
+export async function getTicketChat(ticketId: number): Promise<TicketChatThread> {
+  return apiClient.get<TicketChatThread>(`/api/v1/chat/${ticketId}`);
+}
+
+export async function sendTicketChatMessage(
+  ticketId: number,
+  content: string
+): Promise<TicketChatThread> {
+  return apiClient.post<TicketChatThread>(`/api/v1/chat/${ticketId}`, { content });
 }
 
 /** Structured, progressively-extracted fields the AI has identified so far. */

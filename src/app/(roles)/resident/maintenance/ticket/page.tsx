@@ -156,6 +156,12 @@ function TicketDetail() {
                 <label>Category</label>
                 <span>{ticket.category}</span>
               </div>
+              {ticket.preferred_date ? (
+                <div className={styles.metaItem}>
+                  <label>Preferred visit date</label>
+                  <span>{ticket.preferred_date}</span>
+                </div>
+              ) : null}
             </div>
 
             <div className={styles.contentBody}>

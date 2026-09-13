@@ -80,6 +80,18 @@ export function ReviewBrief({
       />
 
       <div className={styles.reviewSection}>
+        <div className={styles.reviewSectionLabel}>Preferred visit date (optional)</div>
+        <input
+          type="date"
+          className={styles.reviewDateInput}
+          value={draft.preferredDate}
+          min={new Date().toISOString().slice(0, 10)}
+          onChange={(e) => onUpdateDraft({ preferredDate: e.target.value })}
+          aria-label="Preferred visit date"
+        />
+      </div>
+
+      <div className={styles.reviewSection}>
         <div className={styles.reviewSectionLabel}>Urgency</div>
         <div className={styles.segmented}>
           {URGENCY_LEVELS.map((level) => {

@@ -33,6 +33,7 @@ export interface RequestDraft {
   location: string;
   description: string;
   urgency: string;
+  preferredDate: string;
 }
 
 const FALLBACK_MESSAGE =
@@ -158,6 +159,7 @@ export function useMaintenanceChat() {
       location: summaryState?.location ?? "",
       description: summaryState?.gathered_detail ?? "",
       urgency: summaryState?.urgency_level ?? "Medium",
+      preferredDate: "",
     });
     setSubmitError("");
     setPhase("review");
@@ -184,6 +186,7 @@ export function useMaintenanceChat() {
         location: PREVIEW_SUMMARY.location ?? "",
         description: PREVIEW_SUMMARY.gathered_detail ?? "",
         urgency: PREVIEW_SUMMARY.urgency_level ?? "Medium",
+        preferredDate: "",
       });
       setSubmitError("");
       setPhase("review");
@@ -208,6 +211,7 @@ export function useMaintenanceChat() {
         category: draft.category || "Other",
         priority_level: draft.urgency || "Medium",
         detailed_description: description,
+        preferred_date: draft.preferredDate || undefined,
         images: attachments.map((a) => a.file),
       });
       setSubmittedTicket(ticket);

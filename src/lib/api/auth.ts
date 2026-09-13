@@ -36,11 +36,28 @@ export async function login(email: string, password: string): Promise<LoginToken
 
   const token = await apiClient.post<LoginTokenResponse>("/api/auth/login", body);
   setAccessToken(token.access_token);
+  clearMeCache();
   return token;
 }
 
-export async function fetchMe(): Promise<AuthMeResponse> {
-  return apiClient.get<AuthMeResponse>("/api/auth/me");
+// Sidebar and header both call fetchMe() on mount for the same layout, which
+// used to fire two identical /api/auth/me requests on every resident page load.
+// Caching the in-flight/resolved promise lets every caller within a session
+// share one network call until it's explicitly invalidated (login/logout).
+let cachedMe: Promise<AuthMeResponse> | null = null;
+
+export function fetchMe(): Promise<AuthMeResponse> {
+  if (!cachedMe) {
+    cachedMe = apiClient.get<AuthMeResponse>("/api/auth/me").catch((err) => {
+      cachedMe = null;
+      throw err;
+    });
+  }
+  return cachedMe;
+}
+
+export function clearMeCache(): void {
+  cachedMe = null;
 }
 
 export async function logout(): Promise<void> {
@@ -48,6 +65,7 @@ export async function logout(): Promise<void> {
     await apiClient.post<MessageResponse>("/api/auth/logout", null);
   } finally {
     clearAccessToken();
+    clearMeCache();
   }
 }
 

@@ -2,6 +2,8 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  max-width: 880px;
+  margin: 0 auto;
   background-color: var(--color-bg);
   color: var(--color-text);
 }
@@ -47,55 +49,164 @@
 }
 
 /* ============================================================
-   Not-yet-available state — honest placeholder, not a fake demo
+   Message stream
    ============================================================ */
 
-.comingSoon {
+.stream {
   flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  gap: var(--space-5);
+}
+
+.streamEmpty {
+  margin: auto;
   text-align: center;
-  padding: clamp(2rem, 8vh, 5rem) var(--space-5);
+  color: var(--color-text-tertiary);
+  font-size: 0.875rem;
+  max-width: 320px;
 }
 
-.comingSoonIcon {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
+.moment {
+  max-width: 70%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-primary-50);
-  color: var(--color-primary-600);
-  margin-bottom: var(--space-5);
+  flex-direction: column;
+  gap: 4px;
 }
 
-.comingSoonTitle {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(1.375rem, 3vw, 1.75rem);
-  color: var(--color-text);
-  margin: 0 0 var(--space-3);
-  max-width: 26ch;
+.momentMine {
+  align-self: flex-end;
+  align-items: flex-end;
 }
 
-.comingSoonBody {
-  color: var(--color-text-secondary);
+.momentTheirs {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.momentLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.momentText {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
   font-size: 0.9375rem;
-  line-height: 1.6;
-  max-width: 42ch;
-  margin: 0 0 var(--space-7);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
-.comingSoonActions {
+.momentMine .momentText {
+  background: var(--color-primary-600);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.momentTheirs .momentText {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border-bottom-left-radius: 4px;
+}
+
+/* ============================================================
+   Composer
+   ============================================================ */
+
+.composerForm {
+  padding: 0 var(--space-6);
+}
+
+.composerWrapper {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  gap: var(--space-2);
+  background: var(--color-surface);
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.composerWrapper:focus-within {
+  border-color: var(--color-primary-500);
+  box-shadow: var(--shadow-focus);
+}
+
+.composerField {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.9375rem;
+  background: transparent;
+  color: var(--color-text);
+  width: 100%;
+  padding: var(--space-2) var(--space-2);
+}
+
+.composerSendBtn {
+  background: var(--color-primary-600);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-full);
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-3);
+  transition: background-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
+
+.composerSendBtn:hover:not(:disabled) {
+  background: var(--color-primary-700);
+}
+
+.composerSendBtn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.composerSendBtn:disabled {
+  background: var(--color-border-strong);
+  cursor: not-allowed;
+}
+
+.composerHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--color-text-tertiary);
+  margin: var(--space-3) 0 var(--space-5);
+  padding: 0 var(--space-6);
+}
+
+.hotlineLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-primary-600);
+  font-weight: 600;
+}
+
+.hotlineLink:hover {
+  color: var(--color-primary-700);
+}
+
+/* ============================================================
+   Banners
+   ============================================================ */
 
 .errorBanner {
   margin: var(--space-5) var(--space-6) 0;
@@ -103,6 +214,16 @@
   border-radius: var(--radius-sm);
   background: var(--color-danger-100);
   color: var(--color-danger-700);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.noticeBanner {
+  margin: var(--space-5) var(--space-6) 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-100);
+  color: var(--color-warning-600);
   font-size: 0.8125rem;
   font-weight: 600;
 }
