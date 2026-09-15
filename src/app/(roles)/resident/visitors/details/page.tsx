@@ -21,6 +21,44 @@ import {
   updateVisitorPass,
 } from "@/lib/api/resident";
 
+// Backend stores/returns scheduled_at as "YYYY-MM-DD HH:MM" (or ISO 8601).
+// <input type="datetime-local"> needs "YYYY-MM-DDTHH:MM" — convert both ways.
+function toDatetimeLocalValue(raw: string): string {
+  if (!raw) return "";
+  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
+function fromDatetimeLocalValue(value: string): string {
+  return value.replace("T", " ");
+}
+
+// Returns an error message, or "" if the scheduled time is valid.
+function validateScheduledAt(value: string): string {
+  if (!value.trim()) {
+    return "Scheduled time is required.";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Enter a valid date and time.";
+  }
+
+  if (date.getTime() < Date.now()) {
+    return "Scheduled time cannot be in the past.";
+  }
+
+  return "";
+}
+
 function VisitorDetailsInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,6 +70,8 @@ function VisitorDetailsInner() {
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [scheduledAtInput, setScheduledAtInput] = useState("");
+  const [scheduledAtError, setScheduledAtError] = useState("");
   const [savedNote, setSavedNote] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -52,6 +92,7 @@ function VisitorDetailsInner() {
         setName(data.visitor_name);
         setPurpose(data.visit_purpose);
         setScheduledAt(data.scheduled_at);
+        setScheduledAtInput(toDatetimeLocalValue(data.scheduled_at));
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -77,13 +118,24 @@ function VisitorDetailsInner() {
   async function saveEdit() {
     if (!pass) return;
     setError("");
+
+    const validationMessage = validateScheduledAt(scheduledAtInput);
+    setScheduledAtError(validationMessage);
+    if (validationMessage) {
+      return;
+    }
+
+    const nextScheduledAt = fromDatetimeLocalValue(scheduledAtInput);
+
     try {
       const updated = await updateVisitorPass(pass.id, {
         visitor_name: name,
         visit_purpose: purpose,
-        scheduled_at: scheduledAt,
+        scheduled_at: nextScheduledAt,
       });
       setPass(updated);
+      setScheduledAt(updated.scheduled_at ?? nextScheduledAt);
+      setScheduledAtInput(toDatetimeLocalValue(updated.scheduled_at ?? nextScheduledAt));
       setEditing(false);
       setSavedNote("Visitor pass updated.");
     } catch (err) {
@@ -171,14 +223,23 @@ function VisitorDetailsInner() {
           </div>
         </div>
         {editing ? (
-          <button type="button" className={styles.editBtn} onClick={() => void saveEdit()}>
+          <button
+            type="button"
+            className={styles.editBtn}
+            onClick={() => void saveEdit()}
+            disabled={scheduledAtError !== ""}
+          >
             <Check size={16} /> Save Pass
           </button>
         ) : (
           <button
             type="button"
             className={styles.editBtn}
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              setScheduledAtInput(toDatetimeLocalValue(scheduledAt));
+              setScheduledAtError("");
+              setEditing(true);
+            }}
             disabled={revoked}
           >
             <Edit3 size={16} /> Edit Pass
@@ -224,11 +285,26 @@ function VisitorDetailsInner() {
                   <Calendar size={14} /> Scheduled
                 </span>
                 {editing ? (
-                  <input
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    className={styles.fieldInput}
-                  />
+                  <>
+                    <input
+                      type="datetime-local"
+                      value={scheduledAtInput}
+                      min={toDatetimeLocalValue(new Date().toISOString())}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setScheduledAtInput(value);
+                        setScheduledAtError(validateScheduledAt(value));
+                      }}
+                      className={styles.fieldInput}
+                      aria-invalid={scheduledAtError ? true : undefined}
+                      aria-describedby={scheduledAtError ? "scheduledAt-error" : undefined}
+                    />
+                    {scheduledAtError ? (
+                      <span id="scheduledAt-error" className={styles.fieldError} role="alert">
+                        {scheduledAtError}
+                      </span>
+                    ) : null}
+                  </>
                 ) : (
                   <span className={styles.fieldValue}>{scheduledAt}</span>
                 )}

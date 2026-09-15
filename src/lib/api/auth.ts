@@ -77,6 +77,13 @@ export async function forgotPassword(email: string): Promise<MessageResponse> {
   return apiClient.post<MessageResponse>("/api/auth/forgot-password", { email });
 }
 
+export async function resetPassword(token: string, newPassword: string): Promise<MessageResponse> {
+  return apiClient.post<MessageResponse>("/api/auth/reset-password", {
+    token,
+    new_password: newPassword,
+  });
+}
+
 export async function changePassword(currentPassword: string, newPassword: string): Promise<MessageResponse> {
   return apiClient.post<MessageResponse>("/api/auth/change-password", {
     current_password: currentPassword,

@@ -2,17 +2,37 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Eye, EyeOff, Home, Loader2, Lock, Mail } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { fetchMe, login } from "@/lib/api/auth";
 import styles from "@/styles/auth.module.css";
+
+const REMEMBERED_EMAIL_KEY = "townsync_remembered_email";
+
+function readRememberedEmail(): string {
+  try {
+    return window.localStorage.getItem(REMEMBERED_EMAIL_KEY) ?? "";
+  } catch {
+    // localStorage unavailable (private mode, etc.)
+    return "";
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberedEmail, setRememberedEmail] = useState("");
+
+  // Read after mount (not via a lazy useState initializer) so the server-rendered
+  // markup (which can't see localStorage) matches the client's first render and
+  // React doesn't warn about a hydration mismatch on the input's value.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of a browser-only API (localStorage) on mount; there is no way to derive this during render without a hydration mismatch.
+    setRememberedEmail(readRememberedEmail());
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -22,9 +42,21 @@ export default function LoginPage() {
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
+    const remember = form.get("remember") === "on";
 
     try {
       await login(email, password);
+
+      try {
+        if (remember) {
+          window.localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+        } else {
+          window.localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+        }
+      } catch {
+        // localStorage unavailable — non-fatal
+      }
+
       const me = await fetchMe();
       if (me.role && me.role.toLowerCase() !== "resident") {
         // Resident portal only for now
@@ -72,6 +104,8 @@ export default function LoginPage() {
                 placeholder="name@example.com"
                 required
                 autoComplete="email"
+                defaultValue={rememberedEmail}
+                key={rememberedEmail}
               />
             </div>
           </div>
@@ -101,7 +135,12 @@ export default function LoginPage() {
 
           <div className={styles.options}>
             <label className={styles.remember}>
-              <input type="checkbox" name="remember" />
+              <input
+                type="checkbox"
+                name="remember"
+                defaultChecked={Boolean(rememberedEmail)}
+                key={`remember-${rememberedEmail}`}
+              />
               Remember Me
             </label>
             <Link className={styles.forgotLink} href="/forgot-password">
