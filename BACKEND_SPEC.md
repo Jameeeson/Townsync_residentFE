@@ -557,7 +557,7 @@ Use for: registration ID, maintenance images, chat attachments, avatar.
 
 ### 8.2 Maintenance
 
-1. Resident chats with TownCare AI (triage category/urgency; optional photo)
+1. Resident chats with TownSync AI (triage category/urgency; optional photo)
 2. Review: edit description, urgency, preferred date, images
 3. Submit → `MaintenanceRequest` `submitted` (+ AI summary/score)
 4. Staff triages → assigns vendor (`assigned` → `in_progress`)

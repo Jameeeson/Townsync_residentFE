@@ -1,10 +1,9 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useRef } from "react";
+import { FormEvent, KeyboardEvent } from "react";
 import type { CSSProperties } from "react";
-import { ArrowUp, Plus, X } from "lucide-react";
+import { AlertTriangle, ArrowUp } from "lucide-react";
 import styles from "@/styles/maintenance.module.css";
-import type { ChatAttachment } from "@/hooks/useMaintenanceChat";
 
 interface ChatComposerProps {
   value: string;
@@ -13,10 +12,6 @@ interface ChatComposerProps {
   disabled: boolean;
   suggestedOptions: string[];
   onPickSuggestedOption: (text: string) => void;
-  attachments: ChatAttachment[];
-  onAttachImage: (file: File) => void;
-  onRemoveAttachment: (index: number) => void;
-  maxAttachments: number;
   placeholder?: string;
 }
 
@@ -27,14 +22,8 @@ export function ChatComposer({
   disabled,
   suggestedOptions,
   onPickSuggestedOption,
-  attachments,
-  onAttachImage,
-  onRemoveAttachment,
-  maxAttachments,
-  placeholder = "Tell me what's happening…",
+  placeholder = "Explain details, or choose an option above…",
 }: ChatComposerProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     onSend();
@@ -66,47 +55,8 @@ export function ChatComposer({
         </div>
       ) : null}
 
-      {attachments.length > 0 ? (
-        <div className={styles.attachmentPreviews}>
-          {attachments.map((attachment, i) => (
-            <div key={attachment.previewUrl} className={styles.attachmentThumb}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={attachment.previewUrl} alt="" />
-              <button
-                type="button"
-                className={styles.attachmentRemove}
-                aria-label="Remove attachment"
-                onClick={() => onRemoveAttachment(i)}
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
       <form onSubmit={handleSubmit}>
         <div className={styles.composerWrapper}>
-          <button
-            type="button"
-            aria-label="Add photo"
-            onClick={() => fileInputRef.current?.click()}
-            className={styles.attachBtn}
-            disabled={disabled || attachments.length >= maxAttachments}
-          >
-            <Plus size={17} />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onAttachImage(file);
-              e.target.value = "";
-            }}
-          />
           <input
             className={styles.composerField}
             placeholder={placeholder}
@@ -114,7 +64,7 @@ export function ChatComposer({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            aria-label="Message TownCare AI"
+            aria-label="Message TownSync AI"
           />
           <button
             type="submit"
@@ -127,7 +77,9 @@ export function ChatComposer({
         </div>
       </form>
       <p className={styles.composerHint}>
-        For emergencies, please call the resident hotline instead of using this assistant.
+        <AlertTriangle size={12} aria-hidden="true" />
+        For emergencies threatening safety or active flooding, please call the Emergency Hotline
+        immediately.
       </p>
     </div>
   );

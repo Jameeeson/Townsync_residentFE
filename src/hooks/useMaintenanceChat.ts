@@ -16,6 +16,7 @@ export interface ChatMessageData {
   id: string;
   role: ChatRole;
   text: string;
+  timestamp: string;
   isError?: boolean;
   understood?: UnderstoodItem[];
 }
@@ -34,6 +35,8 @@ export interface RequestDraft {
   description: string;
   urgency: string;
   preferredDate: string;
+  entryPermission: boolean;
+  entryNotes: string;
 }
 
 const FALLBACK_MESSAGE =
@@ -78,6 +81,7 @@ export function useMaintenanceChat() {
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
 
   const [draft, setDraft] = useState<RequestDraft | null>(null);
+  const [draftStartedAt, setDraftStartedAt] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submittedTicket, setSubmittedTicket] = useState<MaintenanceTicket | null>(null);
@@ -92,7 +96,10 @@ export function useMaintenanceChat() {
       setPhase((p) => (p === "empty" ? "conversation" : p));
       setInput("");
       setSuggestedOptions([]);
-      setMessages((prev) => [...prev, { id: `${Date.now()}-u`, role: "user", text: trimmed }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: `${Date.now()}-u`, role: "user", text: trimmed, timestamp: new Date().toISOString() },
+      ]);
       setLoading(true);
 
       try {
@@ -108,12 +115,24 @@ export function useMaintenanceChat() {
 
         setMessages((prev) => [
           ...prev,
-          { id: `${Date.now()}-a`, role: "ai", text: result.reply_message, understood },
+          {
+            id: `${Date.now()}-a`,
+            role: "ai",
+            text: result.reply_message,
+            timestamp: new Date().toISOString(),
+            understood,
+          },
         ]);
       } catch {
         setMessages((prev) => [
           ...prev,
-          { id: `${Date.now()}-a`, role: "ai", text: FALLBACK_MESSAGE, isError: true },
+          {
+            id: `${Date.now()}-a`,
+            role: "ai",
+            text: FALLBACK_MESSAGE,
+            timestamp: new Date().toISOString(),
+            isError: true,
+          },
         ]);
       } finally {
         setLoading(false);
@@ -160,13 +179,29 @@ export function useMaintenanceChat() {
       description: summaryState?.gathered_detail ?? "",
       urgency: summaryState?.urgency_level ?? "Medium",
       preferredDate: "",
+      entryPermission: false,
+      entryNotes: "",
     });
+    setDraftStartedAt(Date.now());
     setSubmitError("");
     setPhase("review");
   }, [summaryState]);
 
   const backToConversation = useCallback(() => {
     setPhase("conversation");
+  }, []);
+
+  const discardRequest = useCallback(() => {
+    setDraft(null);
+    setDraftStartedAt(null);
+    setSubmitError("");
+    setPhase("empty");
+    setMessages([]);
+    setSessionId(null);
+    setSummaryState(null);
+    setSuggestedOptions([]);
+    setIsComplete(false);
+    lastFieldsRef.current = deriveReportFields(null, false);
   }, []);
 
   const updateDraft = useCallback((patch: Partial<RequestDraft>) => {
@@ -187,7 +222,10 @@ export function useMaintenanceChat() {
         description: PREVIEW_SUMMARY.gathered_detail ?? "",
         urgency: PREVIEW_SUMMARY.urgency_level ?? "Medium",
         preferredDate: "",
+        entryPermission: false,
+        entryNotes: "",
       });
+      setDraftStartedAt(Date.now());
       setSubmitError("");
       setPhase("review");
     } else {
@@ -201,9 +239,14 @@ export function useMaintenanceChat() {
     setSubmitting(true);
     setSubmitError("");
 
-    const description = draft.location
+    let description = draft.location
       ? `${draft.description} (Location: ${draft.location})`.trim()
       : draft.description;
+    if (draft.entryPermission) {
+      description += ` (Entry permission granted if resident is not home${
+        draft.entryNotes.trim() ? `: ${draft.entryNotes.trim()}` : "."
+      })`;
+    }
 
     try {
       const ticket = await createMaintenanceTicket({
@@ -234,6 +277,7 @@ export function useMaintenanceChat() {
     messages,
     input,
     setInput,
+    sessionId,
     summaryState,
     suggestedOptions,
     isComplete,
@@ -245,8 +289,10 @@ export function useMaintenanceChat() {
     attachImage,
     removeAttachment,
     draft,
+    draftStartedAt,
     beginReview,
     backToConversation,
+    discardRequest,
     updateDraft,
     submitting,
     submitError,

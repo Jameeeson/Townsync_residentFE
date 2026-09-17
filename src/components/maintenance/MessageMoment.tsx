@@ -5,36 +5,46 @@ import { UnderstoodChips } from "./UnderstoodChips";
 interface MessageMomentProps {
   message: ChatMessageData;
   isLatest: boolean;
+  urgentNote?: string | null;
 }
 
-/**
- * An editorial "moment" rather than a chat bubble. The most recent AI turn is rendered as the
- * hero of the conversation (larger type); earlier turns recede into a quieter history above it.
- */
-export function MessageMoment({ message, isLatest }: MessageMomentProps) {
+function formatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+export function MessageMoment({ message, isLatest, urgentNote }: MessageMomentProps) {
   const entrance = isLatest ? "ts-fade-in-up" : "";
 
   if (message.role === "user") {
     return (
-      <div className={`${styles.moment} ${styles.momentUser} ${entrance}`}>
-        <p className={styles.momentUserText}>{message.text}</p>
+      <div className={`${styles.bubbleRow} ${styles.bubbleRowUser} ${entrance}`}>
+        <div className={`${styles.bubble} ${styles.bubbleUser}`}>
+          <p className={styles.bubbleText}>{message.text}</p>
+        </div>
+        <span className={styles.bubbleTimestamp}>{formatTime(message.timestamp)}</span>
       </div>
     );
   }
 
+  const highlight = isLatest && !message.isError;
+
   return (
-    <div
-      className={`${styles.moment} ${styles.momentAi} ${isLatest ? styles.momentAiLatest : ""} ${entrance}`}
-    >
-      <div className={styles.momentLabel}>TownCare AI</div>
-      <p
-        className={`${styles.momentAiText} ${message.isError ? styles.momentAiTextError : ""} ${
-          isLatest ? styles.momentAiTextHero : ""
+    <div className={`${styles.bubbleRow} ${styles.bubbleRowAi} ${entrance}`}>
+      <div
+        className={`${styles.bubble} ${styles.bubbleAi} ${highlight ? styles.bubbleAiHighlight : ""} ${
+          message.isError ? styles.bubbleAiError : ""
         }`}
       >
-        {message.text}
-      </p>
-      {message.understood?.length ? <UnderstoodChips items={message.understood} /> : null}
+        {highlight ? <div className={styles.diagnosticClarificationLabel}>Diagnostic Clarification</div> : null}
+        <p className={styles.bubbleText}>{message.text}</p>
+        {highlight && urgentNote ? <p className={styles.bubbleUrgentNote}>{urgentNote}</p> : null}
+        {message.understood?.length ? <UnderstoodChips items={message.understood} /> : null}
+      </div>
+      <span className={styles.bubbleTimestamp}>TownSync AI · {formatTime(message.timestamp)}</span>
     </div>
   );
 }

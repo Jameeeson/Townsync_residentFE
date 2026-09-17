@@ -3,11 +3,12 @@ import { AIPresence } from "./AIPresence";
 
 export function TypingIndicator() {
   return (
-    <div className={`${styles.moment} ${styles.momentAi}`} role="status" aria-label="TownCare AI is composing a reply">
-      <div className={styles.momentLabel}>TownCare AI</div>
-      <div className={styles.thinkingRow}>
-        <AIPresence state="thinking" size={22} />
-        <span className={styles.thinkingText}>Reading your message…</span>
+    <div className={`${styles.bubbleRow} ${styles.bubbleRowAi}`} role="status" aria-label="TownSync AI is composing a reply">
+      <div className={`${styles.bubble} ${styles.bubbleAi}`}>
+        <div className={styles.thinkingRow}>
+          <AIPresence state="thinking" size={22} />
+          <span className={styles.thinkingText}>Reading your message…</span>
+        </div>
       </div>
     </div>
   );
