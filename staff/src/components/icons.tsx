@@ -238,6 +238,14 @@ export function IconX(props: IconProps) {
   );
 }
 
+export function IconChatBubble(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M21 12a8 8 0 0 1-11.9 7L4 20l1.2-4.3A8 8 0 1 1 21 12Z" />
+    </svg>
+  );
+}
+
 export function IconSend(props: IconProps) {
   return (
     <svg {...base(props)}>

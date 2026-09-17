@@ -1,117 +1,105 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  IconCalendar,
   IconClipboardCheck,
   IconSearch,
   IconUserSlash,
 } from "@/components/icons";
+import { ApiError } from "@/lib/api-client";
+import { getVisitorLogs, type VisitorLog } from "@/lib/services/staff";
 import styles from "./logs.module.css";
 
-type Status = "checked-in" | "departed" | "denied";
+type UiStatus = "checked-in" | "departed" | "denied" | "pending";
 
-type Log = {
-  id: string;
-  name: string;
-  unit: string;
-  time: string;
-  status: Status;
-  day: "today" | "yesterday";
-  reason?: string;
-  initials: string;
-};
-
-const LOGS: Log[] = [
-  {
-    id: "1",
-    name: "Marcus Lee",
-    unit: "Unit 402B · East Wing",
-    time: "Checked in 10:45 AM",
-    status: "checked-in",
-    day: "today",
-    initials: "ML",
-  },
-  {
-    id: "2",
-    name: "Aisha Rahman",
-    unit: "Unit 118 · West Court",
-    time: "Exited 9:20 AM",
-    status: "departed",
-    day: "today",
-    initials: "AR",
-  },
-  {
-    id: "3",
-    name: "Unknown Visitor",
-    unit: "Gate A · Main Entrance",
-    time: "Denied 8:05 AM",
-    status: "denied",
-    day: "today",
-    reason: "Unauthorized ID",
-    initials: "?",
-  },
-  {
-    id: "4",
-    name: "Daniel Park",
-    unit: "Unit 305 · Tower 2",
-    time: "Checked in 6:40 PM",
-    status: "checked-in",
-    day: "yesterday",
-    initials: "DP",
-  },
-  {
-    id: "5",
-    name: "Sofia Mendes",
-    unit: "Clubhouse · Pool Deck",
-    time: "Exited 4:12 PM",
-    status: "departed",
-    day: "yesterday",
-    initials: "SM",
-  },
-];
-
-const STATUS_LABEL: Record<Status, string> = {
+const STATUS_LABEL: Record<UiStatus, string> = {
   "checked-in": "Checked In",
   departed: "Departed",
   denied: "Denied",
+  pending: "Pending",
 };
 
-const RANGES = [
-  { id: "2d", label: "Oct 23–24", days: ["today", "yesterday"] as const },
-  { id: "today", label: "Today only", days: ["today"] as const },
-  { id: "yesterday", label: "Yesterday only", days: ["yesterday"] as const },
-] as const;
+function toUiStatus(status: string): UiStatus {
+  if (status === "Checked In") return "checked-in";
+  if (status === "Departed") return "departed";
+  if (status === "Rejected") return "denied";
+  return "pending";
+}
+
+function initialsFor(name: string) {
+  if (!name || name === "Unknown Visitor") return "?";
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function dayGroupFor(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return "Recent";
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(parsed, today)) return "Today";
+  if (sameDay(parsed, yesterday)) return "Yesterday";
+  return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 export default function StaffLogsPage() {
   const [query, setQuery] = useState("");
-  const [rangeIdx, setRangeIdx] = useState(0);
-  const range = RANGES[rangeIdx];
+  const [logs, setLogs] = useState<VisitorLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getVisitorLogs(query.trim() || undefined);
+        if (!cancelled) setLogs(data);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof ApiError ? e.message : "Could not load visitor logs.");
+          setLogs([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [query]);
 
   const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const allowed = new Set<string>(range.days);
-    const filtered = LOGS.filter(
-      (l) =>
-        allowed.has(l.day) &&
-        (!q ||
-          l.name.toLowerCase().includes(q) ||
-          l.unit.toLowerCase().includes(q)),
+    const timeOf = (log: VisitorLog) => {
+      const t = new Date(log.timestamp).getTime();
+      return Number.isNaN(t) ? -Infinity : t;
+    };
+
+    const byDay = new Map<string, VisitorLog[]>();
+    for (const log of logs) {
+      const key = dayGroupFor(log.timestamp);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key)!.push(log);
+    }
+
+    const entries = Array.from(byDay.entries()).map(
+      ([label, items]) =>
+        [label, items.sort((a, b) => timeOf(b) - timeOf(a))] as [string, VisitorLog[]],
     );
 
-    return [
-      {
-        key: "today",
-        label: "Today, Oct 24",
-        items: filtered.filter((l) => l.day === "today"),
-      },
-      {
-        key: "yesterday",
-        label: "Yesterday, Oct 23",
-        items: filtered.filter((l) => l.day === "yesterday"),
-      },
-    ].filter((g) => g.items.length > 0);
-  }, [query, range]);
+    // Sort groups by their most recent entry, newest first, regardless of API row order.
+    entries.sort(([, a], [, b]) => timeOf(b[0]) - timeOf(a[0]));
+    return entries;
+  }, [logs]);
 
   return (
     <div className={styles.page}>
@@ -131,19 +119,10 @@ export default function StaffLogsPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search guests or units…"
-            aria-label="Search guests or units"
+            placeholder="Search guests…"
+            aria-label="Search guests"
           />
         </label>
-        <button
-          type="button"
-          className={styles.dateBtn}
-          aria-label={`Date range: ${range.label}. Click to cycle.`}
-          onClick={() => setRangeIdx((i) => (i + 1) % RANGES.length)}
-        >
-          <IconCalendar size={18} />
-          <span>{range.label}</span>
-        </button>
       </div>
 
       <div className={styles.tableWrap}>
@@ -154,58 +133,66 @@ export default function StaffLogsPage() {
           <span>Status</span>
         </div>
 
-        {groups.length === 0 ? (
+        {loading ? (
           <p className={styles.empty} role="status">
-            No visitor logs match this search or date range.
+            Loading visitor logs…
+          </p>
+        ) : error ? (
+          <p className={styles.empty} role="status">
+            {error}
+          </p>
+        ) : groups.length === 0 ? (
+          <p className={styles.empty} role="status">
+            No visitor logs match this search.
           </p>
         ) : (
-          groups.map((group) => (
-            <section key={group.key} className={styles.group}>
-              <h2>{group.label}</h2>
+          groups.map(([label, items]) => (
+            <section key={label} className={styles.group}>
+              <h2>{label}</h2>
               <ul className={styles.list}>
-                {group.items.map((log) => (
-                  <li
-                    key={log.id}
-                    className={`${styles.card} ${
-                      log.status === "denied" ? styles.denied : ""
-                    }`}
-                  >
-                    <div className={styles.person}>
-                      <div
-                        className={`${styles.avatar} ${
-                          log.status === "denied" ? styles.avatarDenied : ""
+                {items.map((log) => {
+                  const status = toUiStatus(log.status);
+                  return (
+                    <li
+                      key={log.id}
+                      className={`${styles.card} ${status === "denied" ? styles.denied : ""}`}
+                    >
+                      <div className={styles.person}>
+                        <div
+                          className={`${styles.avatar} ${
+                            status === "denied" ? styles.avatarDenied : ""
+                          }`}
+                        >
+                          {status === "denied" ? (
+                            <IconUserSlash size={18} />
+                          ) : (
+                            initialsFor(log.visitor_name)
+                          )}
+                        </div>
+                        <div>
+                          <strong>{log.visitor_name}</strong>
+                          <p className={styles.mobileMeta}>{log.unit_destination}</p>
+                          <p className={styles.mobileMeta}>{log.timestamp}</p>
+                        </div>
+                      </div>
+                      <span className={styles.colUnit}>{log.unit_destination}</span>
+                      <span className={styles.colTime}>{log.timestamp}</span>
+                      <span
+                        className={`${styles.badge} ${
+                          status === "checked-in"
+                            ? styles.badgeIn
+                            : status === "departed"
+                              ? styles.badgeOut
+                              : status === "denied"
+                                ? styles.badgeDenied
+                                : ""
                         }`}
                       >
-                        {log.status === "denied" ? (
-                          <IconUserSlash size={18} />
-                        ) : (
-                          log.initials
-                        )}
-                      </div>
-                      <div>
-                        <strong>{log.name}</strong>
-                        {log.reason ? (
-                          <em className={styles.reason}>{log.reason}</em>
-                        ) : null}
-                        <p className={styles.mobileMeta}>{log.unit}</p>
-                        <p className={styles.mobileMeta}>{log.time}</p>
-                      </div>
-                    </div>
-                    <span className={styles.colUnit}>{log.unit}</span>
-                    <span className={styles.colTime}>{log.time}</span>
-                    <span
-                      className={`${styles.badge} ${
-                        log.status === "checked-in"
-                          ? styles.badgeIn
-                          : log.status === "departed"
-                            ? styles.badgeOut
-                            : styles.badgeDenied
-                      }`}
-                    >
-                      {STATUS_LABEL[log.status]}
-                    </span>
-                  </li>
-                ))}
+                        {STATUS_LABEL[status]}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))

@@ -1,16 +1,19 @@
 :root {
-  --navy-950: #071428;
-  --navy-900: #0c1f3d;
-  --navy-800: #143056;
-  --navy-700: #1a3d6e;
-  --navy-600: #2454a0;
-  --navy-500: #2f6bc4;
-  --navy-100: #e8eef8;
-  --navy-50: #f2f5fb;
+  /* Navy scale aligned to the shared TownSync brand blue family (see frontned's
+     --color-primary-* scale) — staff keeps its own step count, Sora as its
+     display font is its distinct accent. */
+  --navy-950: #0b2148;
+  --navy-900: #163a80;
+  --navy-800: #1f4a9e;
+  --navy-700: #2b5cb8;
+  --navy-600: #3f6bc0;
+  --navy-500: #4a76c8;
+  --navy-100: #dbe6f8;
+  --navy-50: #eef3fc;
 
   --ink: #0e1a2b;
   --ink-soft: #3d4f66;
-  --muted: #6b7c90;
+  --muted: #5b6b82;
   --line: #d8e0ec;
   --line-soft: #e8edf5;
 
@@ -36,8 +39,8 @@
   --shadow-md: 0 8px 24px rgba(12, 31, 61, 0.08);
   --shadow-lg: 0 20px 48px rgba(12, 31, 61, 0.14);
 
-  --font-sans: var(--font-plus-jakarta), "Segoe UI", sans-serif;
-  --font-display: var(--font-sora), var(--font-plus-jakarta), sans-serif;
+  --font-sans: var(--font-plex-sans), "Segoe UI", sans-serif;
+  --font-display: var(--font-sora), var(--font-plex-sans), sans-serif;
 
   --sidebar-w: 248px;
   --header-h: 64px;

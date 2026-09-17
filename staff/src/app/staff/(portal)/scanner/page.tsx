@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { IconFlashlight, IconPencil } from "@/components/icons";
 import { useToast } from "@/components/Toast";
+import { ApiError } from "@/lib/api-client";
+import { confirmEntry, manualCheckin, verifyPass } from "@/lib/services/staff";
 import styles from "./scanner.module.css";
 
 type LastScan = {
@@ -13,24 +15,6 @@ type LastScan = {
   time: string;
 };
 
-const MOCK_PASSES: Record<
-  string,
-  { name: string; unit: string; initials: string; allowed: boolean }
-> = {
-  "PASS-88214": {
-    name: "Marcus Lee",
-    unit: "Unit 402B · East Wing",
-    initials: "ML",
-    allowed: true,
-  },
-  "PASS-99102": {
-    name: "Unknown Visitor",
-    unit: "Gate A · Main Entrance",
-    initials: "?",
-    allowed: false,
-  },
-};
-
 function nowLabel() {
   return new Date().toLocaleTimeString([], {
     hour: "numeric",
@@ -38,64 +22,108 @@ function nowLabel() {
   });
 }
 
+function initialsFor(name: string) {
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "?"
+  );
+}
+
 export default function StaffScannerPage() {
   const { toast } = useToast();
   const [manualOpen, setManualOpen] = useState(true);
   const [passId, setPassId] = useState("");
-  const [unit, setUnit] = useState("");
+  const [entryPoint, setEntryPoint] = useState("Main Gate");
   const [verifying, setVerifying] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [lastScan, setLastScan] = useState<LastScan>({
-    initials: "ML",
-    name: "Marcus Lee",
-    unit: "Unit 402B · East Wing",
-    result: "allowed",
-    time: "10:45 AM",
-  });
+  const [lastScan, setLastScan] = useState<LastScan | null>(null);
 
-  function onVerify(e: FormEvent) {
+  const [noPassOpen, setNoPassOpen] = useState(false);
+  const [visitorName, setVisitorName] = useState("");
+  const [idType, setIdType] = useState("Government ID");
+  const [documentNumber, setDocumentNumber] = useState("");
+  const [notes, setNotes] = useState("");
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+
+  async function onVerify(e: FormEvent) {
     e.preventDefault();
     setFormError(null);
-    const id = passId.trim().toUpperCase();
-    if (!id) {
-      setFormError("Enter a visitor or pass ID.");
+    const token = passId.trim();
+    if (!token) {
+      setFormError("Enter a visitor pass QR token.");
       return;
     }
 
     setVerifying(true);
-    window.setTimeout(() => {
-      const match = MOCK_PASSES[id];
-      const destination = unit.trim() || match?.unit || "Unspecified unit";
-
-      if (!match) {
-        setLastScan({
-          initials: "?",
-          name: "Unrecognized Pass",
-          unit: destination,
-          result: "denied",
-          time: nowLabel(),
-        });
-        toast("Access denied — pass not found.", "danger");
-        setVerifying(false);
-        return;
-      }
-
-      const result = match.allowed ? "allowed" : "denied";
+    try {
+      const verified = await verifyPass(token);
+      await confirmEntry(verified.pass_id, entryPoint || "Main Gate");
       setLastScan({
-        initials: match.initials,
-        name: match.name,
-        unit: destination || match.unit,
-        result,
+        initials: initialsFor(verified.visitor_name),
+        name: verified.visitor_name,
+        unit: verified.unit,
+        result: "allowed",
         time: nowLabel(),
       });
-      toast(
-        result === "allowed"
-          ? `${match.name} checked in.`
-          : `${match.name} denied.`,
-        result === "allowed" ? "success" : "danger",
-      );
+      toast(`${verified.visitor_name} checked in.`, "success");
+      setPassId("");
+    } catch (err) {
+      setLastScan({
+        initials: "?",
+        name: "Unrecognized Pass",
+        unit: entryPoint || "Unspecified",
+        result: "denied",
+        time: nowLabel(),
+      });
+      const message =
+        err instanceof ApiError ? err.message : "Access denied — pass not found.";
+      toast(message, "danger");
+    } finally {
       setVerifying(false);
-    }, 450);
+    }
+  }
+
+  async function onManualCheckin(e: FormEvent) {
+    e.preventDefault();
+    setManualError(null);
+    const name = visitorName.trim();
+    const doc = documentNumber.trim();
+    if (!name || !doc) {
+      setManualError("Visitor name and document number are required.");
+      return;
+    }
+
+    setManualSubmitting(true);
+    try {
+      await manualCheckin({
+        visitor_name: name,
+        id_type: idType,
+        document_number: doc,
+        verification_notes: notes.trim() || undefined,
+      });
+      setLastScan({
+        initials: initialsFor(name),
+        name,
+        unit: entryPoint || "Unspecified",
+        result: "allowed",
+        time: nowLabel(),
+      });
+      toast(`${name} logged in manually.`, "success");
+      setVisitorName("");
+      setDocumentNumber("");
+      setNotes("");
+    } catch (err) {
+      setManualError(
+        err instanceof ApiError ? err.message : "Could not log this manual entry.",
+      );
+    } finally {
+      setManualSubmitting(false);
+    }
   }
 
   return (
@@ -105,8 +133,8 @@ export default function StaffScannerPage() {
           <p className={styles.kicker}>Access Control</p>
           <h1>Gate Scanner</h1>
           <p className={styles.lede}>
-            Camera scanning is unavailable in this preview — use manual ID entry
-            to verify access.
+            Camera scanning is unavailable in this preview — use pass verification
+            or manual entry below.
           </p>
         </div>
         <span className={styles.offline} role="status">
@@ -130,7 +158,7 @@ export default function StaffScannerPage() {
             </div>
             <div className={styles.cameraCopy}>
               <p>Camera preview offline</p>
-              <span>Switch to Manual ID Entry below</span>
+              <span>Use Pass Verification below</span>
             </div>
             <button
               type="button"
@@ -150,64 +178,54 @@ export default function StaffScannerPage() {
             onClick={() => setManualOpen((v) => !v)}
           >
             <IconPencil size={18} />{" "}
-            {manualOpen ? "Hide Manual Entry" : "Manual ID Entry"}
+            {manualOpen ? "Hide Pass Verification" : "Verify Visitor Pass"}
           </button>
         </section>
 
         <aside className={styles.side}>
           <article className={styles.panel}>
             <h2>Last Scan</h2>
-            <div className={styles.lastScan}>
-              <div className={styles.avatar}>{lastScan.initials}</div>
-              <div>
-                <strong>{lastScan.name}</strong>
-                <p>{lastScan.unit}</p>
-                <span
-                  className={
-                    lastScan.result === "allowed"
-                      ? styles.badgeOk
-                      : styles.badgeDenied
-                  }
-                >
-                  {lastScan.result === "allowed" ? "Checked In" : "Denied"} ·{" "}
-                  {lastScan.time}
-                </span>
+            {lastScan ? (
+              <div className={styles.lastScan}>
+                <div className={styles.avatar}>{lastScan.initials}</div>
+                <div>
+                  <strong>{lastScan.name}</strong>
+                  <p>{lastScan.unit}</p>
+                  <span
+                    className={
+                      lastScan.result === "allowed" ? styles.badgeOk : styles.badgeDenied
+                    }
+                  >
+                    {lastScan.result === "allowed" ? "Checked In" : "Denied"} ·{" "}
+                    {lastScan.time}
+                  </span>
+                </div>
               </div>
-            </div>
-          </article>
-
-          <article className={styles.panel}>
-            <h2>Scanner Tips</h2>
-            <ul className={styles.tips}>
-              <li>
-                Try <code>PASS-88214</code> (allow) or <code>PASS-99102</code>{" "}
-                (deny)
-              </li>
-              <li>Destination unit is optional but recommended</li>
-              <li>Unrecognized IDs are logged as denied locally</li>
-            </ul>
+            ) : (
+              <p className={styles.lede}>No scans yet this shift.</p>
+            )}
           </article>
 
           {manualOpen ? (
             <article className={styles.panel}>
-              <h2>Manual Entry</h2>
+              <h2>Verify Visitor Pass</h2>
               <form onSubmit={onVerify} noValidate>
                 <label className={styles.field}>
-                  Visitor / Pass ID
+                  Visitor Pass QR Token
                   <input
                     value={passId}
                     onChange={(e) => setPassId(e.target.value)}
-                    placeholder="PASS-88214"
+                    placeholder="QR-A1B2C3D4E5"
                     autoComplete="off"
                     aria-invalid={Boolean(formError)}
                   />
                 </label>
                 <label className={styles.field}>
-                  Destination Unit
+                  Entry Point
                   <input
-                    value={unit}
-                    onChange={(e) => setUnit(e.target.value)}
-                    placeholder="402B"
+                    value={entryPoint}
+                    onChange={(e) => setEntryPoint(e.target.value)}
+                    placeholder="Main Gate"
                     autoComplete="off"
                   />
                 </label>
@@ -221,11 +239,74 @@ export default function StaffScannerPage() {
                   className={styles.verifyBtn}
                   disabled={verifying}
                 >
-                  {verifying ? "Verifying…" : "Verify Access"}
+                  {verifying ? "Verifying…" : "Verify & Check In"}
                 </button>
               </form>
             </article>
           ) : null}
+
+          <article className={styles.panel}>
+            <button
+              type="button"
+              className={styles.manualBtn}
+              aria-expanded={noPassOpen}
+              onClick={() => setNoPassOpen((v) => !v)}
+            >
+              {noPassOpen ? "Hide Manual Entry" : "Log Entry Without a Pass"}
+            </button>
+            {noPassOpen ? (
+              <form onSubmit={onManualCheckin} noValidate style={{ marginTop: "0.85rem" }}>
+                <label className={styles.field}>
+                  Visitor Name
+                  <input
+                    value={visitorName}
+                    onChange={(e) => setVisitorName(e.target.value)}
+                    placeholder="Full name"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className={styles.field}>
+                  ID Type
+                  <input
+                    value={idType}
+                    onChange={(e) => setIdType(e.target.value)}
+                    placeholder="Government ID"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className={styles.field}>
+                  Document Number
+                  <input
+                    value={documentNumber}
+                    onChange={(e) => setDocumentNumber(e.target.value)}
+                    placeholder="ID number"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className={styles.field}>
+                  Notes (optional)
+                  <input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Destination, host unit, etc."
+                    autoComplete="off"
+                  />
+                </label>
+                {manualError ? (
+                  <p className={styles.formError} role="alert">
+                    {manualError}
+                  </p>
+                ) : null}
+                <button
+                  type="submit"
+                  className={styles.verifyBtn}
+                  disabled={manualSubmitting}
+                >
+                  {manualSubmitting ? "Logging…" : "Log Manual Entry"}
+                </button>
+              </form>
+            ) : null}
+          </article>
         </aside>
       </div>
     </div>

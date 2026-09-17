@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   IconBell,
@@ -13,7 +12,10 @@ import {
   IconRefresh,
 } from "@/components/icons";
 import { useToast } from "@/components/Toast";
-import { STAFF_PROFILE } from "@/lib/staff-profile";
+import { ChangePasswordModal } from "@/components/ChangePasswordModal";
+import { useStaffSession } from "@/contexts/StaffSessionContext";
+import { ApiError } from "@/lib/api-client";
+import { updateStaffPreferences } from "@/lib/services/staff";
 import styles from "./settings.module.css";
 
 const PREFS_KEY = "townsync.staff.notificationPrefs";
@@ -34,10 +36,13 @@ function readPrefs(): { push: boolean; email: boolean } {
 }
 
 export default function StaffSettingsPage() {
-  const router = useRouter();
   const { toast } = useToast();
+  const { session, loading, error, logout } = useStaffSession();
   const [push, setPush] = useState(() => readPrefs().push);
   const [email, setEmail] = useState(() => readPrefs().email);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+
   function persist(next: { push: boolean; email: boolean }) {
     try {
       window.localStorage.setItem(PREFS_KEY, JSON.stringify(next));
@@ -46,10 +51,25 @@ export default function StaffSettingsPage() {
     }
   }
 
+  async function syncPrefs(next: { push: boolean; email: boolean }) {
+    setSavingPrefs(true);
+    try {
+      await updateStaffPreferences({
+        push_notifications: next.push,
+        email_reports: next.email,
+      });
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Could not save preferences.", "danger");
+    } finally {
+      setSavingPrefs(false);
+    }
+  }
+
   function togglePush() {
     setPush((v) => {
       const next = !v;
       persist({ push: next, email });
+      syncPrefs({ push: next, email });
       toast(
         next ? "Push notifications enabled." : "Push notifications disabled.",
         "success",
@@ -62,6 +82,7 @@ export default function StaffSettingsPage() {
     setEmail((v) => {
       const next = !v;
       persist({ push, email: next });
+      syncPrefs({ push, email: next });
       toast(
         next ? "Email reports enabled." : "Email reports disabled.",
         "success",
@@ -74,14 +95,14 @@ export default function StaffSettingsPage() {
     toast(`${label} opens when account services are connected.`, "info");
   }
 
-  function logout() {
-    try {
-      window.sessionStorage.removeItem("townsync.staff.previewSession");
-    } catch {
-      /* ignore */
-    }
-    toast("Signed out of preview session.", "info");
-    router.push("/staff/login");
+  function onPasswordChanged() {
+    setChangePasswordOpen(false);
+    toast("Password updated successfully.", "success");
+  }
+
+  async function onLogout() {
+    await logout();
+    toast("Signed out.", "info");
   }
 
   return (
@@ -100,7 +121,7 @@ export default function StaffSettingsPage() {
         <aside className={styles.profileCard}>
           <div className={styles.photoWrap}>
             <div className={styles.photo} aria-hidden>
-              {STAFF_PROFILE.initials}
+              {session?.initials ?? "ST"}
             </div>
             <button
               type="button"
@@ -111,10 +132,14 @@ export default function StaffSettingsPage() {
               <IconPencil size={14} />
             </button>
           </div>
-          <h2>{STAFF_PROFILE.displayName}</h2>
-          <span className={styles.shiftId}>Shift ID: {STAFF_PROFILE.shiftId}</span>
+          <h2>{loading ? "Loading…" : error ? "Unavailable" : session?.displayName}</h2>
+          <span className={styles.shiftId}>
+            Shift ID: {session?.profile.shift_id ?? "N/A"}
+          </span>
           <p className={styles.role}>
-            {STAFF_PROFILE.role} · {STAFF_PROFILE.block}
+            {session
+              ? `${session.profile.staff_type} · ${session.profile.employee_id}`
+              : error ?? ""}
           </p>
         </aside>
 
@@ -135,6 +160,7 @@ export default function StaffSettingsPage() {
                   role="switch"
                   aria-checked={push}
                   aria-label="Push notifications"
+                  disabled={savingPrefs}
                   className={`${styles.toggle} ${push ? styles.toggleOn : ""}`}
                   onClick={togglePush}
                 >
@@ -154,6 +180,7 @@ export default function StaffSettingsPage() {
                   role="switch"
                   aria-checked={email}
                   aria-label="Email reports"
+                  disabled={savingPrefs}
                   className={`${styles.toggle} ${email ? styles.toggleOn : ""}`}
                   onClick={toggleEmail}
                 >
@@ -169,7 +196,7 @@ export default function StaffSettingsPage() {
               <button
                 type="button"
                 className={styles.linkRow}
-                onClick={() => comingSoon("Change password")}
+                onClick={() => setChangePasswordOpen(true)}
               >
                 <div className={styles.rowIcon}>
                   <IconRefresh size={18} />
@@ -217,12 +244,19 @@ export default function StaffSettingsPage() {
             </div>
           </section>
 
-          <button type="button" className={styles.logout} onClick={logout}>
+          <button type="button" className={styles.logout} onClick={onLogout}>
             <IconLogout size={18} /> Logout
           </button>
           <p className={styles.version}>Version 2.4.1 (Build 8842)</p>
         </div>
       </div>
+
+      {changePasswordOpen ? (
+        <ChangePasswordModal
+          onClose={() => setChangePasswordOpen(false)}
+          onSuccess={onPasswordChanged}
+        />
+      ) : null}
     </div>
   );
 }

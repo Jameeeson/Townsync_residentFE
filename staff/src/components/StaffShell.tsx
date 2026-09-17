@@ -11,7 +11,7 @@ import {
   IconSettings,
 } from "@/components/icons";
 import { useToast } from "@/components/Toast";
-import { STAFF_PROFILE } from "@/lib/staff-profile";
+import { useStaffSession } from "@/contexts/StaffSessionContext";
 import styles from "./StaffShell.module.css";
 
 const NAV = [
@@ -42,10 +42,17 @@ const NOTIFICATIONS = [
 export function StaffShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { toast } = useToast();
+  const { session, loading, error } = useStaffSession();
   const [notifOpen, setNotifOpen] = useState(false);
   const [unread, setUnread] = useState(true);
   const panelId = useId();
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const displayName = session?.displayName ?? (loading ? "Loading…" : "Staff");
+  const initials = session?.initials ?? "ST";
+  const roleLabel = session
+    ? `${session.profile.staff_type} · ${session.profile.employee_id}`
+    : "";
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -96,7 +103,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
         <div className={styles.sidebarFoot}>
           <div className={styles.shiftBadge}>
             <span className={styles.onlineDot} />
-            Shift active · {STAFF_PROFILE.block}
+            {error ? "Connection issue" : roleLabel || "Shift active"}
           </div>
           <p className={styles.version}>v2.4.1 · SG-PROD-01</p>
         </div>
@@ -159,10 +166,10 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
             <Link
               href="/staff/settings"
               className={styles.avatar}
-              title={STAFF_PROFILE.displayName}
-              aria-label={`Open settings for ${STAFF_PROFILE.displayName}`}
+              title={displayName}
+              aria-label={`Open settings for ${displayName}`}
             >
-              {STAFF_PROFILE.initials}
+              {initials}
             </Link>
           </div>
         </header>

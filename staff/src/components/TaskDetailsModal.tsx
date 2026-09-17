@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
+  IconChatBubble,
   IconClock,
   IconMapPin,
   IconShield,
@@ -10,6 +11,7 @@ import {
   IconX,
 } from "@/components/icons";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
+import { ChatModal } from "./ChatModal";
 import styles from "./TaskDetailsModal.module.css";
 
 export type TaskDetails = {
@@ -44,6 +46,7 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
   const modalRef = useRef<HTMLDivElement>(null);
   const handleClose = useCallback(() => onClose(), [onClose]);
   useDialogA11y(true, handleClose, modalRef);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const Icon =
     task.icon === "wrench"
@@ -131,11 +134,16 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
               Already Completed
             </button>
           )}
+          <button type="button" className={styles.secondary} onClick={() => setChatOpen(true)}>
+            <IconChatBubble size={18} /> Message Resident
+          </button>
           <button type="button" className={styles.secondary} onClick={handleClose}>
             Close
           </button>
         </div>
       </div>
+
+      {chatOpen ? <ChatModal ticketId={task.id} onClose={() => setChatOpen(false)} /> : null}
     </div>
   );
 }

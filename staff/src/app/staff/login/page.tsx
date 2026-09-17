@@ -12,6 +12,8 @@ import {
   IconShieldUser,
   IconUser,
 } from "@/components/icons";
+import { ApiError } from "@/lib/api-client";
+import { login } from "@/lib/auth";
 import styles from "./login.module.css";
 
 export default function StaffLoginPage() {
@@ -21,7 +23,7 @@ export default function StaffLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setNotice(null);
@@ -31,7 +33,7 @@ export default function StaffLoginPage() {
     const password = String(form.get("password") ?? "");
 
     if (!identity) {
-      setError("Enter your employee ID or work email.");
+      setError("Enter your work email.");
       return;
     }
     if (password.length < 6) {
@@ -40,31 +42,14 @@ export default function StaffLoginPage() {
     }
 
     setLoading(true);
-    window.setTimeout(() => {
-      // Frontend-only gate: demo credentials for local preview.
-      const ok =
-        (identity.toLowerCase() === "id-8842" ||
-          identity.toLowerCase() === "james.rivera@townsync.local") &&
-        password === "staff123";
-
-      if (!ok) {
-        setLoading(false);
-        setError(
-          "Invalid credentials. Use id-8842 / staff123 for this frontend preview.",
-        );
-        return;
-      }
-
-      try {
-        window.sessionStorage.setItem(
-          "townsync.staff.previewSession",
-          JSON.stringify({ identity, at: Date.now() }),
-        );
-      } catch {
-        /* sessionStorage may be unavailable */
-      }
+    try {
+      await login(identity, password);
       router.push("/staff/dashboard");
-    }, 700);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Sign in failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function showSoon(label: string) {
@@ -115,13 +100,13 @@ export default function StaffLoginPage() {
             </div>
 
             <label className={styles.field}>
-              <span>Employee ID or Work Email</span>
+              <span>Work Email</span>
               <div className={styles.inputWrap}>
                 <IconUser size={18} className={styles.inputIcon} />
                 <input
                   name="identity"
-                  type="text"
-                  placeholder="id-8842"
+                  type="email"
+                  placeholder="james.rivera@townsync.local"
                   autoComplete="username"
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? "login-error" : undefined}
@@ -183,10 +168,6 @@ export default function StaffLoginPage() {
               <span>{loading ? "Signing in…" : "Sign In"}</span>
               {!loading ? <IconArrowRight size={18} /> : null}
             </button>
-
-            <p className={styles.demoHint}>
-              Preview: <code>id-8842</code> / <code>staff123</code>
-            </p>
           </form>
 
           <footer className={styles.footer}>
@@ -205,7 +186,7 @@ export default function StaffLoginPage() {
                 type="button"
                 className={styles.footerBtn}
                 onClick={() =>
-                  setNotice("Portal status: Online (frontend preview).")
+                  setNotice("Portal status: Online (connected to backend).")
                 }
               >
                 Portal Status

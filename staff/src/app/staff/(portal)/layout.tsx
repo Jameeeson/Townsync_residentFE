@@ -1,5 +1,6 @@
 import { StaffShell } from "@/components/StaffShell";
 import { ToastProvider } from "@/components/Toast";
+import { StaffSessionProvider } from "@/contexts/StaffSessionContext";
 
 export default function PortalLayout({
   children,
@@ -8,7 +9,9 @@ export default function PortalLayout({
 }) {
   return (
     <ToastProvider>
-      <StaffShell>{children}</StaffShell>
+      <StaffSessionProvider>
+        <StaffShell>{children}</StaffShell>
+      </StaffSessionProvider>
     </ToastProvider>
   );
 }
