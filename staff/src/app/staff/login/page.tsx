@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   IconAlert,
@@ -12,7 +13,7 @@ import {
   IconShieldUser,
   IconUser,
 } from "@/components/icons";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, API_BASE_URL } from "@/lib/api-client";
 import { login } from "@/lib/auth";
 import styles from "./login.module.css";
 
@@ -152,6 +153,9 @@ export default function StaffLoginPage() {
             ) : null}
 
             <div className={styles.forgotRow}>
+              <Link href="/staff/register" className={styles.textLink}>
+                Create Account
+              </Link>
               <button
                 type="button"
                 className={styles.textLink}
@@ -185,9 +189,19 @@ export default function StaffLoginPage() {
               <button
                 type="button"
                 className={styles.footerBtn}
-                onClick={() =>
-                  setNotice("Portal status: Online (connected to backend).")
-                }
+                onClick={async () => {
+                  setNotice("Checking portal status…");
+                  try {
+                    const res = await fetch(`${API_BASE_URL}/health`);
+                    setNotice(
+                      res.ok
+                        ? "Portal status: Online (connected to backend)."
+                        : "Portal status: Backend is reachable but reporting an error.",
+                    );
+                  } catch {
+                    setNotice("Portal status: Cannot reach the backend right now.");
+                  }
+                }}
               >
                 Portal Status
               </button>

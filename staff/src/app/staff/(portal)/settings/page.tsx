@@ -51,14 +51,23 @@ export default function StaffSettingsPage() {
     }
   }
 
-  async function syncPrefs(next: { push: boolean; email: boolean }) {
+  async function syncPrefs(
+    next: { push: boolean; email: boolean },
+    previous: { push: boolean; email: boolean },
+    successMessage: string,
+  ) {
     setSavingPrefs(true);
     try {
       await updateStaffPreferences({
         push_notifications: next.push,
         email_reports: next.email,
       });
+      toast(successMessage, "success");
     } catch (e) {
+      // Revert the optimistic update — local and backend state must not diverge.
+      setPush(previous.push);
+      setEmail(previous.email);
+      persist(previous);
       toast(e instanceof ApiError ? e.message : "Could not save preferences.", "danger");
     } finally {
       setSavingPrefs(false);
@@ -66,29 +75,19 @@ export default function StaffSettingsPage() {
   }
 
   function togglePush() {
-    setPush((v) => {
-      const next = !v;
-      persist({ push: next, email });
-      syncPrefs({ push: next, email });
-      toast(
-        next ? "Push notifications enabled." : "Push notifications disabled.",
-        "success",
-      );
-      return next;
-    });
+    const previous = { push, email };
+    const next = { push: !push, email };
+    setPush(next.push);
+    persist(next);
+    void syncPrefs(next, previous, next.push ? "Push notifications enabled." : "Push notifications disabled.");
   }
 
   function toggleEmail() {
-    setEmail((v) => {
-      const next = !v;
-      persist({ push, email: next });
-      syncPrefs({ push, email: next });
-      toast(
-        next ? "Email reports enabled." : "Email reports disabled.",
-        "success",
-      );
-      return next;
-    });
+    const previous = { push, email };
+    const next = { push, email: !email };
+    setEmail(next.email);
+    persist(next);
+    void syncPrefs(next, previous, next.email ? "Email reports enabled." : "Email reports disabled.");
   }
 
   function comingSoon(label: string) {

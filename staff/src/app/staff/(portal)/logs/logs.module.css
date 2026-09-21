@@ -208,6 +208,11 @@
   color: var(--info);
 }
 
+.badgePending {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
 .badgeDenied {
   background: var(--danger-soft);
   color: var(--danger);

@@ -33,6 +33,12 @@
   max-width: 36rem;
 }
 
+.retryLink {
+  color: var(--navy-700);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

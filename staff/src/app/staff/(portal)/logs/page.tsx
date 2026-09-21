@@ -185,7 +185,7 @@ export default function StaffLogsPage() {
                               ? styles.badgeOut
                               : status === "denied"
                                 ? styles.badgeDenied
-                                : ""
+                                : styles.badgePending
                         }`}
                       >
                         {STATUS_LABEL[status]}

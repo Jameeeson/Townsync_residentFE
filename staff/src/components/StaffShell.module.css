@@ -236,6 +236,16 @@
   text-decoration: underline;
 }
 
+.notifEmpty {
+  padding: 0.9rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-tint);
+  border: 1px dashed var(--line-soft);
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
 .notifList {
   list-style: none;
   display: grid;
@@ -308,7 +318,7 @@
 
   .bottomNav {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     position: fixed;
     left: 0;
     right: 0;

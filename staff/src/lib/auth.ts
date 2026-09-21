@@ -49,6 +49,18 @@ export async function fetchMe(): Promise<MeResponse> {
   return api.get<MeResponse>("/api/auth/me");
 }
 
+/** Self-service staff registration. Account is created as Pending until an admin approves it. */
+export async function registerStaff(payload: {
+  name: string;
+  email: string;
+  staff_type: "Staff" | "Maintenance";
+  employee_id: string;
+  password: string;
+}): Promise<{ message: string }> {
+  const { api } = await import("./api-client");
+  return api.post<{ message: string }>("/api/auth/register/staff", payload, { auth: false });
+}
+
 export async function logout(): Promise<void> {
   const token = getToken();
   clearToken();

@@ -1,4 +1,4 @@
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 const TOKEN_KEY = "townsync.staff.token";
@@ -95,6 +95,9 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 
   if (res.status === 401) {
     clearToken();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/staff/login")) {
+      window.location.href = "/staff/login";
+    }
     throw new ApiError(401, await parseErrorMessage(res));
   }
 

@@ -5,6 +5,11 @@ import { useEffect, useRef } from "react";
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Tracks nested open dialogs so Escape only closes the topmost one — without
+// this, pressing Escape while a dialog is stacked on top of another (e.g. the
+// chat modal opened from inside a task-details modal) closes both at once.
+let dialogStack: symbol[] = [];
+
 /**
  * Focus trap, Escape-to-close, and body scroll lock for modal dialogs.
  */
@@ -17,6 +22,9 @@ export function useDialogA11y(
 
   useEffect(() => {
     if (!open) return;
+
+    const token = Symbol("dialog");
+    dialogStack.push(token);
 
     previouslyFocused.current = document.activeElement as HTMLElement | null;
     const prevOverflow = document.body.style.overflow;
@@ -35,6 +43,7 @@ export function useDialogA11y(
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        if (dialogStack[dialogStack.length - 1] !== token) return;
         e.preventDefault();
         onClose();
         return;
@@ -59,6 +68,7 @@ export function useDialogA11y(
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      dialogStack = dialogStack.filter((t) => t !== token);
       document.body.style.overflow = prevOverflow;
       previouslyFocused.current?.focus?.();
     };

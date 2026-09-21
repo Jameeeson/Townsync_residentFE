@@ -22,7 +22,7 @@ export function getDashboardSummary() {
 
 // ----- Tasks (Maintenance staff only) -----
 
-export type TaskStatus = "Open" | "Assigned" | "Ongoing" | "Completed";
+export type TaskStatus = "Open" | "Assigned" | "Ongoing" | "Completed" | "Cancelled";
 export type PriorityLevel = "Low" | "Medium" | "High" | "Emergency";
 
 export type MaintenanceTask = {
@@ -34,6 +34,8 @@ export type MaintenanceTask = {
   unit_number: string | null;
   resident_name: string | null;
   initial_image_url: string | null;
+  assigned_at: string | null;
+  deadline: string | null;
 };
 
 export function listTasks(statusFilter?: TaskStatus) {

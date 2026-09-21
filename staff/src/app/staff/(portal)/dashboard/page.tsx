@@ -215,9 +215,16 @@ export default function StaffDashboardPage() {
             </p>
             <h1>Welcome back{session ? `, ${session.firstName}` : ""}</h1>
             <p className={styles.lede}>
-              {error
-                ? "We couldn't reach the dashboard service."
-                : "Your townhouse community is secure and active today."}
+              {error ? (
+                <>
+                  We couldn&apos;t reach the dashboard service.{" "}
+                  <button type="button" className={styles.retryLink} onClick={reload}>
+                    Retry
+                  </button>
+                </>
+              ) : (
+                "Your townhouse community is secure and active today."
+              )}
             </p>
           </div>
           <div className={styles.stats}>

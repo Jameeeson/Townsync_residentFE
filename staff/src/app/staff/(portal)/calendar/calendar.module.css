@@ -1,0 +1,263 @@
+.page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  font-weight: 700;
+  color: var(--navy-900);
+  letter-spacing: -0.03em;
+}
+
+.kicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--navy-600);
+  margin-bottom: 0.4rem;
+}
+
+.lede {
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+.card {
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  padding: 1.1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.monthNav {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.monthNav h2 {
+  flex: 1;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--navy-900);
+}
+
+.navBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  color: var(--navy-800);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navBtn:hover {
+  border-color: var(--navy-500);
+  color: var(--navy-700);
+}
+
+.todayBtn {
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--navy-50);
+  color: var(--navy-800);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.todayBtn:hover {
+  border-color: var(--navy-500);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.weekday {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  padding-bottom: 4px;
+}
+
+.cell {
+  min-height: 84px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cellOutside {
+  background: var(--surface-tint);
+  opacity: 0.6;
+}
+
+.cellToday {
+  border-color: var(--navy-500);
+  box-shadow: 0 0 0 2px var(--navy-100);
+}
+
+.dayNum {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--navy-900);
+}
+
+.chip {
+  display: block;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: left;
+  border: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.chipHigh {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chipMedium {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.chipLow {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.chipMore {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--navy-600);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.1rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend span::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.legendHigh::before {
+  background: var(--danger);
+}
+
+.legendMedium::before {
+  background: var(--warning);
+}
+
+.legendLow::before {
+  background: var(--info);
+}
+
+.unscheduledHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--navy-800);
+  margin-bottom: 0.75rem;
+}
+
+.unscheduledHead h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.unscheduledList {
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.unscheduledList button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-tint);
+  text-align: left;
+}
+
+.unscheduledList button:hover {
+  background: #fff;
+  border-color: var(--navy-500);
+}
+
+.unscheduledList strong {
+  color: var(--navy-900);
+  font-size: 0.88rem;
+}
+
+.unscheduledList span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.empty {
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  text-align: center;
+  background: var(--surface-tint);
+}
+
+@media (max-width: 720px) {
+  .cell {
+    min-height: 64px;
+  }
+
+  .weekday {
+    font-size: 0.58rem;
+  }
+
+  .chip {
+    font-size: 0.6rem;
+  }
+}

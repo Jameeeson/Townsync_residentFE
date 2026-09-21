@@ -5,46 +5,32 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   IconBell,
+  IconCalendar,
   IconClipboard,
   IconGrid,
   IconScan,
   IconSettings,
 } from "@/components/icons";
-import { useToast } from "@/components/Toast";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import styles from "./StaffShell.module.css";
 
 const NAV = [
   { href: "/staff/dashboard", label: "Tasks", icon: IconGrid },
+  { href: "/staff/calendar", label: "Calendar", icon: IconCalendar },
   { href: "/staff/scanner", label: "Scanner", icon: IconScan },
   { href: "/staff/logs", label: "Logs", icon: IconClipboard },
   { href: "/staff/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
-const NOTIFICATIONS = [
-  {
-    id: "1",
-    title: "High priority: Burst Pipe Repair",
-    meta: "Block A, Unit 402 · 12m ago",
-  },
-  {
-    id: "2",
-    title: "Visitor pass pending at Gate A",
-    meta: "Marcus Lee · 28m ago",
-  },
-  {
-    id: "3",
-    title: "Shift reminder: perimeter check",
-    meta: "Due by 2:00 PM",
-  },
-];
+// Live notifications aren't wired to the backend yet — the panel opens to an
+// honest empty state rather than fabricated activity.
+const NOTIFICATIONS: { id: string; title: string; meta: string }[] = [];
 
 export function StaffShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { toast } = useToast();
   const { session, loading, error } = useStaffSession();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [unread, setUnread] = useState(true);
+  const [unread, setUnread] = useState(false);
   const panelId = useId();
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -141,25 +127,21 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
                 >
                   <div className={styles.notifHead}>
                     <strong>Notifications</strong>
-                    <button
-                      type="button"
-                      className={styles.notifClear}
-                      onClick={() => {
-                        setNotifOpen(false);
-                        toast("Caught up — no new alerts.", "success");
-                      }}
-                    >
-                      Mark all read
-                    </button>
                   </div>
-                  <ul className={styles.notifList}>
-                    {NOTIFICATIONS.map((n) => (
-                      <li key={n.id}>
-                        <p>{n.title}</p>
-                        <span>{n.meta}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {NOTIFICATIONS.length === 0 ? (
+                    <p className={styles.notifEmpty}>
+                      Live notifications aren&apos;t available yet.
+                    </p>
+                  ) : (
+                    <ul className={styles.notifList}>
+                      {NOTIFICATIONS.map((n) => (
+                        <li key={n.id}>
+                          <p>{n.title}</p>
+                          <span>{n.meta}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ) : null}
             </div>

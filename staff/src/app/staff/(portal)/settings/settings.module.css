@@ -239,7 +239,7 @@
   font-size: 0.8rem;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 960px) {
   .layout {
     grid-template-columns: 1fr;
   }
