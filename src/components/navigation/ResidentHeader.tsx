@@ -6,29 +6,25 @@ import { Bell, ChevronDown, X } from "lucide-react";
 import styles from "@/styles/dashboard.module.css";
 import { fetchMe } from "@/lib/api/auth";
 import { getAccessToken } from "@/lib/apiClient";
+import { listAnnouncements, type Announcement } from "@/lib/api/resident";
 
-const announcements = [
-  {
-    title: "Scheduled water interruption",
-    summary: "Block B water supply will be off tomorrow from 10:00 AM to 12:00 PM.",
-    meta: "Today • Facilities",
-  },
-  {
-    title: "Lobby light repair completed",
-    summary: "The lobby lighting issue has been resolved and reopened for normal use.",
-    meta: "1 hour ago • Maintenance",
-  },
-  {
-    title: "Visitor reminder",
-    summary: "Please register visitors before 8:00 PM to keep approvals moving quickly.",
-    meta: "Today • Security",
-  },
-];
+function relativeMeta(iso: string, category: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return category;
+  const minutes = Math.round((Date.now() - then) / 60000);
+  if (minutes < 1) return `Just now • ${category}`;
+  if (minutes < 60) return `${minutes} min${minutes === 1 ? "" : "s"} ago • ${category}`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago • ${category}`;
+  return `${new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" })} • ${category}`;
+}
 
 export function ResidentHeader() {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [initials, setInitials] = useState("R");
+  const [announcements, setAnnouncements] = useState<Announcement[] | null>(null);
+  const [announcementsError, setAnnouncementsError] = useState(false);
 
   useEffect(() => {
     if (!getAccessToken()) return;
@@ -49,6 +45,13 @@ export function ResidentHeader() {
         // keep default initials when unauthenticated / API down
       }
     })();
+    listAnnouncements()
+      .then((data) => {
+        if (!cancelled) setAnnouncements(Array.isArray(data) ? data.slice(0, 5) : []);
+      })
+      .catch(() => {
+        if (!cancelled) setAnnouncementsError(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -116,13 +119,23 @@ export function ResidentHeader() {
           </div>
 
           <div className={styles.announcementPanelBody}>
-            {announcements.map((announcement) => (
-              <article key={announcement.title} className={styles.announcementPanelCard}>
-                <div className={styles.announcementPanelMeta}>{announcement.meta}</div>
-                <h3>{announcement.title}</h3>
-                <p>{announcement.summary}</p>
-              </article>
-            ))}
+            {announcementsError ? (
+              <p className={styles.announcementPanelMeta}>Couldn&apos;t load announcements.</p>
+            ) : announcements === null ? (
+              <p className={styles.announcementPanelMeta}>Loading…</p>
+            ) : announcements.length === 0 ? (
+              <p className={styles.announcementPanelMeta}>No announcements yet.</p>
+            ) : (
+              announcements.map((announcement) => (
+                <article key={announcement.id} className={styles.announcementPanelCard}>
+                  <div className={styles.announcementPanelMeta}>
+                    {relativeMeta(announcement.created_at, announcement.category)}
+                  </div>
+                  <h3>{announcement.title}</h3>
+                  <p>{announcement.content}</p>
+                </article>
+              ))
+            )}
           </div>
         </aside>
       </div>

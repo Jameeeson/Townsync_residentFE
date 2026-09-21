@@ -176,6 +176,13 @@ export async function apiFetch<TResponse>(path: string, options: ApiRequestOptio
     headers: buildHeaders(headers, resolvedAccessToken, body),
   });
 
+  if (response.status === 401) {
+    clearAccessToken();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+  }
+
   if (!response.ok) {
     const payload = await parseErrorPayload(response);
     const message = formatApiErrorDetail(payload, `Request failed with status ${response.status}`);

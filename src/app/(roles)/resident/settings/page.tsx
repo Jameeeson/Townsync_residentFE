@@ -115,6 +115,7 @@ function ProfileView() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [defaults, setDefaults] = useState({ email: "", phone: "" });
 
   useEffect(() => {
@@ -157,6 +158,7 @@ function ProfileView() {
 
   async function handleSave() {
     setError("");
+    setSubmitting(true);
     try {
       const updated = await updateProfile({
         email,
@@ -172,6 +174,8 @@ function ProfileView() {
             ? err.message
             : "Could not save profile."
       );
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -252,11 +256,16 @@ function ProfileView() {
       </div>
 
       <div className={styles.cardActions}>
-        <button type="button" className={styles.cancelBtn} onClick={handleCancel}>
+        <button type="button" className={styles.cancelBtn} onClick={handleCancel} disabled={submitting}>
           Cancel
         </button>
-        <button type="button" className={styles.saveBtn} onClick={() => void handleSave()}>
-          Save Changes
+        <button
+          type="button"
+          className={styles.saveBtn}
+          onClick={() => void handleSave()}
+          disabled={submitting}
+        >
+          {submitting ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </section>
@@ -273,6 +282,7 @@ function NotificationsView() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -309,6 +319,7 @@ function NotificationsView() {
 
   async function save() {
     setError("");
+    setSubmitting(true);
     try {
       const updated = await updatePreferences(prefs);
       setPrefs(updated);
@@ -322,6 +333,8 @@ function NotificationsView() {
             ? err.message
             : "Could not save preferences."
       );
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -399,11 +412,11 @@ function NotificationsView() {
       </div>
 
       <div className={styles.stickyFooter}>
-        <button type="button" className={styles.textBtn} onClick={discard}>
+        <button type="button" className={styles.textBtn} onClick={discard} disabled={submitting}>
           Discard Changes
         </button>
-        <button type="button" className={styles.saveBtn} onClick={() => void save()}>
-          Save Preferences
+        <button type="button" className={styles.saveBtn} onClick={() => void save()} disabled={submitting}>
+          {submitting ? "Saving..." : "Save Preferences"}
         </button>
       </div>
     </div>
@@ -415,8 +428,7 @@ function SecurityView() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
-  const [show2faConfig, setShow2faConfig] = useState(false);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([
     {
       id: "1",
@@ -455,6 +467,7 @@ function SecurityView() {
       setPasswordMessage("New password must be at least 8 characters.");
       return;
     }
+    setPasswordSubmitting(true);
     try {
       await changePassword(currentPassword, newPassword);
       setPasswordMessage("Password updated successfully.");
@@ -469,6 +482,8 @@ function SecurityView() {
             ? err.message
             : "Could not update password."
       );
+    } finally {
+      setPasswordSubmitting(false);
     }
   }
 
@@ -532,8 +547,9 @@ function SecurityView() {
                 className={styles.saveBtn}
                 style={{ width: "fit-content" }}
                 onClick={() => void updatePassword()}
+                disabled={passwordSubmitting}
               >
-                Update Password
+                {passwordSubmitting ? "Updating..." : "Update Password"}
               </button>
             </div>
           </section>
@@ -544,10 +560,19 @@ function SecurityView() {
                 <Activity size={18} className={styles.iconBlue} />
                 <h3 className={styles.cardTitle}>Active Sessions</h3>
               </div>
-              <button type="button" className={styles.textLink} onClick={revokeOthers}>
+              <button
+                type="button"
+                className={styles.textLink}
+                onClick={revokeOthers}
+                disabled
+                title="Session management isn't available yet."
+              >
                 Revoke All Other Sessions
               </button>
             </div>
+            <p className={styles.infoText} style={{ padding: "0 16px", marginTop: 8 }}>
+              <Info size={12} /> Preview only — session tracking isn&apos;t connected to the backend yet.
+            </p>
             <div className={`${styles.sessionList} ts-stagger`}>
               {sessions.map((session, i) => (
                 <SessionItem
@@ -573,39 +598,15 @@ function SecurityView() {
             <h4 className={styles.sideTitle}>Two-Factor Authentication</h4>
             <p className={styles.cardInfoText}>Add an extra layer of security to your account.</p>
             <div className={styles.statusBox}>
-              Status{" "}
-              <span className={styles.badgeGreen}>
-                • {twoFactorEnabled ? "Enabled" : "Disabled"}
-              </span>
+              Status <span className={styles.badgeGreen}>• Not available yet</span>
             </div>
             <p className={styles.smallText}>
-              {twoFactorEnabled
-                ? "Your identity is verified via SMS to ending in ••82."
-                : "Enable 2FA to protect your resident account."}
+              Two-factor authentication isn&apos;t connected to the backend yet — check back soon.
             </p>
-            {show2faConfig ? (
-              <p className={styles.infoText} style={{ marginBottom: 12 }}>
-                SMS codes will be sent to your profile phone number. Keep that number up to date.
-              </p>
-            ) : null}
-            <button
-              type="button"
-              className={styles.outlineBtn}
-              onClick={() => {
-                setShow2faConfig(true);
-                setTwoFactorEnabled(true);
-              }}
-            >
+            <button type="button" className={styles.outlineBtn} disabled title="Not available yet.">
               Configure 2FA Settings
             </button>
-            <button
-              type="button"
-              className={styles.dangerTextBtn}
-              onClick={() => {
-                setTwoFactorEnabled(false);
-                setShow2faConfig(false);
-              }}
-            >
+            <button type="button" className={styles.dangerTextBtn} disabled title="Not available yet.">
               Disable Two-Factor Authentication
             </button>
           </div>
@@ -672,7 +673,13 @@ function SessionItem({
         <div className={styles.sessionMeta}>{time}</div>
       </div>
       {!current ? (
-        <button type="button" className={styles.revokeBtn} onClick={onRevoke}>
+        <button
+          type="button"
+          className={styles.revokeBtn}
+          onClick={onRevoke}
+          disabled
+          title="Session management isn't available yet."
+        >
           Revoke
         </button>
       ) : null}

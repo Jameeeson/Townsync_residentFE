@@ -63,6 +63,21 @@
   font-weight: 700;
 }
 
+.statusBadgePending {
+  background: var(--color-warning-100);
+  color: var(--color-warning-600);
+}
+
+.statusBadgeDanger {
+  background: var(--color-danger-100);
+  color: var(--color-danger-700);
+}
+
+.statusBadgeNeutral {
+  background: var(--color-surface-2);
+  color: var(--color-text-secondary);
+}
+
 .editBtn {
   background: var(--color-primary-600);
   color: white;

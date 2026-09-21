@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import styles from "@/styles/BillingPayments.module.css";
@@ -39,6 +39,7 @@ export default function BillingPayments() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentRow | null>(null);
   const [statusFilter, setStatusFilter] = useState<"All" | "Paid" | "Unpaid" | "Overdue">("All");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   const [history, setHistory] = useState<PaymentRow[]>([]);
   const [announcementTitle, setAnnouncementTitle] = useState("Community notice");
@@ -89,6 +90,24 @@ export default function BillingPayments() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!showFilterMenu) return;
+    function onPointerDown(e: MouseEvent) {
+      if (!filterMenuRef.current?.contains(e.target as Node)) {
+        setShowFilterMenu(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setShowFilterMenu(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [showFilterMenu]);
 
   const filtered = useMemo(
     () =>
@@ -156,7 +175,7 @@ export default function BillingPayments() {
       <section className={styles.historySection}>
         <div className={styles.tableHeader}>
           <h2>Payment History</h2>
-          <div className={styles.filterWrap}>
+          <div className={styles.filterWrap} ref={filterMenuRef}>
             <button
               type="button"
               className={styles.filterBtn}

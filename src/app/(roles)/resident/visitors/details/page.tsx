@@ -115,6 +115,13 @@ function VisitorDetailsInner() {
 
   const revoked = pass?.status === "Rejected" || pass?.status === "Cancelled";
 
+  function statusBadgeClass(status: string | undefined): string {
+    if (status === "Approved") return styles.statusBadge;
+    if (status === "Pending") return styles.statusBadgePending;
+    if (status === "Rejected" || status === "Cancelled") return styles.statusBadgeDanger;
+    return styles.statusBadgeNeutral;
+  }
+
   async function saveEdit() {
     if (!pass) return;
     setError("");
@@ -219,7 +226,7 @@ function VisitorDetailsInner() {
           </a>
           <div className={styles.titleRow}>
             <h1>Visitor Details: {name}</h1>
-            <span className={styles.statusBadge}>• {revoked ? "Revoked" : pass?.status}</span>
+            <span className={statusBadgeClass(pass?.status)}>• {revoked ? "Revoked" : pass?.status}</span>
           </div>
         </div>
         {editing ? (

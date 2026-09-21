@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import styles from "@/styles/SuccessModal.module.css";
 import { Check, Download, Landmark } from "lucide-react";
+import { getBillingInvoice, type BillingInvoice } from "@/lib/api/resident";
 
 type PaymentData = {
+  id?: number;
   date: string;
   description: string;
   inv: string;
@@ -19,6 +21,26 @@ interface SuccessModalProps {
 }
 
 export default function SuccessModal({ isOpen, onClose, data }: SuccessModalProps) {
+  const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !data.id) {
+      setInvoice(null);
+      return;
+    }
+    let cancelled = false;
+    getBillingInvoice(data.id)
+      .then((inv) => {
+        if (!cancelled) setInvoice(inv);
+      })
+      .catch(() => {
+        if (!cancelled) setInvoice(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, data.id]);
+
   if (!isOpen) return null;
 
   const isPaid = data.status === "Paid";
@@ -26,6 +48,15 @@ export default function SuccessModal({ isOpen, onClose, data }: SuccessModalProp
   const subtitle = isPaid
     ? "Thank you for your timely payment."
     : `${data.status} balance — pay at the admin office or online when available.`;
+
+  // Real per-item breakdown when the backend has one; otherwise a single line
+  // built from this row's own data rather than fabricated category amounts.
+  const lineItems = invoice?.line_items?.length
+    ? invoice.line_items.map((li) => ({
+        label: li.label,
+        amount: `₱ ${li.amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      }))
+    : [{ label: data.description, amount: data.amount }];
 
   function downloadReceipt() {
     const content = [
@@ -37,9 +68,7 @@ export default function SuccessModal({ isOpen, onClose, data }: SuccessModalProp
       `Status: ${data.status}`,
       "",
       "Breakdown",
-      "Monthly HOA Dues: ₱ 1,200.00",
-      "Water & Sewage: ₱ 150.00",
-      "Trash Disposal: ₱ 100.00",
+      ...lineItems.map((li) => `${li.label}: ${li.amount}`),
     ].join("\n");
 
     const blob = new Blob([content], { type: "text/plain" });
@@ -78,18 +107,12 @@ export default function SuccessModal({ isOpen, onClose, data }: SuccessModalProp
 
           <div className={styles.breakdown}>
             <label className={styles.sectionLabel}>Breakdown</label>
-            <div className={styles.breakdownRow}>
-              <span>Monthly HOA Dues</span>
-              <span>₱ 1,200.00</span>
-            </div>
-            <div className={styles.breakdownRow}>
-              <span>Water & Sewage</span>
-              <span>₱ 150.00</span>
-            </div>
-            <div className={styles.breakdownRow}>
-              <span>Trash Disposal</span>
-              <span>₱ 100.00</span>
-            </div>
+            {lineItems.map((li, idx) => (
+              <div className={styles.breakdownRow} key={idx}>
+                <span>{li.label}</span>
+                <span>{li.amount}</span>
+              </div>
+            ))}
           </div>
 
           <div className={styles.divider} />
