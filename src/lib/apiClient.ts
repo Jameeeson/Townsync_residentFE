@@ -1,6 +1,8 @@
 import { getBackendUrl } from "@/lib/config";
 
-const ACCESS_TOKEN_STORAGE_KEY = "townsync_access_token";
+// The session is an httpOnly cookie set by the backend; JS never sees the token.
+// This flag only drives UI ("show the app vs. the login screen"); the server checks every request.
+const SESSION_STORAGE_KEY = "townsync_session";
 
 export interface FastApiValidationError {
   loc: Array<string | number>;
@@ -33,11 +35,7 @@ export interface ApiRequestOptions extends Omit<RequestInit, "body" | "headers">
   headers?: HeadersInit;
 }
 
-export interface ApiClientMethodOptions extends Omit<ApiRequestOptions, "body"> {}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && Object.getPrototypeOf(value) === Object.prototype;
-}
+export type ApiClientMethodOptions = Omit<ApiRequestOptions, "body">;
 
 function shouldJsonSerialize(body: ApiRequestOptions["body"]): body is object {
   if (body == null) return false;
@@ -77,32 +75,31 @@ export function formatApiErrorDetail(payload: FastApiErrorPayload | null, fallba
   return fallback;
 }
 
-export function getAccessToken(): string | null {
+export function hasSession(): boolean {
   if (typeof window === "undefined") {
-    return null;
+    return false;
   }
-
-  return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+  try {
+    return window.localStorage.getItem(SESSION_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
-export function setAccessToken(accessToken: string): void {
-  if (typeof window === "undefined") {
-    return;
+export function markSignedIn(): void {
+  try {
+    window.localStorage.setItem(SESSION_STORAGE_KEY, "1");
+  } catch {
+    // storage unavailable — the cookie still authenticates requests
   }
-
-  window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
 }
 
-export function clearAccessToken(): void {
-  if (typeof window === "undefined") {
-    return;
+export function clearSession(): void {
+  try {
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // ignore
   }
-
-  window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
-}
-
-function resolveAccessToken(explicitToken: string | undefined): string | null {
-  return explicitToken ?? getAccessToken();
 }
 
 function buildHeaders(
@@ -165,7 +162,6 @@ async function parseErrorPayload(response: Response): Promise<FastApiErrorPayloa
 
 export async function apiFetch<TResponse>(path: string, options: ApiRequestOptions = {}): Promise<TResponse> {
   const { accessToken, body, headers, ...requestInit } = options;
-  const resolvedAccessToken = resolveAccessToken(accessToken);
   const hasJsonBody = shouldJsonSerialize(body);
   const requestBody = hasJsonBody ? JSON.stringify(body) : (body as BodyInit | null | undefined);
 
@@ -173,11 +169,11 @@ export async function apiFetch<TResponse>(path: string, options: ApiRequestOptio
     ...requestInit,
     body: requestBody,
     credentials: "include",
-    headers: buildHeaders(headers, resolvedAccessToken, body),
+    headers: buildHeaders(headers, accessToken ?? null, body),
   });
 
-  if (response.status === 401) {
-    clearAccessToken();
+  if (response.status === 401 && !path.startsWith("/api/auth/login")) {
+    clearSession();
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
       window.location.href = "/login";
     }

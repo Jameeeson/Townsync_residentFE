@@ -78,7 +78,15 @@ export default function AnnouncementsPage() {
                 className={styles.announcementCard}
                 style={{ "--ts-stagger-i": i } as CSSProperties}
               >
-                <h3>{item.title}</h3>
+                <h3>
+                  {item.is_pinned ? "[Pinned] " : ""}
+                  {item.priority && item.priority !== "Normal" ? (
+                    <span className={`ts-badge ${item.priority === "Urgent" ? "ts-badge-danger" : ""}`}>
+                      {item.priority}
+                    </span>
+                  ) : null}{" "}
+                  {item.title}
+                </h3>
                 <p>{item.content}</p>
                 <span className={styles.announcementDate}>
                   {item.created_at}

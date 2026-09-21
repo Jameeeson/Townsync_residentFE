@@ -57,11 +57,8 @@ export default function LoginPage() {
         // localStorage unavailable — non-fatal
       }
 
-      const me = await fetchMe();
-      if (me.role && me.role.toLowerCase() !== "resident") {
-        // Resident portal only for now
-      }
-      router.push("/resident");
+      await fetchMe();
+      router.replace("/resident");
     } catch (err) {
       const message =
         err instanceof ApiClientError

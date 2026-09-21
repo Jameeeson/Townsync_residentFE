@@ -36,6 +36,7 @@ export default function RegisterDetailsPage() {
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of client-only registration data on mount; deriving it during render would cause a hydration mismatch.
     setForm((prev) => ({
       ...prev,
       fullName: data.fullName,

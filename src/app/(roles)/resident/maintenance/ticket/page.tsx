@@ -20,16 +20,15 @@ function TicketDetail() {
   const ticketId = idParam ? Number(idParam) : NaN;
 
   const [ticket, setTicket] = useState<MaintenanceTicket | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [fetchError, setError] = useState("");
+  const [fetching, setLoading] = useState(true);
+  const invalidId = !Number.isFinite(ticketId);
+  const error = invalidId ? "Missing ticket id. Open a ticket from the maintenance page." : fetchError;
+  const loading = invalidId ? false : fetching;
   const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
-    if (!Number.isFinite(ticketId)) {
-      setError("Missing ticket id. Open a ticket from the maintenance page.");
-      setLoading(false);
-      return;
-    }
+    if (invalidId) return;
 
     let cancelled = false;
     (async () => {
@@ -54,7 +53,7 @@ function TicketDetail() {
     return () => {
       cancelled = true;
     };
-  }, [ticketId]);
+  }, [ticketId, invalidId]);
 
   async function handleCancel() {
     if (!ticket) return;

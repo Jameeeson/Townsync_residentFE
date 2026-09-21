@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import styles from "@/styles/dashboard.module.css";
 import { fetchMe } from "@/lib/api/auth";
-import { getAccessToken } from "@/lib/apiClient";
+import { hasSession } from "@/lib/apiClient";
 
 const navItems = [
   { href: "/resident", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -31,7 +31,7 @@ export function ResidentSidebar() {
   const [unit, setUnit] = useState("—");
 
   useEffect(() => {
-    if (!getAccessToken()) return;
+    if (!hasSession()) return;
     let cancelled = false;
     (async () => {
       try {

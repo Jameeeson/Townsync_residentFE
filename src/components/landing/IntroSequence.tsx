@@ -30,6 +30,7 @@ export function IntroSequence() {
 
     if (reduceMotion || alreadySeen) {
       skipRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- runs in a layout effect before paint; sessionStorage/matchMedia are client-only so this cannot be derived during render without a hydration mismatch.
       setPhase("done");
       return;
     }

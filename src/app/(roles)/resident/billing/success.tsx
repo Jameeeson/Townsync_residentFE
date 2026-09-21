@@ -21,13 +21,11 @@ interface SuccessModalProps {
 }
 
 export default function SuccessModal({ isOpen, onClose, data }: SuccessModalProps) {
-  const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
+  const [fetchedInvoice, setInvoice] = useState<BillingInvoice | null>(null);
+  const invoice = isOpen && data.id ? fetchedInvoice : null;
 
   useEffect(() => {
-    if (!isOpen || !data.id) {
-      setInvoice(null);
-      return;
-    }
+    if (!isOpen || !data.id) return;
     let cancelled = false;
     getBillingInvoice(data.id)
       .then((inv) => {

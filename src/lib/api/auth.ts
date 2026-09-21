@@ -1,12 +1,13 @@
-import { apiClient, clearAccessToken, setAccessToken } from "@/lib/apiClient";
+import { apiClient, clearSession, markSignedIn } from "@/lib/apiClient";
 
 export interface LoginTokenResponse {
   access_token: string;
   token_type: string;
+  role?: string;
 }
 
+export const RESIDENT_ROLE = "Resident";
 
-//stest
 export interface AuthMeResponse {
   user_id: number;
   email: string;
@@ -35,8 +36,13 @@ export async function login(email: string, password: string): Promise<LoginToken
   body.set("password", password);
 
   const token = await apiClient.post<LoginTokenResponse>("/api/auth/login", body);
-  setAccessToken(token.access_token);
   clearMeCache();
+  if (token.role && token.role !== RESIDENT_ROLE) {
+    // Valid credentials but the wrong portal: end that session before erroring.
+    await logout();
+    throw new Error("This portal is for residents only.");
+  }
+  markSignedIn();
   return token;
 }
 
@@ -64,7 +70,7 @@ export async function logout(): Promise<void> {
   try {
     await apiClient.post<MessageResponse>("/api/auth/logout", null);
   } finally {
-    clearAccessToken();
+    clearSession();
     clearMeCache();
   }
 }

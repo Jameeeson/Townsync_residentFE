@@ -14,28 +14,22 @@ import {
   ShieldAlert,
   Activity,
   Laptop,
-  Smartphone,
-  Tablet,
   Lock,
   ExternalLink,
 } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { changePassword, logout } from "@/lib/api/auth";
 import {
+  getDeactivationRequest,
+  getLoginHistory,
   getPreferences,
   getProfile,
+  requestDeactivation,
   updatePreferences,
   updateProfile,
+  type DeactivationRequest,
+  type LoginHistoryItem,
 } from "@/lib/api/resident";
-
-type Session = {
-  id: string;
-  icon: React.ReactNode;
-  device: string;
-  location: string;
-  time: string;
-  current?: boolean;
-};
 
 export default function AccountSettings() {
   const router = useRouter();
@@ -429,30 +423,52 @@ function SecurityView() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
-  const [sessions, setSessions] = useState<Session[]>([
-    {
-      id: "1",
-      icon: <Laptop size={20} />,
-      device: "MacBook Pro 14 - Chrome",
-      location: "San Francisco, CA • IP: 192.168.1.45",
-      time: "Last active: Just now",
-      current: true,
-    },
-    {
-      id: "2",
-      icon: <Smartphone size={20} />,
-      device: "iPhone 15 Pro - Safari",
-      location: "Oakland, CA • IP: 73.4.212.18",
-      time: "Last active: 2 hours ago",
-    },
-    {
-      id: "3",
-      icon: <Tablet size={20} />,
-      device: "iPad Air - TownSync App",
-      location: "San Francisco, CA • IP: 192.168.1.12",
-      time: "Last active: 3 days ago",
-    },
-  ]);
+  const [history, setHistory] = useState<LoginHistoryItem[] | null>(null);
+  const [historyError, setHistoryError] = useState("");
+  const [deactivation, setDeactivation] = useState<DeactivationRequest | null>(null);
+  const [deactivationLoaded, setDeactivationLoaded] = useState(false);
+  const [deactivationReason, setDeactivationReason] = useState("");
+  const [deactivationMessage, setDeactivationMessage] = useState("");
+  const [deactivationSubmitting, setDeactivationSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getLoginHistory(10)
+      .then((items) => {
+        if (!cancelled) setHistory(items);
+      })
+      .catch(() => {
+        if (!cancelled) setHistoryError("Could not load sign-in history.");
+      });
+    getDeactivationRequest()
+      .then((req) => {
+        if (!cancelled) setDeactivation(req);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setDeactivationLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function submitDeactivation() {
+    if (!window.confirm("Ask an administrator to deactivate your account?")) return;
+    setDeactivationSubmitting(true);
+    setDeactivationMessage("");
+    try {
+      const req = await requestDeactivation(deactivationReason);
+      setDeactivation(req);
+      setDeactivationReason("");
+    } catch (err) {
+      setDeactivationMessage(
+        err instanceof ApiClientError ? err.message : err instanceof Error ? err.message : "Request failed."
+      );
+    } finally {
+      setDeactivationSubmitting(false);
+    }
+  }
 
   async function updatePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -485,14 +501,6 @@ function SecurityView() {
     } finally {
       setPasswordSubmitting(false);
     }
-  }
-
-  function revokeSession(id: string) {
-    setSessions((list) => list.filter((session) => session.id !== id || session.current));
-  }
-
-  function revokeOthers() {
-    setSessions((list) => list.filter((session) => session.current));
   }
 
   return (
@@ -558,34 +566,24 @@ function SecurityView() {
             <div className={styles.sessionHeader}>
               <div className={styles.cardHeader} style={{ marginBottom: 0 }}>
                 <Activity size={18} className={styles.iconBlue} />
-                <h3 className={styles.cardTitle}>Active Sessions</h3>
+                <h3 className={styles.cardTitle}>Recent Sign-ins</h3>
               </div>
-              <button
-                type="button"
-                className={styles.textLink}
-                onClick={revokeOthers}
-                disabled
-                title="Session management isn't available yet."
-              >
-                Revoke All Other Sessions
-              </button>
             </div>
             <p className={styles.infoText} style={{ padding: "0 16px", marginTop: 8 }}>
-              <Info size={12} /> Preview only — session tracking isn&apos;t connected to the backend yet.
+              <Info size={12} /> Your most recent sign-in attempts. If you do not recognize one, change your password.
             </p>
             <div className={`${styles.sessionList} ts-stagger`}>
-              {sessions.map((session, i) => (
-                <SessionItem
-                  key={session.id}
-                  icon={session.icon}
-                  device={session.device}
-                  location={session.location}
-                  time={session.time}
-                  current={session.current}
-                  onRevoke={() => revokeSession(session.id)}
-                  staggerIndex={i}
-                />
-              ))}
+              {historyError ? (
+                <p className={styles.infoText} style={{ padding: 16 }}>{historyError}</p>
+              ) : history === null ? (
+                <p className={styles.infoText} style={{ padding: 16 }}>Loading...</p>
+              ) : history.length === 0 ? (
+                <p className={styles.infoText} style={{ padding: 16 }}>No sign-in activity recorded yet.</p>
+              ) : (
+                history.map((entry, i) => (
+                  <LoginHistoryRow key={`${entry.timestamp}-${i}`} entry={entry} staggerIndex={i} />
+                ))
+              )}
             </div>
           </section>
         </div>
@@ -595,20 +593,42 @@ function SecurityView() {
             <div className={styles.shieldCircle}>
               <Shield size={24} />
             </div>
-            <h4 className={styles.sideTitle}>Two-Factor Authentication</h4>
-            <p className={styles.cardInfoText}>Add an extra layer of security to your account.</p>
-            <div className={styles.statusBox}>
-              Status <span className={styles.badgeGreen}>• Not available yet</span>
-            </div>
-            <p className={styles.smallText}>
-              Two-factor authentication isn&apos;t connected to the backend yet — check back soon.
+            <h4 className={styles.sideTitle}>Deactivate Account</h4>
+            <p className={styles.cardInfoText}>
+              Ask an administrator to deactivate your account. Your request is reviewed before anything changes.
             </p>
-            <button type="button" className={styles.outlineBtn} disabled title="Not available yet.">
-              Configure 2FA Settings
-            </button>
-            <button type="button" className={styles.dangerTextBtn} disabled title="Not available yet.">
-              Disable Two-Factor Authentication
-            </button>
+            {!deactivationLoaded ? null : deactivation && deactivation.status === "Pending" ? (
+              <div className={styles.statusBox}>
+                Status <span className={styles.badgeGreen}>Pending review</span>
+                <p className={styles.smallText}>Requested {deactivation.created_at}</p>
+              </div>
+            ) : (
+              <>
+                {deactivation ? (
+                  <p className={styles.smallText}>
+                    Your last request ({deactivation.created_at}) was {deactivation.status.toLowerCase()}.
+                  </p>
+                ) : null}
+                <textarea
+                  aria-label="Reason for deactivation (optional)"
+                  placeholder="Reason (optional)"
+                  maxLength={500}
+                  rows={3}
+                  value={deactivationReason}
+                  onChange={(e) => setDeactivationReason(e.target.value)}
+                  style={{ width: "100%", marginBottom: 8 }}
+                />
+                {deactivationMessage ? <p className={styles.smallText}>{deactivationMessage}</p> : null}
+                <button
+                  type="button"
+                  className={styles.dangerTextBtn}
+                  onClick={() => void submitDeactivation()}
+                  disabled={deactivationSubmitting}
+                >
+                  {deactivationSubmitting ? "Submitting..." : "Request Account Deactivation"}
+                </button>
+              </>
+            )}
           </div>
           <div className={styles.securityTipCard}>
             <h4 style={{ color: "white", marginBottom: "12px" }}>Security Tip</h4>
@@ -645,44 +665,19 @@ function ToggleItem({
   );
 }
 
-function SessionItem({
-  icon,
-  device,
-  location,
-  time,
-  current,
-  onRevoke,
-  staggerIndex,
-}: {
-  icon: React.ReactNode;
-  device: string;
-  location: string;
-  time: string;
-  current?: boolean;
-  onRevoke: () => void;
-  staggerIndex: number;
-}) {
+function LoginHistoryRow({ entry, staggerIndex }: { entry: LoginHistoryItem; staggerIndex: number }) {
   return (
     <div className={styles.sessionItem} style={{ "--ts-stagger-i": staggerIndex } as CSSProperties}>
-      <div className={styles.sessionIconWrapper}>{icon}</div>
+      <div className={styles.sessionIconWrapper}>
+        <Laptop size={20} />
+      </div>
       <div className={styles.sessionInfo}>
         <div className={styles.sessionDevice}>
-          {device} {current && <span className={styles.currentBadge}>CURRENT DEVICE</span>}
+          {entry.success ? "Successful sign-in" : "Failed sign-in attempt"}
         </div>
-        <div className={styles.sessionMeta}>{location}</div>
-        <div className={styles.sessionMeta}>{time}</div>
+        <div className={styles.sessionMeta}>{entry.timestamp}</div>
+        {entry.ip_address ? <div className={styles.sessionMeta}>IP: {entry.ip_address}</div> : null}
       </div>
-      {!current ? (
-        <button
-          type="button"
-          className={styles.revokeBtn}
-          onClick={onRevoke}
-          disabled
-          title="Session management isn't available yet."
-        >
-          Revoke
-        </button>
-      ) : null}
     </div>
   );
 }

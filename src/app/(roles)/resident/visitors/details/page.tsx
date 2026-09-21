@@ -76,15 +76,14 @@ function VisitorDetailsInner() {
   const [scheduledAtInput, setScheduledAtInput] = useState("");
   const [scheduledAtError, setScheduledAtError] = useState("");
   const [savedNote, setSavedNote] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [fetchError, setError] = useState("");
+  const [fetching, setLoading] = useState(true);
+  const invalidId = !Number.isFinite(passId);
+  const error = invalidId ? "Missing pass id." : fetchError;
+  const loading = invalidId ? false : fetching;
 
   useEffect(() => {
-    if (!Number.isFinite(passId)) {
-      setError("Missing pass id.");
-      setLoading(false);
-      return;
-    }
+    if (invalidId) return;
 
     let cancelled = false;
     (async () => {
@@ -115,7 +114,7 @@ function VisitorDetailsInner() {
     return () => {
       cancelled = true;
     };
-  }, [passId]);
+  }, [passId, invalidId]);
 
   const revoked =
     pass?.status === "Rejected" || pass?.status === "Cancelled" || pass?.status === "Expired";

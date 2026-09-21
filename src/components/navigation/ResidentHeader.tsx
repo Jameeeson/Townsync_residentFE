@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Bell, ChevronDown, X } from "lucide-react";
 import styles from "@/styles/dashboard.module.css";
 import { fetchMe } from "@/lib/api/auth";
-import { getAccessToken } from "@/lib/apiClient";
+import { hasSession } from "@/lib/apiClient";
 import { listAnnouncements, type Announcement } from "@/lib/api/resident";
 
 function relativeMeta(iso: string, category: string): string {
@@ -27,7 +27,7 @@ export function ResidentHeader() {
   const [announcementsError, setAnnouncementsError] = useState(false);
 
   useEffect(() => {
-    if (!getAccessToken()) return;
+    if (!hasSession()) return;
     let cancelled = false;
     (async () => {
       try {

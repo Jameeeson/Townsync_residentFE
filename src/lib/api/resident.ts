@@ -254,6 +254,9 @@ export interface Announcement {
   content: string;
   category: string;
   created_at: string;
+  priority?: "Normal" | "Important" | "Urgent";
+  is_pinned?: boolean;
+  expiry_date?: string | null;
 }
 
 export async function listAnnouncements(): Promise<Announcement[]> {
@@ -299,6 +302,33 @@ export async function getPreferences(): Promise<NotificationPreferences> {
 
 export async function updatePreferences(body: NotificationPreferences): Promise<NotificationPreferences> {
   return apiClient.put<NotificationPreferences>("/api/v1/resident/settings/preferences", body);
+}
+
+export interface LoginHistoryItem {
+  timestamp: string;
+  ip_address: string | null;
+  success: boolean;
+}
+
+export async function getLoginHistory(limit = 10): Promise<LoginHistoryItem[]> {
+  return apiClient.get<LoginHistoryItem[]>(`/api/v1/resident/settings/login-history?limit=${limit}`);
+}
+
+export interface DeactivationRequest {
+  request_id: number;
+  status: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export async function getDeactivationRequest(): Promise<DeactivationRequest | null> {
+  return apiClient.get<DeactivationRequest | null>("/api/v1/resident/settings/deactivation-request");
+}
+
+export async function requestDeactivation(reason?: string): Promise<DeactivationRequest> {
+  return apiClient.post<DeactivationRequest>("/api/v1/resident/settings/deactivation-request", {
+    reason: reason?.trim() || null,
+  });
 }
 
 // --- Support ---
