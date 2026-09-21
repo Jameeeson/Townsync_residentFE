@@ -1,4 +1,6 @@
-import { ApiError, clearToken, getToken, setToken } from "./api-client";
+import { ApiError, clearSession, hasSession, markSignedIn } from "./api-client";
+
+export const STAFF_ROLES = ["Staff", "Maintenance"];
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -24,6 +26,7 @@ export async function login(email: string, password: string): Promise<void> {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
+      credentials: "include",
     });
   } catch {
     throw new ApiError(0, "Could not reach the server. Is the backend running?");
@@ -40,8 +43,13 @@ export async function login(email: string, password: string): Promise<void> {
     throw new ApiError(res.status, message);
   }
 
-  const data = (await res.json()) as { access_token: string; token_type: string };
-  setToken(data.access_token);
+  const data = (await res.json()) as { access_token: string; token_type: string; role?: string };
+  if (!data.role || !STAFF_ROLES.includes(data.role)) {
+    // Valid credentials but not a staff account: end that session before erroring.
+    await logout();
+    throw new ApiError(403, "This portal is for staff accounts only.");
+  }
+  markSignedIn();
 }
 
 export async function fetchMe(): Promise<MeResponse> {
@@ -62,19 +70,14 @@ export async function registerStaff(payload: {
 }
 
 export async function logout(): Promise<void> {
-  const token = getToken();
-  clearToken();
-  if (!token) return;
+  clearSession();
   try {
-    await fetch(`${API_BASE_URL}/api/auth/logout`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    await fetch(`${API_BASE_URL}/api/auth/logout`, { method: "POST", credentials: "include" });
   } catch {
-    /* best effort — token is already cleared locally */
+    /* best effort — the local flag is already cleared */
   }
 }
 
 export function isSignedIn(): boolean {
-  return Boolean(getToken());
+  return hasSession();
 }

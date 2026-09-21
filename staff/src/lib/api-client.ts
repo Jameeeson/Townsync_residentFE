@@ -1,7 +1,9 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
-const TOKEN_KEY = "townsync.staff.token";
+// The session is an httpOnly cookie set by the backend; JS never sees the token.
+// This flag only drives UI; the server re-checks authentication and role on every request.
+const SESSION_KEY = "townsync.staff.session";
 
 export class ApiError extends Error {
   status: number;
@@ -12,26 +14,26 @@ export class ApiError extends Error {
   }
 }
 
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
+export function hasSession(): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    return window.localStorage.getItem(TOKEN_KEY);
+    return window.localStorage.getItem(SESSION_KEY) === "1";
   } catch {
-    return null;
+    return false;
   }
 }
 
-export function setToken(token: string) {
+export function markSignedIn() {
   try {
-    window.localStorage.setItem(TOKEN_KEY, token);
+    window.localStorage.setItem(SESSION_KEY, "1");
   } catch {
     /* ignore */
   }
 }
 
-export function clearToken() {
+export function clearSession() {
   try {
-    window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem(SESSION_KEY);
   } catch {
     /* ignore */
   }
@@ -63,16 +65,8 @@ type RequestOptions = {
 };
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, form, auth = true, headers = {} } = opts;
+  const { method = "GET", body, form, headers = {} } = opts;
   const finalHeaders: Record<string, string> = { ...headers };
-
-  if (auth) {
-    const token = getToken();
-    if (!token) {
-      throw new ApiError(401, "Not signed in.");
-    }
-    finalHeaders.Authorization = `Bearer ${token}`;
-  }
 
   let requestBody: BodyInit | undefined;
   if (form) {
@@ -88,13 +82,15 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
       method,
       headers: finalHeaders,
       body: requestBody,
+      credentials: "include",
+      signal: AbortSignal.timeout(20000),
     });
   } catch {
     throw new ApiError(0, "Could not reach the server. Check your connection and try again.");
   }
 
   if (res.status === 401) {
-    clearToken();
+    clearSession();
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/staff/login")) {
       window.location.href = "/staff/login";
     }
