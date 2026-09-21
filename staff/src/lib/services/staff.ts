@@ -109,7 +109,14 @@ export function sendTicketChatMessage(ticketId: number, content: string) {
 // ----- Gate Scanner (Security staff only) -----
 
 export function verifyPass(qrPayload: string) {
-  return api.post<{ pass_id: number; visitor_name: string; unit: string; status: string }>(
+  return api.post<{
+    pass_id: number;
+    visitor_name: string;
+    unit: string;
+    status: string;
+    companions?: string[];
+    party_size?: number;
+  }>(
     "/api/v1/staff/scanner/verify-ticket",
     { qr_payload: qrPayload },
   );
@@ -139,6 +146,8 @@ export type VisitorLog = {
   status: string;
   timestamp: string;
   unit_destination: string;
+  companions?: string[];
+  party_size?: number;
 };
 
 export function getVisitorLogs(search?: string) {

@@ -171,6 +171,12 @@ export default function StaffLogsPage() {
                         </div>
                         <div>
                           <strong>{log.visitor_name}</strong>
+                          {log.companions && log.companions.length > 0 ? (
+                            <p className={styles.party}>
+                              +{log.companions.length} guest{log.companions.length === 1 ? "" : "s"}:{" "}
+                              {log.companions.join(", ")}
+                            </p>
+                          ) : null}
                           <p className={styles.mobileMeta}>{log.unit_destination}</p>
                           <p className={styles.mobileMeta}>{log.timestamp}</p>
                         </div>

@@ -399,3 +399,10 @@
     min-height: 420px;
   }
 }
+
+.party {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-primary-600, #2563eb);
+}

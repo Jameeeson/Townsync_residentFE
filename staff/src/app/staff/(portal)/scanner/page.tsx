@@ -11,6 +11,7 @@ type LastScan = {
   initials: string;
   name: string;
   unit: string;
+  companions: string[];
   result: "allowed" | "denied";
   time: string;
 };
@@ -67,16 +68,24 @@ export default function StaffScannerPage() {
         initials: initialsFor(verified.visitor_name),
         name: verified.visitor_name,
         unit: verified.unit,
+        companions: verified.companions ?? [],
         result: "allowed",
         time: nowLabel(),
       });
-      toast(`${verified.visitor_name} checked in.`, "success");
+      const extra = verified.companions?.length ?? 0;
+      toast(
+        extra > 0
+          ? `${verified.visitor_name} + ${extra} guest${extra === 1 ? "" : "s"} checked in.`
+          : `${verified.visitor_name} checked in.`,
+        "success",
+      );
       setPassId("");
     } catch (err) {
       setLastScan({
         initials: "?",
         name: "Unrecognized Pass",
         unit: entryPoint || "Unspecified",
+        companions: [],
         result: "denied",
         time: nowLabel(),
       });
@@ -110,6 +119,7 @@ export default function StaffScannerPage() {
         initials: initialsFor(name),
         name,
         unit: entryPoint || "Unspecified",
+        companions: [],
         result: "allowed",
         time: nowLabel(),
       });
@@ -191,6 +201,13 @@ export default function StaffScannerPage() {
                 <div>
                   <strong>{lastScan.name}</strong>
                   <p>{lastScan.unit}</p>
+                  {lastScan.companions.length > 0 ? (
+                    <p className={styles.party}>
+                      With {lastScan.companions.length} guest
+                      {lastScan.companions.length === 1 ? "" : "s"}:{" "}
+                      {lastScan.companions.join(", ")}
+                    </p>
+                  ) : null}
                   <span
                     className={
                       lastScan.result === "allowed" ? styles.badgeOk : styles.badgeDenied
