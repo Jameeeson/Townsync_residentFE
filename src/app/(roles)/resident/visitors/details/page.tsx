@@ -11,9 +11,11 @@ import {
   Download,
   XCircle,
   Check,
+  Users,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ApiClientError } from "@/lib/apiClient";
+import GuestListEditor, { cleanGuestNames } from "@/components/visitors/GuestListEditor";
 import {
   VisitorPass,
   cancelVisitorPass,
@@ -69,6 +71,7 @@ function VisitorDetailsInner() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [guests, setGuests] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState("");
   const [scheduledAtInput, setScheduledAtInput] = useState("");
   const [scheduledAtError, setScheduledAtError] = useState("");
@@ -91,6 +94,7 @@ function VisitorDetailsInner() {
         setPass(data);
         setName(data.visitor_name);
         setPurpose(data.visit_purpose);
+        setGuests(data.companions ?? []);
         setScheduledAt(data.scheduled_at);
         setScheduledAtInput(toDatetimeLocalValue(data.scheduled_at));
       } catch (err) {
@@ -113,7 +117,8 @@ function VisitorDetailsInner() {
     };
   }, [passId]);
 
-  const revoked = pass?.status === "Rejected" || pass?.status === "Cancelled";
+  const revoked =
+    pass?.status === "Rejected" || pass?.status === "Cancelled" || pass?.status === "Expired";
 
   function statusBadgeClass(status: string | undefined): string {
     if (status === "Approved") return styles.statusBadge;
@@ -139,8 +144,10 @@ function VisitorDetailsInner() {
         visitor_name: name,
         visit_purpose: purpose,
         scheduled_at: nextScheduledAt,
+        companions: cleanGuestNames(guests),
       });
       setPass(updated);
+      setGuests(updated.companions ?? []);
       setScheduledAt(updated.scheduled_at ?? nextScheduledAt);
       setScheduledAtInput(toDatetimeLocalValue(updated.scheduled_at ?? nextScheduledAt));
       setEditing(false);
@@ -162,6 +169,7 @@ function VisitorDetailsInner() {
       "TownSync Digital Visitor Pass",
       `Pass ID: #${pass.id}`,
       `Visitor: ${name}`,
+      `Additional guests (${guests.length}): ${guests.length ? guests.join(", ") : "none"}`,
       `Purpose: ${purpose}`,
       `Scheduled: ${scheduledAt}`,
       `QR: ${pass.qr_token}`,
@@ -287,6 +295,22 @@ function VisitorDetailsInner() {
                   <span className={styles.fieldValue}>{purpose}</span>
                 )}
               </label>
+              <div>
+                <span className={styles.fieldLabelIcon}>
+                  <Users size={14} /> Additional guests
+                </span>
+                {editing ? (
+                  <GuestListEditor value={guests} onChange={setGuests} />
+                ) : guests.length > 0 ? (
+                  <ul className={styles.guestList}>
+                    {guests.map((guest) => (
+                      <li key={guest}>{guest}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className={styles.fieldValue}>None — this pass is for one person.</span>
+                )}
+              </div>
               <label>
                 <span className={styles.fieldLabelIcon}>
                   <Calendar size={14} /> Scheduled

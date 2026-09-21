@@ -14,11 +14,13 @@ import {
   Send,
   Check,
   Ticket,
+  Users,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { ApiClientError } from "@/lib/apiClient";
+import GuestListEditor, { cleanGuestNames } from "@/components/visitors/GuestListEditor";
 import {
   VisitorPass as ApiVisitorPass,
   createVisitorPass,
@@ -32,6 +34,7 @@ type UiPass = {
   scheduledAt: string;
   status: string;
   qrToken: string;
+  companions: string[];
 };
 
 function normalizePasses(data: unknown): { passes: UiPass[]; usage: string } {
@@ -66,6 +69,7 @@ function mapPass(p: ApiVisitorPass): UiPass {
     scheduledAt: p.scheduled_at,
     status: p.status,
     qrToken: p.qr_token,
+    companions: Array.isArray(p.companions) ? p.companions : [],
   };
 }
 
@@ -82,6 +86,7 @@ export default function PassesPage() {
   const router = useRouter();
   const [visitorName, setVisitorName] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
+  const [guests, setGuests] = useState<string[]>([]);
   const [startDate, setStartDate] = useState<Date | null>(new Date());
   const [startTime, setStartTime] = useState<Date | null>(new Date());
   const [passes, setPasses] = useState<UiPass[]>([]);
@@ -132,11 +137,14 @@ export default function PassesPage() {
       ? `Contractor / Vehicle (${vehiclePlate.trim()})`
       : "Guest visit";
 
+    const companions = cleanGuestNames(guests);
+
     try {
       const result = await createVisitorPass({
         visitor_name: visitorName.trim(),
         visit_purpose: purpose,
         scheduled_at: formatScheduledAt(startDate, startTime),
+        companions,
       });
       await refresh();
       const created: UiPass = {
@@ -146,11 +154,13 @@ export default function PassesPage() {
         scheduledAt: formatScheduledAt(startDate, startTime),
         status: "Pending",
         qrToken: result.qr_token,
+        companions: result.companions ?? companions,
       };
       setLastGeneratedPass(created);
       setShowSuccess(true);
       setVisitorName("");
       setVehiclePlate("");
+      setGuests([]);
     } catch (err) {
       setError(
         err instanceof ApiClientError
@@ -177,6 +187,13 @@ export default function PassesPage() {
               {lastGeneratedPass.name}&apos;s pass was submitted
               {lastGeneratedPass.status ? ` (${lastGeneratedPass.status})` : ""}.
             </p>
+            {lastGeneratedPass.companions.length > 0 ? (
+              <p className={styles.modalDesc}>
+                Also covers {lastGeneratedPass.companions.length} guest
+                {lastGeneratedPass.companions.length === 1 ? "" : "s"}:{" "}
+                {lastGeneratedPass.companions.join(", ")}.
+              </p>
+            ) : null}
             <div className={styles.qrBorder} style={{ margin: "0 auto", width: "fit-content" }}>
               <QRCodeSVG value={lastGeneratedPass.qrToken} size={150} />
             </div>
@@ -224,6 +241,10 @@ export default function PassesPage() {
                 className={styles.input}
                 placeholder="ABC-123"
               />
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Additional Guests (optional)</label>
+              <GuestListEditor value={guests} onChange={setGuests} disabled={submitting} />
             </div>
             <div className={styles.row}>
               <div className={styles.formGroup}>
@@ -300,6 +321,12 @@ export default function PassesPage() {
                     <div className={styles.cardDetail}>
                       <Clock size={14} /> QR ready
                     </div>
+                    {pass.companions.length > 0 ? (
+                      <div className={styles.cardDetail} title={pass.companions.join(", ")}>
+                        <Users size={14} /> +{pass.companions.length} guest
+                        {pass.companions.length === 1 ? "" : "s"}: {pass.companions.join(", ")}
+                      </div>
+                    ) : null}
                   </div>
                   <div className={styles.qrContainer}>
                     <button

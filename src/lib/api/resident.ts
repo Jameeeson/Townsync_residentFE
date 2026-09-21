@@ -143,6 +143,10 @@ export interface VisitorPass {
   scheduled_at: string;
   status: string;
   qr_token: string;
+  /** Names of additional guests covered by the same QR. */
+  companions?: string[];
+  /** The named visitor plus companions. */
+  party_size?: number;
 }
 
 export interface VisitorPassListResponse {
@@ -160,11 +164,15 @@ export async function createVisitorPass(fields: {
   visitor_name: string;
   visit_purpose: string;
   scheduled_at: string;
-}): Promise<{ message: string; qr_token: string }> {
+  companions?: string[];
+}): Promise<{ message: string; qr_token: string; companions?: string[]; party_size?: number }> {
   const form = new FormData();
   form.set("visitor_name", fields.visitor_name);
   form.set("visit_purpose", fields.visit_purpose);
   form.set("scheduled_at", fields.scheduled_at);
+  if (fields.companions?.length) {
+    form.set("companions", JSON.stringify(fields.companions));
+  }
   return apiClient.post("/api/v1/resident/visitor-passes/", form);
 }
 
@@ -174,7 +182,12 @@ export async function getVisitorPass(passId: number): Promise<VisitorPass> {
 
 export async function updateVisitorPass(
   passId: number,
-  body: Partial<{ visitor_name: string; visit_purpose: string; scheduled_at: string }>
+  body: Partial<{
+    visitor_name: string;
+    visit_purpose: string;
+    scheduled_at: string;
+    companions: string[];
+  }>
 ): Promise<VisitorPass> {
   return apiClient.patch<VisitorPass>(`/api/v1/resident/visitor-passes/${passId}`, body);
 }
