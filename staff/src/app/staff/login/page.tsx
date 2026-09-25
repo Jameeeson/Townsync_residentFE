@@ -156,13 +156,9 @@ export default function StaffLoginPage() {
               <Link href="/staff/register" className={styles.textLink}>
                 Create Account
               </Link>
-              <button
-                type="button"
-                className={styles.textLink}
-                onClick={() => showSoon("Password recovery")}
-              >
+              <Link href="/staff/forgot-password" className={styles.textLink}>
                 Forgot Password?
-              </button>
+              </Link>
             </div>
 
             <button type="submit" className={styles.submit} disabled={loading}>

@@ -72,6 +72,29 @@ export async function registerStaff(payload: {
   return api.post<{ message: string }>("/api/auth/register/staff", payload, { auth: false });
 }
 
+/**
+ * Requests a reset link. The backend picks the portal from the account's role,
+ * so a staff address is emailed a link back to this portal rather than the
+ * resident one. The response is deliberately identical whether or not the
+ * address exists, so it cannot be used to discover accounts.
+ */
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const { api } = await import("./api-client");
+  return api.post<{ message: string }>("/api/auth/forgot-password", { email }, { auth: false });
+}
+
+export async function resetPassword(
+  token: string,
+  newPassword: string,
+): Promise<{ message: string }> {
+  const { api } = await import("./api-client");
+  return api.post<{ message: string }>(
+    "/api/auth/reset-password",
+    { token, new_password: newPassword },
+    { auth: false },
+  );
+}
+
 export async function logout(): Promise<void> {
   clearSession();
   try {

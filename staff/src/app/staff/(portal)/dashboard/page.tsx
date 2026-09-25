@@ -17,7 +17,6 @@ import {
   IconClock,
   IconDoc,
   IconMapPin,
-  IconPlus,
   IconScan,
   IconShield,
   IconShieldCheck,
@@ -570,15 +569,6 @@ export default function StaffDashboardPage() {
             </section>
           </aside>
         </div>
-
-        <button
-          type="button"
-          className={styles.fab}
-          aria-label="New maintenance log"
-          onClick={() => setMaintOpen(true)}
-        >
-          <IconPlus size={24} />
-        </button>
       </div>
 
       {selected ? (

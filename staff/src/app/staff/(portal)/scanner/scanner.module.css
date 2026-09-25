@@ -1,6 +1,9 @@
 .page {
   display: grid;
-  gap: 1.35rem;
+  gap: 1rem;
+  /* The shell already clips the page to the viewport and scrolls .content;
+     this page must never need more height than that gives it. */
+  min-height: 0;
 }
 
 .header {
@@ -13,7 +16,7 @@
 
 .header h1 {
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  font-size: clamp(1.5rem, 2vw, 1.85rem);
   color: var(--navy-900);
   letter-spacing: -0.03em;
 }
@@ -24,7 +27,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--navy-600);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.3rem;
 }
 
 .lede {
@@ -62,6 +65,7 @@
   color: var(--warning);
   font-size: 0.8rem;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .offlineDot {
@@ -71,175 +75,138 @@
   background: var(--warning);
 }
 
-.banner {
-  padding: 0.85rem 1rem;
-  border-radius: var(--radius-md);
-  background: var(--info-soft);
-  border: 1px solid #bfdbfe;
-  color: var(--info);
-  font-size: 0.88rem;
-  font-weight: 550;
-  line-height: 1.45;
-}
-
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.75fr);
-  gap: 1.15rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.85fr);
+  gap: 1rem;
   align-items: start;
+  min-height: 0;
 }
 
-.cameraCard {
+.actionCard {
   display: grid;
-  gap: 0.85rem;
+  align-content: start;
+  gap: 0.9rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  padding: 1.05rem;
+  box-shadow: var(--shadow-sm);
 }
 
-.camera {
-  position: relative;
-  min-height: 480px;
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(7, 20, 40, 0.25) 0%, rgba(7, 20, 40, 0.72) 100%),
-    url("https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1400&q=80")
-      center / cover;
-  box-shadow: var(--shadow-md);
+/* ---- Honest camera-unavailable status: a single-line strip, not a
+   full-height decorative photo standing in for a feature that doesn't work
+   yet. This is what reclaims the vertical space that forced page scroll. ---- */
+
+.scanStrip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--navy-50);
+  border: 1px solid var(--line-soft);
+}
+
+.scanStripIcon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
-  padding: 2rem 1.25rem 1.5rem;
+  background: var(--surface-raised);
+  color: var(--navy-600);
+  box-shadow: var(--shadow-sm);
 }
 
-.viewfinder {
-  position: relative;
-  width: min(72%, 280px);
-  aspect-ratio: 1;
+.scanStripCopy {
+  flex: 1;
+  min-width: 0;
 }
 
-.corner {
-  position: absolute;
-  width: 28px;
-  height: 28px;
-  border: 3px solid #fff;
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.35));
+.scanStripCopy p {
+  font-weight: 650;
+  font-size: 0.85rem;
+  color: var(--navy-900);
 }
 
-.corner[data-pos="tl"] {
-  top: 0;
-  left: 0;
-  border-right: none;
-  border-bottom: none;
-  border-radius: 6px 0 0 0;
-}
-
-.corner[data-pos="tr"] {
-  top: 0;
-  right: 0;
-  border-left: none;
-  border-bottom: none;
-  border-radius: 0 6px 0 0;
-}
-
-.corner[data-pos="bl"] {
-  bottom: 0;
-  left: 0;
-  border-right: none;
-  border-top: none;
-  border-radius: 0 0 0 6px;
-}
-
-.corner[data-pos="br"] {
-  bottom: 0;
-  right: 0;
-  border-left: none;
-  border-top: none;
-  border-radius: 0 0 6px 0;
-}
-
-.scanLine {
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #fff, transparent);
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8);
-  animation: scan-line 2.8s ease-in-out infinite;
-}
-
-.cameraCopy {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 5.5rem;
-  text-align: center;
-  color: #fff;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
-}
-
-.cameraCopy p {
-  font-weight: 700;
-  font-size: 1.02rem;
-}
-
-.cameraCopy span {
+.scanStripCopy span {
   display: block;
-  margin-top: 0.25rem;
-  font-size: 0.88rem;
-  opacity: 0.85;
+  margin-top: 0.1rem;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .torch {
-  position: absolute;
-  bottom: 1.25rem;
-  left: 50%;
-  transform: translateX(-50%);
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.65rem 0.95rem;
-  border-radius: 12px;
-  background: rgba(7, 20, 40, 0.55);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(8px);
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  border: 1px solid var(--line-soft);
   font-weight: 650;
-  font-size: 0.85rem;
-}
-
-.torchOn {
-  background: rgba(251, 191, 36, 0.35);
-  border-color: rgba(251, 191, 36, 0.55);
+  font-size: 0.78rem;
 }
 
 .torch:disabled {
-  opacity: 0.55;
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
-.manualBtn {
-  height: 52px;
+/* ---- Verify Pass / Manual Entry: one action surface, switched by tab
+   instead of two independently-toggled panels stacked in a long column. The
+   entry every guard needs on a walk-in is one click away, never a scroll. ---- */
+
+.tabs {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.3rem;
   border-radius: var(--radius-md);
+  background: var(--navy-50);
+}
+
+.tab {
+  flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
-  background: linear-gradient(135deg, var(--navy-600), var(--navy-800));
-  color: #fff;
-  font-weight: 750;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.88rem;
-  box-shadow: 0 10px 22px rgba(12, 31, 61, 0.2);
-  transition: filter 0.2s var(--ease), transform 0.2s var(--ease);
+  gap: 0.5rem;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--navy-700);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
 
-.manualBtn:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
+.tab:hover {
+  color: var(--navy-900);
+}
+
+.tab[aria-selected="true"] {
+  background: var(--surface-raised);
+  color: var(--navy-900);
+  box-shadow: var(--shadow-sm);
+}
+
+.tabPanel {
+  display: grid;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
 }
 
 .side {
   display: grid;
   gap: 0.85rem;
+  min-height: 0;
 }
 
 .panel {
@@ -264,14 +231,15 @@
 }
 
 .avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
   font-weight: 750;
   color: var(--navy-900);
   background: linear-gradient(145deg, var(--navy-50), var(--navy-100));
+  flex-shrink: 0;
 }
 
 .lastScan strong {
@@ -303,39 +271,6 @@
   color: var(--danger);
   font-size: 0.72rem;
   font-weight: 700;
-}
-
-.tips {
-  list-style: none;
-  display: grid;
-  gap: 0.55rem;
-}
-
-.tips li {
-  position: relative;
-  padding-left: 1rem;
-  color: var(--ink-soft);
-  font-size: 0.88rem;
-}
-
-.tips code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
-  background: var(--navy-50);
-  padding: 0.1rem 0.3rem;
-  border-radius: 5px;
-  color: var(--navy-800);
-}
-
-.tips li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.55rem;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--navy-500);
 }
 
 .field {
@@ -395,8 +330,8 @@
     grid-template-columns: 1fr;
   }
 
-  .camera {
-    min-height: 420px;
+  .fieldRow {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -436,10 +371,39 @@
   color: var(--warning);
 }
 
+/* The panel that must never grow the page: whether one person or fifty are
+   on site, this list scrolls inside its own fixed height. Overstaying
+   visitors are sorted first in the component above, so the cases that need
+   attention are visible before anyone has to scroll at all. */
+.onSitePanel {
+  display: grid;
+  min-height: 0;
+}
+
 .visitList {
   display: grid;
+  align-content: start;
   gap: 0.55rem;
   margin-top: 0.85rem;
+  max-height: 15.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.35rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--navy-100) transparent;
+}
+
+.visitList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.visitList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.visitList::-webkit-scrollbar-thumb {
+  background: var(--navy-100);
+  border-radius: 999px;
 }
 
 .visitList li {

@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconFlashlight, IconPencil } from "@/components/icons";
+import { IconFlashlight, IconPencil, IconScan } from "@/components/icons";
 import { useToast } from "@/components/Toast";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import { ApiError } from "@/lib/api-client";
@@ -27,6 +27,8 @@ type LastScan = {
   time: string;
 };
 
+type GateMode = "pass" | "manual";
+
 function nowLabel() {
   return new Date().toLocaleTimeString([], {
     hour: "numeric",
@@ -49,7 +51,7 @@ export default function StaffScannerPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { loading: sessionLoading, isMaintenance, canUseScanner } = useStaffSession();
-  const [manualOpen, setManualOpen] = useState(true);
+  const [mode, setMode] = useState<GateMode>("pass");
   const [passId, setPassId] = useState("");
   const [entryPoint, setEntryPoint] = useState("Main Gate");
   const [verifying, setVerifying] = useState(false);
@@ -70,13 +72,23 @@ export default function StaffScannerPage() {
     }
   }, []);
 
-  const [noPassOpen, setNoPassOpen] = useState(false);
   const [visitorName, setVisitorName] = useState("");
   const [idType, setIdType] = useState("Government ID");
   const [documentNumber, setDocumentNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
+
+  // Whoever is overstaying is the reason this list exists; they stay pinned to
+  // the top regardless of how many people are on site, so a long roster can
+  // never bury the one row that actually needs attention. Longest-inside next.
+  const sortedVisits = useMemo(() => {
+    if (!onSite) return [];
+    return [...onSite.visits].sort((a, b) => {
+      if (a.overstaying !== b.overstaying) return a.overstaying ? -1 : 1;
+      return b.hours_inside - a.hours_inside;
+    });
+  }, [onSite]);
 
   async function onVerify(e: FormEvent) {
     e.preventDefault();
@@ -174,6 +186,7 @@ export default function StaffScannerPage() {
       setVisitorName("");
       setDocumentNumber("");
       setNotes("");
+      refreshOnSite();
     } catch (err) {
       setManualError(
         err instanceof ApiError ? err.message : "Could not log this manual entry.",
@@ -253,33 +266,21 @@ export default function StaffScannerPage() {
         <div>
           <p className={styles.kicker}>Access Control</p>
           <h1>Gate Scanner</h1>
-          <p className={styles.lede}>
-            Camera scanning is unavailable in this preview — use pass verification
-            or manual entry below.
-          </p>
         </div>
         <span className={styles.offline} role="status">
           <span className={styles.offlineDot} /> Camera Unavailable
         </span>
       </header>
 
-      <div className={styles.banner} role="status">
-        Live QR capture is not connected yet. Torch and auto-detect stay disabled
-        until a camera feed is available.
-      </div>
-
       <div className={styles.layout}>
-        <section className={styles.cameraCard}>
-          <div className={styles.camera}>
-            <div className={styles.viewfinder} aria-hidden>
-              <span className={styles.corner} data-pos="tl" />
-              <span className={styles.corner} data-pos="tr" />
-              <span className={styles.corner} data-pos="bl" />
-              <span className={styles.corner} data-pos="br" />
-            </div>
-            <div className={styles.cameraCopy}>
-              <p>Camera preview offline</p>
-              <span>Use Pass Verification below</span>
+        <section className={styles.actionCard}>
+          <div className={styles.scanStrip}>
+            <span className={styles.scanStripIcon} aria-hidden>
+              <IconScan size={20} />
+            </span>
+            <div className={styles.scanStripCopy}>
+              <p>Live camera capture isn&apos;t connected in this preview</p>
+              <span>Verify a pass or log a visitor manually below.</span>
             </div>
             <button
               type="button"
@@ -288,19 +289,134 @@ export default function StaffScannerPage() {
               title="Torch requires an active camera"
               aria-disabled="true"
             >
-              <IconFlashlight size={20} />
-              <span>Torch Unavailable</span>
+              <IconFlashlight size={16} />
+              <span>Torch</span>
             </button>
           </div>
-          <button
-            type="button"
-            className={styles.manualBtn}
-            aria-expanded={manualOpen}
-            onClick={() => setManualOpen((v) => !v)}
-          >
-            <IconPencil size={18} />{" "}
-            {manualOpen ? "Hide Pass Verification" : "Verify Visitor Pass"}
-          </button>
+
+          <div className={styles.tabs} role="tablist" aria-label="Gate action">
+            <button
+              type="button"
+              role="tab"
+              id="tab-pass"
+              aria-selected={mode === "pass"}
+              aria-controls="panel-pass"
+              className={styles.tab}
+              onClick={() => setMode("pass")}
+            >
+              <IconScan size={17} /> Verify Pass
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-manual"
+              aria-selected={mode === "manual"}
+              aria-controls="panel-manual"
+              className={styles.tab}
+              onClick={() => setMode("manual")}
+            >
+              <IconPencil size={17} /> Manual Entry
+            </button>
+          </div>
+
+          {mode === "pass" ? (
+            <form
+              id="panel-pass"
+              role="tabpanel"
+              aria-labelledby="tab-pass"
+              className={styles.tabPanel}
+              onSubmit={onVerify}
+              noValidate
+            >
+              <label className={styles.field}>
+                Visitor Pass QR Token
+                <input
+                  value={passId}
+                  onChange={(e) => setPassId(e.target.value)}
+                  placeholder="QR-A1B2C3D4E5"
+                  autoComplete="off"
+                  aria-invalid={Boolean(formError)}
+                />
+              </label>
+              <label className={styles.field}>
+                Entry Point
+                <input
+                  value={entryPoint}
+                  onChange={(e) => setEntryPoint(e.target.value)}
+                  placeholder="Main Gate"
+                  autoComplete="off"
+                />
+              </label>
+              {formError ? (
+                <p className={styles.formError} role="alert">
+                  {formError}
+                </p>
+              ) : null}
+              <button type="submit" className={styles.verifyBtn} disabled={verifying}>
+                {verifying ? "Verifying…" : "Verify & Record Movement"}
+              </button>
+            </form>
+          ) : (
+            <form
+              id="panel-manual"
+              role="tabpanel"
+              aria-labelledby="tab-manual"
+              className={styles.tabPanel}
+              onSubmit={onManualCheckin}
+              noValidate
+            >
+              <label className={styles.field}>
+                Visitor Name
+                <input
+                  value={visitorName}
+                  onChange={(e) => setVisitorName(e.target.value)}
+                  placeholder="Full name"
+                  autoComplete="off"
+                />
+              </label>
+              <div className={styles.fieldRow}>
+                <label className={styles.field}>
+                  ID Type
+                  <input
+                    value={idType}
+                    onChange={(e) => setIdType(e.target.value)}
+                    placeholder="Government ID"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className={styles.field}>
+                  Document Number
+                  <input
+                    value={documentNumber}
+                    onChange={(e) => setDocumentNumber(e.target.value)}
+                    placeholder="ID number"
+                    autoComplete="off"
+                  />
+                </label>
+              </div>
+              <label className={styles.field}>
+                Notes (optional)
+                <input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Destination, host unit, etc."
+                  autoComplete="off"
+                />
+              </label>
+              {manualError ? (
+                <p className={styles.formError} role="alert">
+                  {manualError}
+                </p>
+              ) : null}
+              <button
+                type="submit"
+                className={styles.verifyBtn}
+                disabled={manualSubmitting}
+              >
+                {manualSubmitting ? "Logging…" : "Log Manual Entry"}
+              </button>
+            </form>
+          )}
         </section>
 
         <aside className={styles.side}>
@@ -338,7 +454,7 @@ export default function StaffScannerPage() {
             )}
           </article>
 
-          <article className={styles.panel}>
+          <article className={`${styles.panel} ${styles.onSitePanel}`}>
             <div className={styles.panelHead}>
               <h2>On Site Now</h2>
               {onSite ? (
@@ -360,11 +476,14 @@ export default function StaffScannerPage() {
               </p>
             ) : !onSite ? (
               <p className={styles.lede}>Loading…</p>
-            ) : onSite.visits.length === 0 ? (
+            ) : sortedVisits.length === 0 ? (
               <p className={styles.lede}>Nobody is checked in right now.</p>
             ) : (
+              // A busy day can put dozens of people on site; this list scrolls
+              // within its own fixed height instead of ever stretching the page,
+              // and the header count above stays accurate even when scrolled.
               <ul className={styles.visitList}>
-                {onSite.visits.map((v) => (
+                {sortedVisits.map((v) => (
                   <li
                     key={v.log_id}
                     className={v.overstaying ? styles.visitOver : undefined}
@@ -394,108 +513,6 @@ export default function StaffScannerPage() {
                 ))}
               </ul>
             )}
-          </article>
-
-          {manualOpen ? (
-            <article className={styles.panel}>
-              <h2>Verify Visitor Pass</h2>
-              <form onSubmit={onVerify} noValidate>
-                <label className={styles.field}>
-                  Visitor Pass QR Token
-                  <input
-                    value={passId}
-                    onChange={(e) => setPassId(e.target.value)}
-                    placeholder="QR-A1B2C3D4E5"
-                    autoComplete="off"
-                    aria-invalid={Boolean(formError)}
-                  />
-                </label>
-                <label className={styles.field}>
-                  Entry Point
-                  <input
-                    value={entryPoint}
-                    onChange={(e) => setEntryPoint(e.target.value)}
-                    placeholder="Main Gate"
-                    autoComplete="off"
-                  />
-                </label>
-                {formError ? (
-                  <p className={styles.formError} role="alert">
-                    {formError}
-                  </p>
-                ) : null}
-                <button
-                  type="submit"
-                  className={styles.verifyBtn}
-                  disabled={verifying}
-                >
-                  {verifying ? "Verifying…" : "Verify & Record Movement"}
-                </button>
-              </form>
-            </article>
-          ) : null}
-
-          <article className={styles.panel}>
-            <button
-              type="button"
-              className={styles.manualBtn}
-              aria-expanded={noPassOpen}
-              onClick={() => setNoPassOpen((v) => !v)}
-            >
-              {noPassOpen ? "Hide Manual Entry" : "Log Entry Without a Pass"}
-            </button>
-            {noPassOpen ? (
-              <form onSubmit={onManualCheckin} noValidate style={{ marginTop: "0.85rem" }}>
-                <label className={styles.field}>
-                  Visitor Name
-                  <input
-                    value={visitorName}
-                    onChange={(e) => setVisitorName(e.target.value)}
-                    placeholder="Full name"
-                    autoComplete="off"
-                  />
-                </label>
-                <label className={styles.field}>
-                  ID Type
-                  <input
-                    value={idType}
-                    onChange={(e) => setIdType(e.target.value)}
-                    placeholder="Government ID"
-                    autoComplete="off"
-                  />
-                </label>
-                <label className={styles.field}>
-                  Document Number
-                  <input
-                    value={documentNumber}
-                    onChange={(e) => setDocumentNumber(e.target.value)}
-                    placeholder="ID number"
-                    autoComplete="off"
-                  />
-                </label>
-                <label className={styles.field}>
-                  Notes (optional)
-                  <input
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Destination, host unit, etc."
-                    autoComplete="off"
-                  />
-                </label>
-                {manualError ? (
-                  <p className={styles.formError} role="alert">
-                    {manualError}
-                  </p>
-                ) : null}
-                <button
-                  type="submit"
-                  className={styles.verifyBtn}
-                  disabled={manualSubmitting}
-                >
-                  {manualSubmitting ? "Logging…" : "Log Manual Entry"}
-                </button>
-              </form>
-            ) : null}
           </article>
         </aside>
       </div>

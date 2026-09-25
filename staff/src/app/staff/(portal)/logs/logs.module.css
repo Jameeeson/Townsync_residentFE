@@ -1,6 +1,6 @@
 .page {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.1rem;
 }
 
 .header h1 {
@@ -133,8 +133,12 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* A denied entry is already carried by its avatar tint and red status badge;
+   an even border plus a soft fill reads as the same signal without the
+   single thick accent edge (a tell of a templated, not designed, card). */
 .denied {
-  border-left: 4px solid var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft);
 }
 
 .person {
