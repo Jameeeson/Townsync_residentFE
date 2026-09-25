@@ -6,6 +6,7 @@ import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { ApiError } from "@/lib/api-client";
 import { getTicketChat, sendTicketChatMessage, type TicketChatThread } from "@/lib/services/staff";
 import styles from "./ChatModal.module.css";
+import { parseServerDate } from "@/lib/datetime";
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -16,7 +17,7 @@ type Props = {
 
 function formatTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return parseServerDate(iso)?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) ?? "";
   } catch {
     return "";
   }

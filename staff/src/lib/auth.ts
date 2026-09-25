@@ -1,4 +1,4 @@
-import { ApiError, clearSession, hasSession, markSignedIn } from "./api-client";
+import { ApiError, PORTAL, clearSession, hasSession, markSignedIn } from "./api-client";
 
 export const STAFF_ROLES = ["Staff", "Maintenance"];
 
@@ -24,7 +24,10 @@ export async function login(email: string, password: string): Promise<void> {
   try {
     res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Portal": PORTAL,
+      },
       body,
       credentials: "include",
     });
@@ -72,7 +75,11 @@ export async function registerStaff(payload: {
 export async function logout(): Promise<void> {
   clearSession();
   try {
-    await fetch(`${API_BASE_URL}/api/auth/logout`, { method: "POST", credentials: "include" });
+    await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-Portal": PORTAL },
+    });
   } catch {
     /* best effort — the local flag is already cleared */
   }

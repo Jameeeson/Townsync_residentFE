@@ -1,6 +1,11 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+// All three portals share one backend, so the session cookie lives on the API's
+// domain. This header tells the backend which portal is calling so it scopes the
+// cookie per portal — otherwise signing into admin would evict the staff session.
+export const PORTAL = "staff";
+
 // The session is an httpOnly cookie set by the backend; JS never sees the token.
 // This flag only drives UI; the server re-checks authentication and role on every request.
 const SESSION_KEY = "townsync.staff.session";
@@ -66,7 +71,7 @@ type RequestOptions = {
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, form, headers = {} } = opts;
-  const finalHeaders: Record<string, string> = { ...headers };
+  const finalHeaders: Record<string, string> = { "X-Portal": PORTAL, ...headers };
 
   let requestBody: BodyInit | undefined;
   if (form) {

@@ -20,6 +20,42 @@ export function getDashboardSummary() {
   return api.get<StaffDashboard>("/api/v1/staff/dashboard/summary");
 }
 
+/** Rows behind the "Active Tasks" tile — mirrors `pending_tasks_count` exactly. */
+export type ActiveTaskItem = {
+  request_id: number;
+  category: string;
+  description: string | null;
+  priority_level: string | null;
+  status: string;
+  unit_number: string | null;
+  resident_name: string | null;
+  assigned_at: string | null;
+  deadline: string | null;
+};
+
+export function getActiveTaskBreakdown() {
+  return api.get<ActiveTaskItem[]>("/api/v1/staff/dashboard/active-tasks");
+}
+
+/** Rows behind the "Visitors" tile — mirrors `expected_visitors_count` exactly. */
+export type ExpectedVisitorItem = {
+  request_id: number;
+  visitor_name: string;
+  status: string;
+  scheduled_at: string | null;
+  unit_number: string | null;
+  resident_name: string | null;
+  purpose: string | null;
+  vehicle_plate: string | null;
+  companions: string[];
+  party_size: number;
+  checked_in: boolean;
+};
+
+export function getExpectedVisitorBreakdown() {
+  return api.get<ExpectedVisitorItem[]>("/api/v1/staff/dashboard/expected-visitors");
+}
+
 // ----- Tasks (Maintenance staff only) -----
 
 export type TaskStatus = "Open" | "Assigned" | "Ongoing" | "Completed" | "Cancelled";
@@ -108,24 +144,70 @@ export function sendTicketChatMessage(ticketId: number, content: string) {
 
 // ----- Gate Scanner (Security staff only) -----
 
+export type PassVerification = {
+  pass_id: number;
+  visitor_name: string;
+  unit: string;
+  status: string;
+  companions?: string[];
+  party_size?: number;
+  /** The pass toggles: "exit" when the party is already inside. */
+  next_action: "entry" | "exit";
+  inside: boolean;
+  inside_since: string | null;
+  overstaying: boolean;
+  max_stay_hours: number;
+  visit_count: number;
+};
+
 export function verifyPass(qrPayload: string) {
-  return api.post<{
-    pass_id: number;
-    visitor_name: string;
-    unit: string;
-    status: string;
-    companions?: string[];
-    party_size?: number;
-  }>(
-    "/api/v1/staff/scanner/verify-ticket",
-    { qr_payload: qrPayload },
-  );
+  return api.post<PassVerification>("/api/v1/staff/scanner/verify-ticket", {
+    qr_payload: qrPayload,
+  });
 }
 
 export function confirmEntry(passId: number, entryPoint: string) {
   return api.post<{ status: string; message: string }>(
     "/api/v1/staff/scanner/confirm-entry",
     { pass_id: passId, entry_point: entryPoint },
+  );
+}
+
+export function confirmExit(passId: number, exitPoint: string) {
+  return api.post<{ status: string; message: string }>(
+    "/api/v1/staff/scanner/confirm-exit",
+    { pass_id: passId, exit_point: exitPoint },
+  );
+}
+
+export type OpenVisit = {
+  log_id: number;
+  pass_id: number;
+  visitor_name: string;
+  unit: string;
+  time_in: string;
+  hours_inside: number;
+  overstaying: boolean;
+  party_size: number;
+};
+
+export type OpenVisits = {
+  max_stay_hours: number;
+  inside_count: number;
+  overstay_count: number;
+  visits: OpenVisit[];
+};
+
+/** Who is on site right now, and who is past the allowed stay. */
+export function getOpenVisits() {
+  return api.get<OpenVisits>("/api/v1/staff/scanner/open-visits");
+}
+
+/** Guard-desk override for a visitor who left without scanning out. */
+export function closeVisitManually(logId: number, reason?: string) {
+  return api.post<{ status: string; message: string }>(
+    `/api/v1/staff/scanner/visits/${logId}/close`,
+    { reason: reason ?? null },
   );
 }
 

@@ -17,6 +17,10 @@ type StaffSessionContextValue = {
   session: StaffSession | null;
   loading: boolean;
   error: string | null;
+  /** Maintenance technicians have no gate-scanner permission on the backend. */
+  isMaintenance: boolean;
+  /** True only once we know the account may use the gate scanner. */
+  canUseScanner: boolean;
   refresh: () => void;
   logout: () => Promise<void>;
 };
@@ -75,18 +79,24 @@ export function StaffSessionProvider({ children }: { children: React.ReactNode }
     };
   }, [router, tick]);
 
+  const staffType = session?.profile.staff_type ?? null;
+
   const value = useMemo<StaffSessionContextValue>(
     () => ({
       session,
       loading,
       error,
+      isMaintenance: staffType === "Maintenance",
+      // Fail closed while the profile is still loading so the Scanner entry
+      // never flashes in for an account that will be refused at the gate.
+      canUseScanner: staffType !== null && staffType !== "Maintenance",
       refresh: () => setTick((t) => t + 1),
       logout: async () => {
         await authLogout();
         router.replace("/staff/login");
       },
     }),
-    [session, loading, error, router],
+    [session, loading, error, staffType, router],
   );
 
   return (

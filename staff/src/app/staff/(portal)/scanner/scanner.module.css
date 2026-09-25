@@ -406,3 +406,97 @@
   font-weight: 600;
   color: var(--color-primary-600, #2563eb);
 }
+
+/* ---- On Site Now: live occupancy and the overstay board ---- */
+
+.panelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.countOk,
+.countWarn {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.countOk {
+  background: var(--navy-50);
+  color: var(--navy-800);
+}
+
+.countWarn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.visitList {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.visitList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-tint);
+  border: 1px solid var(--line-soft);
+}
+
+.visitList li div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.visitList strong {
+  font-size: 0.93rem;
+  color: var(--navy-900);
+}
+
+.visitList span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.visitOver {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.overTag {
+  font-size: 0.74rem !important;
+  font-weight: 700;
+  color: var(--warning) !important;
+}
+
+.closeVisitBtn {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--navy-50);
+  color: var(--navy-800);
+  transition: background 0.2s var(--ease);
+}
+
+.closeVisitBtn:hover:not(:disabled) {
+  background: var(--navy-100);
+}
+
+.closeVisitBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

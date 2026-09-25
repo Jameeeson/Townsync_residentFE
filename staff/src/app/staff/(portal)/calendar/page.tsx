@@ -7,6 +7,7 @@ import { IconChevron, IconClipboard } from "@/components/icons";
 import { ApiError } from "@/lib/api-client";
 import { listTasks, updateTaskProgress, type MaintenanceTask } from "@/lib/services/staff";
 import styles from "./calendar.module.css";
+import { parseServerDate } from "@/lib/datetime";
 
 type UiStatus = "pending" | "progress" | "done";
 
@@ -102,7 +103,8 @@ export default function StaffCalendarPage() {
     const map = new Map<string, CalTask[]>();
     for (const t of tasks) {
       if (!t.deadline || t.status === "done") continue;
-      const d = new Date(t.deadline.replace(" ", "T"));
+      const d = parseServerDate(t.deadline);
+      if (!d) continue;
       if (Number.isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!map.has(key)) map.set(key, []);

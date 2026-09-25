@@ -17,7 +17,9 @@ import styles from "./StaffShell.module.css";
 const NAV = [
   { href: "/staff/dashboard", label: "Tasks", icon: IconGrid },
   { href: "/staff/calendar", label: "Calendar", icon: IconCalendar },
-  { href: "/staff/scanner", label: "Scanner", icon: IconScan },
+  // The gate scanner API is Security-only; Maintenance accounts get a 403 from
+  // every endpoint behind it, so the entry is filtered out for them below.
+  { href: "/staff/scanner", label: "Scanner", icon: IconScan, scannerOnly: true },
   { href: "/staff/logs", label: "Logs", icon: IconClipboard },
   { href: "/staff/settings", label: "Settings", icon: IconSettings },
 ] as const;
@@ -28,11 +30,13 @@ const NOTIFICATIONS: { id: string; title: string; meta: string }[] = [];
 
 export function StaffShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { session, loading, error } = useStaffSession();
+  const { session, loading, error, canUseScanner } = useStaffSession();
   const [notifOpen, setNotifOpen] = useState(false);
   const [unread, setUnread] = useState(false);
   const panelId = useId();
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const nav = NAV.filter((item) => !("scannerOnly" in item) || canUseScanner);
 
   const displayName = session?.displayName ?? (loading ? "Loading…" : "Staff");
   const initials = session?.initials ?? "ST";
@@ -70,7 +74,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className={styles.nav} aria-label="Primary">
-          {NAV.map(({ href, label, icon: Icon }) => {
+          {nav.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
               <Link
@@ -159,7 +163,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
         <div className={styles.content}>{children}</div>
 
         <nav className={styles.bottomNav} aria-label="Mobile">
-          {NAV.map(({ href, label, icon: Icon }) => {
+          {nav.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
               <Link

@@ -45,25 +45,70 @@
   gap: 0.85rem;
 }
 
+/* Maintenance accounts don't get the Visitors tile — reflow so the remaining
+   two fill the row instead of leaving a hole where it was. */
+.statsTwo {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+}
+
 .stat,
 .statWide {
+  /* Both tiles are buttons that open a breakdown of the number they show. */
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
   background: var(--surface-raised);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-md);
   padding: 1rem 1.05rem;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease),
+    border-color 0.2s var(--ease);
 }
 
 .stat:hover,
 .statWide:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
+  border-color: var(--navy-100);
+}
+
+.stat:focus-visible,
+.statWide:focus-visible {
+  outline: 2px solid var(--navy-700);
+  outline-offset: 2px;
 }
 
 .stat {
   display: grid;
   gap: 0.35rem;
+}
+
+/* Always visible: this is the only cue that the tile opens a breakdown, so
+   hiding it behind :hover left the cards looking inert. */
+.statHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--navy-600);
+  transition: color 0.2s var(--ease), gap 0.2s var(--ease);
+}
+
+.stat:hover .statHint,
+.statWide:hover .statHint,
+.stat:focus-visible .statHint,
+.statWide:focus-visible .statHint {
+  color: var(--navy-800);
+  gap: 0.4rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statHint {
+    transition: none;
+  }
 }
 
 .stat span,

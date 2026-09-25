@@ -9,6 +9,7 @@ import {
 import { ApiError } from "@/lib/api-client";
 import { getVisitorLogs, type VisitorLog } from "@/lib/services/staff";
 import styles from "./logs.module.css";
+import { parseServerDate } from "@/lib/datetime";
 
 type UiStatus = "checked-in" | "departed" | "denied" | "pending";
 
@@ -37,8 +38,8 @@ function initialsFor(name: string) {
 }
 
 function dayGroupFor(timestamp: string): string {
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.getTime())) return "Recent";
+  const parsed = parseServerDate(timestamp);
+  if (!parsed) return "Recent";
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
@@ -80,7 +81,7 @@ export default function StaffLogsPage() {
 
   const groups = useMemo(() => {
     const timeOf = (log: VisitorLog) => {
-      const t = new Date(log.timestamp).getTime();
+      const t = parseServerDate(log.timestamp)?.getTime() ?? NaN;
       return Number.isNaN(t) ? -Infinity : t;
     };
 

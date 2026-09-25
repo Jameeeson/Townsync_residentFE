@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   MaintenanceModal,
   type MaintenancePayload,
 } from "@/components/MaintenanceModal";
+import { StatDetailModal, type StatDetailRow } from "@/components/StatDetailModal";
 import { SuccessModal } from "@/components/SuccessModal";
 import { TaskDetailsModal, type TaskDetails } from "@/components/TaskDetailsModal";
 import { useToast } from "@/components/Toast";
 import {
+  IconArrowRight,
   IconClipboard,
   IconClock,
   IconDoc,
@@ -25,17 +28,23 @@ import {
 import { ApiError } from "@/lib/api-client";
 import {
   createOnsiteLog,
+  getActiveTaskBreakdown,
   getDashboardSummary,
+  getExpectedVisitorBreakdown,
   listTasks,
   updateTaskProgress,
+  type ActiveTaskItem,
+  type ExpectedVisitorItem,
   type MaintenanceTask,
   type StaffDashboard,
 } from "@/lib/services/staff";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import styles from "./dashboard.module.css";
+import { parseServerDate } from "@/lib/datetime";
 
 type Filter = "all" | "pending" | "progress" | "done";
 type TaskStatus = "pending" | "progress" | "done";
+type StatView = "tasks" | "visitors" | "assigned" | null;
 
 type Task = {
   id: number;
@@ -66,6 +75,32 @@ function iconForCategory(category: string): Task["icon"] {
   return "wrench";
 }
 
+/** Backend timestamps are SQLite "YYYY-MM-DD HH:MM:SS" strings, not ISO. */
+function formatWhen(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = parseServerDate(value);
+  if (!parsed) return value;
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = parseServerDate(value);
+  if (!parsed) return value;
+  return parsed.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function priorityTone(priority: string | null): StatDetailRow["badgeTone"] {
+  if (priority === "Emergency" || priority === "High") return "danger";
+  if (priority === "Medium") return "warning";
+  return "info";
+}
+
 function toUiTask(t: MaintenanceTask): Task {
   return {
     id: t.request_id,
@@ -80,7 +115,8 @@ function toUiTask(t: MaintenanceTask): Task {
 
 export default function StaffDashboardPage() {
   const { toast } = useToast();
-  const { session } = useStaffSession();
+  const router = useRouter();
+  const { session, canUseScanner, isMaintenance } = useStaffSession();
   const [filter, setFilter] = useState<Filter>("all");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [summary, setSummary] = useState<StaffDashboard | null>(null);
@@ -93,8 +129,33 @@ export default function StaffDashboardPage() {
   const [submittedUnit, setSubmittedUnit] = useState("");
   const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
 
+  const [statView, setStatView] = useState<StatView>(null);
+  const [statLoading, setStatLoading] = useState(false);
+  const [statError, setStatError] = useState<string | null>(null);
+  const [activeTaskRows, setActiveTaskRows] = useState<ActiveTaskItem[]>([]);
+  const [visitorRows, setVisitorRows] = useState<ExpectedVisitorItem[]>([]);
+
   const [reloadTick, setReloadTick] = useState(0);
   const reload = useCallback(() => setReloadTick((t) => t + 1), []);
+
+  // Both tiles fetch the rows the backend counted, so the list can never
+  // disagree with the number the staff member just clicked.
+  const openStat = useCallback(async (view: Exclude<StatView, null>) => {
+    setStatView(view);
+    if (view === "assigned") return; // already in memory from listTasks()
+    setStatLoading(true);
+    setStatError(null);
+    try {
+      if (view === "tasks") setActiveTaskRows(await getActiveTaskBreakdown());
+      else setVisitorRows(await getExpectedVisitorBreakdown());
+    } catch (e) {
+      setStatError(
+        e instanceof ApiError ? e.message : "Could not load the details for this tile.",
+      );
+    } finally {
+      setStatLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +210,73 @@ export default function StaffDashboardPage() {
 
   const selected: TaskDetails | null =
     tasks.find((t) => t.id === selectedId) ?? null;
+
+  const statRows: StatDetailRow[] =
+    statView === "tasks"
+      ? activeTaskRows.map((t) => ({
+          id: t.request_id,
+          title: t.category,
+          lead: `#${t.request_id}`,
+          lines: [
+            `${t.unit_number ?? "Common Area"}${t.resident_name ? ` · ${t.resident_name}` : ""}`,
+            t.description,
+            t.deadline ? `Due ${formatWhen(t.deadline)}` : "No deadline set",
+          ],
+          badge: t.priority_level ? `${t.status} · ${t.priority_level}` : t.status,
+          badgeTone: priorityTone(t.priority_level),
+        }))
+      : statView === "visitors"
+        ? visitorRows.map((v) => ({
+            id: v.request_id,
+            title: v.visitor_name,
+            lead: formatTime(v.scheduled_at) ?? undefined,
+            lines: [
+              `Visiting ${v.unit_number ?? "an unknown unit"}${v.resident_name ? ` · ${v.resident_name}` : ""}`,
+              v.purpose,
+              v.party_size > 1 ? `Party of ${v.party_size}: ${v.companions.join(", ")}` : null,
+              v.vehicle_plate ? `Vehicle ${v.vehicle_plate}` : null,
+            ],
+            badge: v.checked_in ? "Checked in" : "Expected",
+            badgeTone: v.checked_in ? "success" : "info",
+          }))
+        : statView === "assigned"
+          ? tasks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              lead: `#${t.id}`,
+              lines: [t.location, t.meta],
+              badge:
+                t.status === "done"
+                  ? "Completed"
+                  : t.status === "progress"
+                    ? "In Progress"
+                    : "Pending",
+              badgeTone:
+                t.status === "done"
+                  ? "success"
+                  : t.status === "progress"
+                    ? "warning"
+                    : "neutral",
+            }))
+          : [];
+
+  const statCopy = {
+    tasks: {
+      title: "Active Tasks",
+      subtitle: `${pendingCount} task${pendingCount === 1 ? "" : "s"} still open for you`,
+      empty: "You have no open tasks right now.",
+    },
+    visitors: {
+      title: "Expected Visitors",
+      subtitle: `${visitorCount} approved visit${visitorCount === 1 ? "" : "s"} scheduled for today`,
+      empty: "No approved visits are scheduled for today.",
+    },
+    assigned: {
+      title: "Assigned Tasks",
+      subtitle: `Everything currently on your roster (${tasks.length})`,
+      empty: "Nothing is assigned to you yet.",
+    },
+  } as const;
 
   async function completeTask(id: number) {
     setBusyTaskId(id);
@@ -227,24 +355,52 @@ export default function StaffDashboardPage() {
               )}
             </p>
           </div>
-          <div className={styles.stats}>
-            <article className={styles.stat}>
+          <div className={`${styles.stats} ${isMaintenance ? styles.statsTwo : ""}`}>
+            <button
+              type="button"
+              className={styles.stat}
+              onClick={() => openStat("tasks")}
+              aria-haspopup="dialog"
+            >
               <IconClipboard size={20} className={styles.statIcon} />
               <span>Active Tasks</span>
               <strong>{loading ? "…" : `${pendingCount} open`}</strong>
-            </article>
-            <article className={`${styles.stat} ${styles.statGreen}`}>
-              <IconUsers size={20} className={styles.statIcon} />
-              <span>Visitors</span>
-              <strong>{loading ? "…" : `${visitorCount} expected`}</strong>
-            </article>
-            <article className={styles.statWide}>
+              <small className={styles.statHint}>
+                View breakdown <IconArrowRight size={12} />
+              </small>
+            </button>
+            {/* Visitor traffic is a security-desk concern; Maintenance techs
+                have no gate duties, so the tile is noise for them. */}
+            {isMaintenance ? null : (
+              <button
+                type="button"
+                className={`${styles.stat} ${styles.statGreen}`}
+                onClick={() => openStat("visitors")}
+                aria-haspopup="dialog"
+              >
+                <IconUsers size={20} className={styles.statIcon} />
+                <span>Visitors</span>
+                <strong>{loading ? "…" : `${visitorCount} expected`}</strong>
+                <small className={styles.statHint}>
+                  View breakdown <IconArrowRight size={12} />
+                </small>
+              </button>
+            )}
+            <button
+              type="button"
+              className={styles.statWide}
+              onClick={() => openStat("assigned")}
+              aria-haspopup="dialog"
+            >
               <div>
                 <span>Shift Overview</span>
                 <strong>Assigned Tasks</strong>
+                <small className={styles.statHint}>
+                View breakdown <IconArrowRight size={12} />
+              </small>
               </div>
               <em>{tasks.length}</em>
-            </article>
+            </button>
           </div>
         </section>
 
@@ -359,9 +515,11 @@ export default function StaffDashboardPage() {
           </section>
           <aside className={styles.sideCol}>
             <div className={styles.actions}>
-              <Link href="/staff/scanner" className={styles.actionPrimary}>
-                <IconScan size={20} /> Gate Scanner
-              </Link>
+              {canUseScanner ? (
+                <Link href="/staff/scanner" className={styles.actionPrimary}>
+                  <IconScan size={20} /> Gate Scanner
+                </Link>
+              ) : null}
               <button
                 type="button"
                 className={styles.actionSecondary}
@@ -446,6 +604,32 @@ export default function StaffDashboardPage() {
         <SuccessModal
           unit={submittedUnit}
           onClose={() => setSuccessOpen(false)}
+        />
+      ) : null}
+      {statView ? (
+        <StatDetailModal
+          title={statCopy[statView].title}
+          subtitle={statCopy[statView].subtitle}
+          rows={statRows}
+          loading={statLoading}
+          error={statError}
+          emptyMessage={statCopy[statView].empty}
+          rowActionLabel={statView === "visitors" ? "View log" : "Open task"}
+          onRowSelect={(row) => {
+            if (statView === "visitors") {
+              // No per-visit page yet; the visitor register is the full view.
+              router.push("/staff/logs");
+              return;
+            }
+            // Tasks open their existing details modal on this page.
+            setStatView(null);
+            setSelectedId(Number(row.id));
+          }}
+          onRetry={() => openStat(statView)}
+          onClose={() => {
+            setStatView(null);
+            setStatError(null);
+          }}
         />
       ) : null}
     </>

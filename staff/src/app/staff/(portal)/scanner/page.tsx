@@ -1,10 +1,20 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { IconFlashlight, IconPencil } from "@/components/icons";
 import { useToast } from "@/components/Toast";
+import { useStaffSession } from "@/contexts/StaffSessionContext";
 import { ApiError } from "@/lib/api-client";
-import { confirmEntry, manualCheckin, verifyPass } from "@/lib/services/staff";
+import {
+  closeVisitManually,
+  confirmEntry,
+  confirmExit,
+  getOpenVisits,
+  manualCheckin,
+  verifyPass,
+  type OpenVisits,
+} from "@/lib/services/staff";
 import styles from "./scanner.module.css";
 
 type LastScan = {
@@ -13,6 +23,7 @@ type LastScan = {
   unit: string;
   companions: string[];
   result: "allowed" | "denied";
+  direction: "in" | "out" | null;
   time: string;
 };
 
@@ -36,12 +47,28 @@ function initialsFor(name: string) {
 
 export default function StaffScannerPage() {
   const { toast } = useToast();
+  const router = useRouter();
+  const { loading: sessionLoading, isMaintenance, canUseScanner } = useStaffSession();
   const [manualOpen, setManualOpen] = useState(true);
   const [passId, setPassId] = useState("");
   const [entryPoint, setEntryPoint] = useState("Main Gate");
   const [verifying, setVerifying] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
+  const [onSite, setOnSite] = useState<OpenVisits | null>(null);
+  const [onSiteError, setOnSiteError] = useState<string | null>(null);
+  const [closingLogId, setClosingLogId] = useState<number | null>(null);
+
+  const refreshOnSite = useCallback(async () => {
+    try {
+      setOnSite(await getOpenVisits());
+      setOnSiteError(null);
+    } catch (err) {
+      setOnSiteError(
+        err instanceof ApiError ? err.message : "Could not load who is on site.",
+      );
+    }
+  }, []);
 
   const [noPassOpen, setNoPassOpen] = useState(false);
   const [visitorName, setVisitorName] = useState("");
@@ -62,24 +89,42 @@ export default function StaffScannerPage() {
 
     setVerifying(true);
     try {
+      // The same pass checks a party in and back out — the backend tells us
+      // which way this scan goes based on whether they are currently inside.
       const verified = await verifyPass(token);
-      await confirmEntry(verified.pass_id, entryPoint || "Main Gate");
+      const leaving = verified.next_action === "exit";
+
+      if (leaving) {
+        await confirmExit(verified.pass_id, entryPoint || "Main Gate");
+      } else {
+        await confirmEntry(verified.pass_id, entryPoint || "Main Gate");
+      }
+
       setLastScan({
         initials: initialsFor(verified.visitor_name),
         name: verified.visitor_name,
         unit: verified.unit,
         companions: verified.companions ?? [],
         result: "allowed",
+        direction: leaving ? "out" : "in",
         time: nowLabel(),
       });
+
       const extra = verified.companions?.length ?? 0;
-      toast(
+      const party =
         extra > 0
-          ? `${verified.visitor_name} + ${extra} guest${extra === 1 ? "" : "s"} checked in.`
-          : `${verified.visitor_name} checked in.`,
-        "success",
-      );
+          ? `${verified.visitor_name} + ${extra} guest${extra === 1 ? "" : "s"}`
+          : verified.visitor_name;
+      toast(`${party} checked ${leaving ? "out" : "in"}.`, "success");
+
+      if (leaving && verified.overstaying) {
+        toast(
+          `${verified.visitor_name} stayed past the ${verified.max_stay_hours}h limit.`,
+          "warning",
+        );
+      }
       setPassId("");
+      refreshOnSite();
     } catch (err) {
       setLastScan({
         initials: "?",
@@ -87,6 +132,7 @@ export default function StaffScannerPage() {
         unit: entryPoint || "Unspecified",
         companions: [],
         result: "denied",
+        direction: null,
         time: nowLabel(),
       });
       const message =
@@ -121,6 +167,7 @@ export default function StaffScannerPage() {
         unit: entryPoint || "Unspecified",
         companions: [],
         result: "allowed",
+        direction: "in",
         time: nowLabel(),
       });
       toast(`${name} logged in manually.`, "success");
@@ -134,6 +181,70 @@ export default function StaffScannerPage() {
     } finally {
       setManualSubmitting(false);
     }
+  }
+
+  // Deep links and stale tabs can still land a Maintenance account here even
+  // though the nav entry is hidden — bounce them rather than let every action
+  // fail with a 403.
+  useEffect(() => {
+    if (isMaintenance) router.replace("/staff/dashboard");
+  }, [isMaintenance, router]);
+
+  useEffect(() => {
+    if (!canUseScanner) return;
+    // Guarded separately from refreshOnSite so a navigation away mid-flight
+    // can't set state on an unmounted page.
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getOpenVisits();
+        if (cancelled) return;
+        setOnSite(data);
+        setOnSiteError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setOnSiteError(
+          err instanceof ApiError ? err.message : "Could not load who is on site.",
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canUseScanner]);
+
+  async function closeVisit(logId: number, name: string) {
+    setClosingLogId(logId);
+    try {
+      await closeVisitManually(logId, "Closed at the gate desk");
+      toast(`${name} marked as departed.`, "success");
+      refreshOnSite();
+    } catch (err) {
+      toast(
+        err instanceof ApiError ? err.message : "Could not close that visit.",
+        "danger",
+      );
+    } finally {
+      setClosingLogId(null);
+    }
+  }
+
+  if (!canUseScanner) {
+    return (
+      <div className={styles.page}>
+        <header className={styles.header}>
+          <div>
+            <p className={styles.kicker}>Access Control</p>
+            <h1>Gate Scanner</h1>
+            <p className={styles.lede}>
+              {sessionLoading
+                ? "Checking your access…"
+                : "The gate scanner is for security staff. Redirecting you to your tasks…"}
+            </p>
+          </div>
+        </header>
+      </div>
+    );
   }
 
   return (
@@ -213,13 +324,75 @@ export default function StaffScannerPage() {
                       lastScan.result === "allowed" ? styles.badgeOk : styles.badgeDenied
                     }
                   >
-                    {lastScan.result === "allowed" ? "Checked In" : "Denied"} ·{" "}
-                    {lastScan.time}
+                    {lastScan.result === "allowed"
+                      ? lastScan.direction === "out"
+                        ? "Checked Out"
+                        : "Checked In"
+                      : "Denied"}{" "}
+                    · {lastScan.time}
                   </span>
                 </div>
               </div>
             ) : (
               <p className={styles.lede}>No scans yet this shift.</p>
+            )}
+          </article>
+
+          <article className={styles.panel}>
+            <div className={styles.panelHead}>
+              <h2>On Site Now</h2>
+              {onSite ? (
+                <span
+                  className={
+                    onSite.overstay_count > 0 ? styles.countWarn : styles.countOk
+                  }
+                >
+                  {onSite.inside_count} inside
+                  {onSite.overstay_count > 0
+                    ? ` · ${onSite.overstay_count} overstaying`
+                    : ""}
+                </span>
+              ) : null}
+            </div>
+            {onSiteError ? (
+              <p className={styles.formError} role="alert">
+                {onSiteError}
+              </p>
+            ) : !onSite ? (
+              <p className={styles.lede}>Loading…</p>
+            ) : onSite.visits.length === 0 ? (
+              <p className={styles.lede}>Nobody is checked in right now.</p>
+            ) : (
+              <ul className={styles.visitList}>
+                {onSite.visits.map((v) => (
+                  <li
+                    key={v.log_id}
+                    className={v.overstaying ? styles.visitOver : undefined}
+                  >
+                    <div>
+                      <strong>{v.visitor_name}</strong>
+                      <span>
+                        {v.unit} · {v.hours_inside.toFixed(1)}h inside
+                        {v.party_size > 1 ? ` · party of ${v.party_size}` : ""}
+                      </span>
+                      {v.overstaying ? (
+                        <span className={styles.overTag}>
+                          Past the {onSite.max_stay_hours}h limit
+                        </span>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.closeVisitBtn}
+                      disabled={closingLogId === v.log_id}
+                      onClick={() => closeVisit(v.log_id, v.visitor_name)}
+                      title="Record a departure that was not scanned"
+                    >
+                      {closingLogId === v.log_id ? "Closing…" : "Mark departed"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </article>
 
@@ -256,7 +429,7 @@ export default function StaffScannerPage() {
                   className={styles.verifyBtn}
                   disabled={verifying}
                 >
-                  {verifying ? "Verifying…" : "Verify & Check In"}
+                  {verifying ? "Verifying…" : "Verify & Record Movement"}
                 </button>
               </form>
             </article>
