@@ -358,3 +358,11 @@
 .closeBtn:hover {
   background: var(--color-border);
 }
+
+/* Gate-hours notice under the arrival pickers. */
+.helperText {
+  margin: 0.15rem 0 0.9rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #5b6b82;
+}

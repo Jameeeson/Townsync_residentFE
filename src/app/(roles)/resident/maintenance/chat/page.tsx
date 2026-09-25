@@ -7,12 +7,13 @@ import styles from "@/styles/chat.module.css";
 import { ArrowLeft, ArrowUp, Phone } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { getTicketChat, sendTicketChatMessage, type TicketChatThread } from "@/lib/api/resident";
+import { parseServerDate } from "@/lib/datetime";
 
 const POLL_INTERVAL_MS = 4000;
 
 function formatTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return parseServerDate(iso)?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) ?? "";
   } catch {
     return "";
   }

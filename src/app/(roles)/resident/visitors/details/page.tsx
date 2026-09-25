@@ -22,14 +22,15 @@ import {
   getVisitorPass,
   updateVisitorPass,
 } from "@/lib/api/resident";
+import { parseServerDate } from "@/lib/datetime";
 
 // Backend stores/returns scheduled_at as "YYYY-MM-DD HH:MM" (or ISO 8601).
 // <input type="datetime-local"> needs "YYYY-MM-DDTHH:MM" — convert both ways.
 function toDatetimeLocalValue(raw: string): string {
   if (!raw) return "";
-  const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) return "";
+  // Stored as UTC; the picker must show the resident their own Manila clock.
+  const date = parseServerDate(raw);
+  if (!date) return "";
 
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");

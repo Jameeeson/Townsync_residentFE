@@ -6,6 +6,7 @@ import { Check, Circle, Loader2, Phone } from "lucide-react";
 import styles from "@/styles/maintenance.module.css";
 import type { MaintenanceTicket } from "@/lib/api/resident";
 import { priorityTone } from "@/lib/maintenanceStatus";
+import { parseServerDate } from "@/lib/datetime";
 
 type MilestoneState = "done" | "active" | "pending";
 
@@ -62,7 +63,7 @@ function priorityDot(priority: string): string {
 export function SuccessPanel({ ticket }: { ticket: MaintenanceTicket }) {
   const router = useRouter();
   const milestones = buildMilestones(ticket.status);
-  const submitted = new Date(ticket.created_at);
+  const submitted = parseServerDate(ticket.created_at) ?? new Date();
 
   return (
     <div className={`${styles.confirmPanel} ts-fade-in-up`} role="status">
@@ -113,7 +114,7 @@ export function SuccessPanel({ ticket }: { ticket: MaintenanceTicket }) {
             <div className={styles.confirmInfoItem}>
               <span className={styles.successMetaLabel}>Preferred Visit Date</span>
               <span className={styles.successMetaValue}>
-                {new Date(ticket.preferred_date).toLocaleDateString([], { month: "short", day: "numeric" })}
+                {(parseServerDate(ticket.preferred_date) ?? new Date()).toLocaleDateString([], { month: "short", day: "numeric" })}
               </span>
             </div>
           ) : null}

@@ -15,6 +15,7 @@ import {
 import styles from "@/styles/maintenance.module.css";
 import { listMaintenanceTickets, type MaintenanceTicket } from "@/lib/api/resident";
 import { badgeClassName, statusTone } from "@/lib/maintenanceStatus";
+import { parseServerDate } from "@/lib/datetime";
 
 type FilterKey = "all" | "active" | "completed" | "cancelled";
 
@@ -32,18 +33,18 @@ function categoryIcon(category: string) {
 }
 
 function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
+  const then = parseServerDate(iso)?.getTime() ?? NaN;
   if (Number.isNaN(then)) return "";
   const diffMs = Date.now() - then;
   const minutes = Math.round(diffMs / 60000);
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `today at ${new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  if (hours < 24) return `today at ${parseServerDate(iso)?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
   const days = Math.round(hours / 24);
   if (days === 1) return "1 day ago";
   if (days < 30) return `${days} days ago`;
-  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+  return parseServerDate(iso)?.toLocaleDateString([], { month: "short", day: "numeric" }) ?? "";
 }
 
 /** Full, unbounded maintenance history — every request the resident has ever filed. */

@@ -24,7 +24,9 @@ import GuestListEditor, { cleanGuestNames } from "@/components/visitors/GuestLis
 import {
   VisitorPass as ApiVisitorPass,
   createVisitorPass,
+  getGateHours,
   listVisitorPasses,
+  type GateHours,
 } from "@/lib/api/resident";
 
 type UiPass = {
@@ -73,6 +75,37 @@ function mapPass(p: ApiVisitorPass): UiPass {
   };
 }
 
+/** Pulls a chosen arrival back inside the gate window when it falls outside. */
+function clampToWindow(
+  chosen: Date | null,
+  opens: Date | null,
+  closes: Date | null
+): Date | null {
+  if (!chosen || !opens || !closes) return chosen;
+  const mins = chosen.getHours() * 60 + chosen.getMinutes();
+  const openMins = opens.getHours() * 60 + opens.getMinutes();
+  const closeMins = closes.getHours() * 60 + closes.getMinutes();
+  if (mins < openMins) return new Date(opens);
+  if (mins > closeMins) return new Date(closes);
+  return chosen;
+}
+
+/** "HH:MM" from the gate policy -> a Date today at that time, for the picker. */
+function timeStringToDate(value: string | null): Date | null {
+  if (!value) return null;
+  const [hh, mm] = value.split(":").map(Number);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+  const d = new Date();
+  d.setHours(hh, mm, 0, 0);
+  return d;
+}
+
+function prettyTime(value: string | null): string {
+  const d = timeStringToDate(value);
+  if (!d) return "—";
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 function formatScheduledAt(date: Date, time: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -96,6 +129,7 @@ export default function PassesPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [gateHours, setGateHours] = useState<GateHours | null>(null);
 
   async function refresh() {
     const data = await listVisitorPasses();
@@ -103,6 +137,23 @@ export default function PassesPage() {
     setPasses(normalized.passes);
     setUsage(normalized.usage);
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // The gate refuses arrivals outside these hours, so the picker is
+        // constrained to them rather than letting the request fail on submit.
+        const hours = await getGateHours();
+        if (!cancelled) setGateHours(hours);
+      } catch {
+        // Non-fatal: the server still enforces the window on submit.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,8 +179,17 @@ export default function PassesPage() {
     };
   }, []);
 
+  const gateOpens = gateHours?.enforced ? timeStringToDate(gateHours.opens) : null;
+  const gateCloses = gateHours?.enforced ? timeStringToDate(gateHours.closes) : null;
+
+  // Derived, not stored: if the chosen arrival sits outside the window we show
+  // and submit the opening time instead, so the form is never in a state the
+  // server would reject. Computing it during render avoids an effect that would
+  // set state on every policy load.
+  const arrivalTime = clampToWindow(startTime, gateOpens, gateCloses);
+
   async function handleGenerate() {
-    if (!visitorName || !startDate || !startTime) return;
+    if (!visitorName || !startDate || !arrivalTime) return;
     setError("");
     setSubmitting(true);
 
@@ -143,7 +203,7 @@ export default function PassesPage() {
       const result = await createVisitorPass({
         visitor_name: visitorName.trim(),
         visit_purpose: purpose,
-        scheduled_at: formatScheduledAt(startDate, startTime),
+        scheduled_at: formatScheduledAt(startDate, arrivalTime),
         companions,
       });
       await refresh();
@@ -151,7 +211,7 @@ export default function PassesPage() {
         id: 0,
         name: visitorName.trim(),
         purpose,
-        scheduledAt: formatScheduledAt(startDate, startTime),
+        scheduledAt: formatScheduledAt(startDate, arrivalTime),
         status: "Pending",
         qrToken: result.qr_token,
         companions: result.companions ?? companions,
@@ -258,14 +318,22 @@ export default function PassesPage() {
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Arrival</label>
                 <DatePicker
-                  selected={startTime}
+                  selected={arrivalTime}
                   onChange={(d: Date | null) => setStartTime(d)}
                   showTimeSelect
                   showTimeSelectOnly
                   dateFormat="h:mm aa"
+                  minTime={gateOpens ?? undefined}
+                  maxTime={gateCloses ?? undefined}
                 />
               </div>
             </div>
+            {gateHours?.enforced ? (
+              <p className={styles.helperText}>
+                Gate hours: {prettyTime(gateHours.opens)} – {prettyTime(gateHours.closes)}.
+                Visitors cannot be admitted outside this window.
+              </p>
+            ) : null}
             <button type="submit" className={styles.submitBtn} disabled={submitting}>
               <Send size={16} /> {submitting ? "Submitting…" : "Generate Pass"}
             </button>

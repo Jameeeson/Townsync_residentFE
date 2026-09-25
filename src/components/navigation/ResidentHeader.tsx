@@ -7,16 +7,17 @@ import styles from "@/styles/dashboard.module.css";
 import { fetchMe } from "@/lib/api/auth";
 import { hasSession } from "@/lib/apiClient";
 import { listAnnouncements, type Announcement } from "@/lib/api/resident";
+import { parseServerDate } from "@/lib/datetime";
 
 function relativeMeta(iso: string, category: string): string {
-  const then = new Date(iso).getTime();
+  const then = parseServerDate(iso)?.getTime() ?? NaN;
   if (Number.isNaN(then)) return category;
   const minutes = Math.round((Date.now() - then) / 60000);
   if (minutes < 1) return `Just now • ${category}`;
   if (minutes < 60) return `${minutes} min${minutes === 1 ? "" : "s"} ago • ${category}`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours}h ago • ${category}`;
-  return `${new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" })} • ${category}`;
+  return `${parseServerDate(iso)?.toLocaleDateString([], { month: "short", day: "numeric" }) ?? ""} • ${category}`;
 }
 
 export function ResidentHeader() {

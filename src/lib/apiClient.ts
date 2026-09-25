@@ -102,12 +102,18 @@ export function clearSession(): void {
   }
 }
 
+export const PORTAL = "resident";
+
 function buildHeaders(
   headers: HeadersInit | undefined,
   accessToken: string | null,
   body: ApiRequestOptions["body"]
 ): Headers {
   const requestHeaders = new Headers(headers);
+  // All three portals share one backend, so the session cookie lives on the API's
+  // domain. This header tells the backend which portal is calling so it scopes the
+  // cookie per portal — otherwise signing into admin would evict this session.
+  requestHeaders.set("X-Portal", PORTAL);
   const hasJsonBody = shouldJsonSerialize(body);
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const isUrlEncoded = typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams;

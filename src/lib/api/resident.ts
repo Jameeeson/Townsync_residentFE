@@ -176,6 +176,19 @@ export async function createVisitorPass(fields: {
   return apiClient.post("/api/v1/resident/visitor-passes/", form);
 }
 
+export interface GateHours {
+  operating_hours: string;
+  /** "HH:MM" local gate opening / closing, or null when unset. */
+  opens: string | null;
+  closes: string | null;
+  enforced: boolean;
+}
+
+/** The arrival window the gate will actually admit visitors in. */
+export async function getGateHours(): Promise<GateHours> {
+  return apiClient.get<GateHours>("/api/v1/resident/visitor-passes/policy/gate-hours");
+}
+
 export async function getVisitorPass(passId: number): Promise<VisitorPass> {
   return apiClient.get<VisitorPass>(`/api/v1/resident/visitor-passes/${passId}`);
 }

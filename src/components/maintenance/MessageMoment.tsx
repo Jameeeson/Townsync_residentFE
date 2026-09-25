@@ -1,6 +1,7 @@
 import styles from "@/styles/maintenance.module.css";
 import type { ChatMessageData } from "@/hooks/useMaintenanceChat";
 import { UnderstoodChips } from "./UnderstoodChips";
+import { parseServerDate } from "@/lib/datetime";
 
 interface MessageMomentProps {
   message: ChatMessageData;
@@ -10,7 +11,7 @@ interface MessageMomentProps {
 
 function formatTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return parseServerDate(iso)?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) ?? "";
   } catch {
     return "";
   }
