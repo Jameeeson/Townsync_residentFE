@@ -1,7 +1,15 @@
+/* This page renders inside the resident shell's own scrollable .main, which
+   already fills the viewport (see dashboard.module.css .shell/.main) — it is
+   not a standalone full-page app. `min-height: 100vh` here demanded a second,
+   independent full viewport on top of that, so on any screen the shell's
+   .main had to scroll just to reach the composer at the bottom. Filling the
+   space actually given to it instead, with only the message stream
+   scrolling internally, keeps the header and composer in view always. */
 .container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   max-width: 880px;
   margin: 0 auto;
   background-color: var(--color-bg);
@@ -111,7 +119,13 @@
 }
 
 .momentTheirs .momentText {
-  background: var(--color-surface-2);
+  /* --color-surface-2 (#f5f8fc) sits only two points off --color-bg
+     (#f3f6fb) in light mode, so staff/admin bubbles nearly vanished into the
+     page. --color-surface is the same white this app already uses for any
+     raised element against the page background, plus a border for definition
+     without leaning on a color that would only ever mean "them" here. */
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   color: var(--color-text);
   border-bottom-left-radius: 4px;
 }
