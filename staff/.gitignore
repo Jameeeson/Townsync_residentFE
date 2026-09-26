@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#ai
+.agents
+.claude
+.impeccable
+.CLAUDE.md
+CHANGES.md
