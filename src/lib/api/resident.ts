@@ -34,6 +34,7 @@ export interface MaintenanceTicket {
   created_at: string;
   activity_timeline?: unknown[];
   preferred_date?: string | null;
+  resolution_confirmed_at?: string | null;
 }
 
 
@@ -70,6 +71,17 @@ export async function cancelMaintenanceTicket(
 ): Promise<{ message: string; ticket_id: number; status: string }> {
   return apiClient.post(`/api/v1/resident/maintenance/tickets/${ticketId}/cancel`, {
     reason: reason ?? null,
+  });
+}
+
+export async function confirmMaintenanceResolution(
+  ticketId: number,
+  resolved: boolean,
+  feedback?: string
+): Promise<{ message: string; ticket_id: number; status: string; closed: boolean }> {
+  return apiClient.post(`/api/v1/resident/maintenance/tickets/${ticketId}/confirm-resolution`, {
+    resolved,
+    feedback: feedback ?? null,
   });
 }
 

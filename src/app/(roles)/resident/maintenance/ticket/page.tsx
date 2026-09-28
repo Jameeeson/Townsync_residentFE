@@ -9,6 +9,7 @@ import { ApiClientError } from "@/lib/apiClient";
 import {
   MaintenanceTicket,
   cancelMaintenanceTicket,
+  confirmMaintenanceResolution,
   getMaintenanceTicket,
 } from "@/lib/api/resident";
 import { badgeClassName, priorityTone, statusTone } from "@/lib/maintenanceStatus";
@@ -26,6 +27,7 @@ function TicketDetail() {
   const error = invalidId ? "Missing ticket id. Open a ticket from the maintenance page." : fetchError;
   const loading = invalidId ? false : fetching;
   const [cancelling, setCancelling] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (invalidId) return;
@@ -78,6 +80,40 @@ function TicketDetail() {
     }
   }
 
+  async function handleConfirmResolution(resolved: boolean) {
+    if (!ticket) return;
+    let feedback: string | undefined;
+    if (resolved) {
+      if (!window.confirm("Confirm this issue is fixed? This will close the ticket.")) return;
+    } else {
+      const input = window.prompt(
+        "What's still wrong? This goes back to the same technician."
+      );
+      if (input === null) return; // cancelled the prompt
+      feedback = input || undefined;
+    }
+
+    setConfirming(true);
+    try {
+      const result = await confirmMaintenanceResolution(ticket.id, resolved, feedback);
+      setTicket({
+        ...ticket,
+        status: result.status,
+        resolution_confirmed_at: result.closed ? new Date().toISOString() : null,
+      });
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not record your confirmation."
+      );
+    } finally {
+      setConfirming(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className={styles.container} aria-busy="true" aria-label="Loading ticket">
@@ -98,6 +134,14 @@ function TicketDetail() {
     );
   }
 
+  const awaitingConfirmation = ticket.status === "Completed" && !ticket.resolution_confirmed_at;
+  const displayStatus = awaitingConfirmation
+    ? "Completed — Awaiting Your Confirmation"
+    : ticket.status === "Completed"
+      ? "Closed"
+      : ticket.status;
+  const displayTone = awaitingConfirmation ? "warning" : statusTone(ticket.status);
+
   return (
     <div className={styles.container}>
       <div className={styles.navRow}>
@@ -113,7 +157,7 @@ function TicketDetail() {
         <div className={styles.titleMain}>
           <h1>{ticket.subject}</h1>
           <div className={styles.badgeGroup}>
-            <span className={badgeClassName(statusTone(ticket.status))}>{ticket.status}</span>
+            <span className={badgeClassName(displayTone)}>{displayStatus}</span>
             <span className={badgeClassName(priorityTone(ticket.priority_level))}>
               {ticket.priority_level}
             </span>
@@ -126,7 +170,26 @@ function TicketDetail() {
           >
             <MessageSquare size={18} /> Message Management
           </Link>
-          {ticket.status !== "Cancelled" && ticket.status !== "Completed" ? (
+          {awaitingConfirmation ? (
+            <>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={() => void handleConfirmResolution(true)}
+                disabled={confirming}
+              >
+                {confirming ? "Saving…" : "Confirm Fixed"}
+              </button>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => void handleConfirmResolution(false)}
+                disabled={confirming}
+              >
+                Not Fixed
+              </button>
+            </>
+          ) : ticket.status !== "Cancelled" && ticket.status !== "Completed" ? (
             <button
               type="button"
               className={styles.btnSecondary}
