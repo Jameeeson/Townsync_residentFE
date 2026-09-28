@@ -1,0 +1,227 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(10, 24, 41, 0.5);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.panel {
+  width: min(100%, 560px);
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(10, 24, 41, 0.28);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.35rem 1rem;
+  border-bottom: 1px solid #e6ebf2;
+}
+
+.headerText {
+  min-width: 0;
+}
+
+.headerText h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0b1a2d;
+  line-height: 1.3;
+}
+
+.headerText p {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #5b6b82;
+}
+
+.close {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #5b6b82;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.close:hover {
+  background: #eef2f7;
+  color: #0b1a2d;
+}
+
+.body {
+  padding: 1.1rem 1.35rem 1.35rem;
+  overflow: auto;
+}
+
+.state,
+.stateError {
+  margin: 0;
+  padding: 1.75rem 0.25rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #5b6b82;
+}
+
+.stateError {
+  color: #b91c1c;
+}
+
+.retry {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #e6ebf2;
+  border-radius: 10px;
+  background: #f9fbfd;
+}
+
+.rowText {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.rowText strong {
+  font-size: 0.93rem;
+  font-weight: 650;
+  color: #0b1a2d;
+}
+
+.rowText span {
+  font-size: 0.83rem;
+  color: #5b6b82;
+  line-height: 1.45;
+}
+
+.meta {
+  font-size: 0.8rem !important;
+  color: #7a8899 !important;
+}
+
+.badge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.neutral {
+  background: #eef2f7;
+  color: #33455c;
+}
+
+.success {
+  background: #e7f6ef;
+  color: #12855a;
+}
+
+.warning {
+  background: #fdf3e2;
+  color: #b45309;
+}
+
+.danger {
+  background: #fdeceb;
+  color: #c62828;
+}
+
+.info {
+  background: #e8f0fe;
+  color: #1d4ed8;
+}
+
+@media (max-width: 560px) {
+  .overlay {
+    padding: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .panel {
+    width: 100%;
+    max-height: 92vh;
+  }
+}
+
+/* Rows become buttons when the caller can open the underlying record. */
+.rowButton {
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.rowButton:hover {
+  border-color: #c7d6e8;
+  background: #f2f7fd;
+}
+
+.rowButton:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.rowRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.rowAction {
+  font-size: 0.74rem;
+  font-weight: 650;
+  color: #40587a;
+  white-space: nowrap;
+}
+
+.rowButton:hover .rowAction {
+  color: #12325c;
+}
+
+.expanded {
+  margin-top: 0.3rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed #dbe3ee;
+  white-space: pre-wrap;
+}

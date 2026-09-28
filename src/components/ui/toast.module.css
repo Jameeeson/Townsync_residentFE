@@ -1,0 +1,119 @@
+.region {
+  position: fixed;
+  z-index: 200;
+  right: 1.15rem;
+  bottom: 1.15rem;
+  display: grid;
+  gap: 0.6rem;
+  width: min(100% - 2.3rem, 380px);
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 12px 32px rgba(15, 32, 55, 0.16);
+  animation: toast-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.toast p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #102033;
+  line-height: 1.45;
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+/* Tone is carried by the icon and a tinted surface rather than a side tab. */
+.info {
+  border-color: #c7dbfb;
+  background: #f9fbff;
+}
+
+.info .icon {
+  color: #2563eb;
+}
+
+.success {
+  border-color: #b5ddcb;
+  background: #f7fcfa;
+}
+
+.success .icon {
+  color: #12855a;
+}
+
+.warning {
+  border-color: #efd6ab;
+  background: #fffcf5;
+}
+
+.warning .icon {
+  color: #b45309;
+}
+
+.danger {
+  border-color: #f4c4c4;
+  background: #fff9f9;
+}
+
+.danger .icon {
+  color: #c62828;
+}
+
+.dismiss {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.dismiss:hover {
+  background: #eef2f7;
+  color: #102033;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .region {
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.9rem;
+    width: auto;
+  }
+}

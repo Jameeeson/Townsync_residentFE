@@ -1,0 +1,257 @@
+.topNav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.85rem 1.75rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.leftSection {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.menuButton {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: white;
+  color: #0b1a2d;
+  cursor: pointer;
+}
+
+.logo {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0b1a2d;
+  letter-spacing: -0.02em;
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #5b6b82;
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  color: #0b1a2d;
+  font-size: 0.9rem;
+}
+
+.searchInput::placeholder {
+  color: #5b6b82;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #1f4a9e;
+  background: #ffffff;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.createAlertButton {
+  padding: 0.55rem 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.createAlertButton:hover {
+  background: #dbeafe;
+}
+
+.divider {
+  width: 1px;
+  height: 1.75rem;
+  background: #e2e8f0;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: #f1f5f9;
+  color: #0b1a2d;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1f4a9e, #163a80);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1024px) {
+  .menuButton {
+    display: inline-flex;
+  }
+
+  .searchWrap {
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .topNav {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .searchWrap {
+    order: 3;
+    flex-basis: 100%;
+    margin: 0;
+  }
+
+  .createAlertButton {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .divider {
+    display: none;
+  }
+}
+
+.bellWrap {
+  position: relative;
+}
+
+.iconButton {
+  position: relative;
+}
+
+.badge {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.05rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 24rem;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+}
+
+.popoverRight {
+  left: auto;
+  right: 0;
+  width: min(22rem, 90vw);
+}
+
+.popoverItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #0b1a2d;
+  text-decoration: none;
+}
+
+.popoverItem:last-child {
+  border-bottom: none;
+}
+
+.popoverItem:hover {
+  background: #f8fafc;
+}
+
+.popoverTag {
+  align-self: flex-start;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.popoverTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.popoverDetail {
+  font-size: 0.75rem;
+  color: #5b6b82;
+}
+
+.popoverEmpty {
+  margin: 0;
+  padding: 1rem;
+  font-size: 0.85rem;
+  color: #5b6b82;
+}

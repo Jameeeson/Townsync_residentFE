@@ -1,0 +1,248 @@
+.loginPage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  /* Dark navy geometric background */
+  background-color: #0f172a;
+  background-image: 
+    linear-gradient(30deg, #1e293b 12%, transparent 12.5%, transparent 87%, #1e293b 87.5%, #1e293b),
+    linear-gradient(150deg, #1e293b 12%, transparent 12.5%, transparent 87%, #1e293b 87.5%, #1e293b);
+  background-size: 80px 140px;
+}
+
+.loginCard {
+  width: min(90%, 400px);
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.loginHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2.5rem 2rem 1.5rem;
+  text-align: center;
+}
+
+.logoBox {
+  background-color: #1f4a9e;
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.loginHeader h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.adminBadge {
+  margin-top: 0.75rem;
+  background: #e0e7ff;
+  color: #4338ca;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.05em;
+}
+
+.warningBanner {
+  margin: 0 1.5rem 1.5rem;
+  background: #fff1f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #b91c1c;
+}
+
+.warningBanner p {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.loginForm {
+  padding: 0 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.loginForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #5b6b82;
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 12px;
+  color: #5b6b82;
+}
+
+.eyeButton {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: none;
+  border: none;
+  color: #5b6b82;
+  cursor: pointer;
+  z-index: 1;
+  border-radius: 4px;
+}
+
+.eyeButton:hover {
+  color: #1f4a9e;
+}
+
+.loginForm input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: #1e293b;
+  transition: all 0.2s;
+}
+
+.inputWrapper:has(.eyeButton) input {
+  padding-right: 2.75rem;
+}
+
+.loginForm input:focus {
+  outline: none;
+  border-color: #1f4a9e;
+  background: white;
+}
+
+.primaryButton {
+  background: #1f4a9e;
+  color: white;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.primaryButton:hover {
+  background: #163a80;
+}
+
+.cardFooter {
+  background: #f1f5f9;
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 0.7rem;
+  color: #5b6b82;
+  border-top: 1px solid #e2e8f0;
+}
+@media (max-width: 640px) {
+  .loginPage {
+    padding: 1rem;
+  }
+
+  .loginCard {
+    border-radius: 1.25rem;
+  }
+
+  .loginForm input,
+  .primaryButton {
+    border-radius: 0.9rem;
+  }
+}
+/* Shared by the forgot-password and reset-password screens, which reuse this
+   card so the whole admin auth flow looks like one surface. */
+.subtitle {
+  margin: 0.75rem 1.5rem 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #5b6b82;
+  text-align: center;
+}
+
+.successBanner {
+  margin: 0 1.5rem 1.5rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #15803d;
+}
+
+.linkRow {
+  display: flex;
+  justify-content: center;
+  padding: 0 1.5rem 1.75rem;
+}
+
+.textLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1f4a9e;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.textLink:hover {
+  text-decoration: underline;
+}
+
+/* A <Link> styled as the primary action needs the anchor to lay out like the
+   button it replaces. */
+a.primaryButton {
+  text-decoration: none;
+  margin: 0 1.5rem 1.5rem;
+}
+
+.spin {
+  animation: authSpin 0.9s linear infinite;
+}
+
+@keyframes authSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
