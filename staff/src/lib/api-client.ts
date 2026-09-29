@@ -10,6 +10,29 @@ export const PORTAL = "staff";
 // This flag only drives UI; the server re-checks authentication and role on every request.
 const SESSION_KEY = "townsync.staff.session";
 
+// The httpOnly cookie doesn't reach the backend on browsers that block
+// third-party cookies cross-site (all iOS browsers, since they all run on
+// WebKit regardless of which app you're using). The access token is kept
+// here and sent as a Bearer header instead, which those browsers don't block.
+const TOKEN_KEY = "townsync.staff.token";
+
+export function setAccessToken(token: string): void {
+  try {
+    window.sessionStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // storage unavailable — falls back to cookie-only auth
+  }
+}
+
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -39,6 +62,7 @@ export function markSignedIn() {
 export function clearSession() {
   try {
     window.localStorage.removeItem(SESSION_KEY);
+    window.sessionStorage.removeItem(TOKEN_KEY);
   } catch {
     /* ignore */
   }
@@ -72,6 +96,10 @@ type RequestOptions = {
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, form, headers = {} } = opts;
   const finalHeaders: Record<string, string> = { "X-Portal": PORTAL, ...headers };
+  const token = getAccessToken();
+  if (token && !finalHeaders["Authorization"]) {
+    finalHeaders["Authorization"] = `Bearer ${token}`;
+  }
 
   let requestBody: BodyInit | undefined;
   if (form) {

@@ -1,4 +1,4 @@
-import { ApiError, PORTAL, clearSession, hasSession, markSignedIn } from "./api-client";
+import { ApiError, PORTAL, clearSession, hasSession, markSignedIn, setAccessToken } from "./api-client";
 
 export const STAFF_ROLES = ["Staff", "Maintenance"];
 
@@ -47,6 +47,7 @@ export async function login(email: string, password: string): Promise<void> {
   }
 
   const data = (await res.json()) as { access_token: string; token_type: string; role?: string };
+  if (data.access_token) setAccessToken(data.access_token);
   if (!data.role || !STAFF_ROLES.includes(data.role)) {
     // Valid credentials but not a staff account: end that session before erroring.
     await logout();
