@@ -1,4 +1,4 @@
-import { apiClient, clearSession, markSignedIn } from "@/lib/apiClient";
+import { apiClient, clearSession, markSignedIn, setStoredAccessToken } from "@/lib/apiClient";
 
 export interface LoginTokenResponse {
   access_token: string;
@@ -36,6 +36,7 @@ export async function login(email: string, password: string): Promise<LoginToken
   body.set("password", password);
 
   const token = await apiClient.post<LoginTokenResponse>("/api/auth/login", body);
+  if (token.access_token) setStoredAccessToken(token.access_token);
   clearMeCache();
   if (token.role && token.role !== RESIDENT_ROLE) {
     // Valid credentials but the wrong portal: end that session before erroring.

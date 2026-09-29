@@ -94,9 +94,33 @@ export function markSignedIn(): void {
   }
 }
 
+// The httpOnly cookie doesn't reach the backend on browsers that block
+// third-party cookies cross-site (all iOS browsers, since they all run on
+// WebKit regardless of which app you're using). The access token is kept
+// here and sent as a Bearer header instead, which those browsers don't block.
+const ACCESS_TOKEN_KEY = "townsync_resident_token";
+
+export function setStoredAccessToken(token: string): void {
+  try {
+    window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+  } catch {
+    // storage unavailable — falls back to cookie-only auth
+  }
+}
+
+export function getStoredAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function clearSession(): void {
   try {
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   } catch {
     // ignore
   }
@@ -175,7 +199,7 @@ export async function apiFetch<TResponse>(path: string, options: ApiRequestOptio
     ...requestInit,
     body: requestBody,
     credentials: "include",
-    headers: buildHeaders(headers, accessToken ?? null, body),
+    headers: buildHeaders(headers, accessToken ?? getStoredAccessToken(), body),
   });
 
   if (response.status === 401 && !path.startsWith("/api/auth/login")) {
