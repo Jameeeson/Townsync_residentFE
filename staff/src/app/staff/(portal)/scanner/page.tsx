@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import jsQR from "jsqr";
 import { IconFlashlight, IconPencil, IconScan } from "@/components/icons";
 import { useToast } from "@/components/Toast";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
@@ -61,6 +62,16 @@ export default function StaffScannerPage() {
   const [onSiteError, setOnSiteError] = useState<string | null>(null);
   const [closingLogId, setClosingLogId] = useState<number | null>(null);
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanLoopRef = useRef<number | null>(null);
+  const scanCooldownRef = useRef(false);
+  const [cameraStatus, setCameraStatus] = useState<"idle" | "starting" | "active" | "error">("idle");
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+
   const refreshOnSite = useCallback(async () => {
     try {
       setOnSite(await getOpenVisits());
@@ -90,10 +101,9 @@ export default function StaffScannerPage() {
     });
   }, [onSite]);
 
-  async function onVerify(e: FormEvent) {
-    e.preventDefault();
+  const verifyToken = useCallback(async (rawToken: string) => {
     setFormError(null);
-    const token = passId.trim();
+    const token = rawToken.trim();
     if (!token) {
       setFormError("Enter a visitor pass QR token.");
       return;
@@ -153,6 +163,11 @@ export default function StaffScannerPage() {
     } finally {
       setVerifying(false);
     }
+  }, [entryPoint, refreshOnSite, toast]);
+
+  async function onVerify(e: FormEvent) {
+    e.preventDefault();
+    await verifyToken(passId);
   }
 
   async function onManualCheckin(e: FormEvent) {
@@ -226,6 +241,122 @@ export default function StaffScannerPage() {
     };
   }, [canUseScanner]);
 
+  const stopCamera = useCallback(() => {
+    if (scanLoopRef.current !== null) {
+      cancelAnimationFrame(scanLoopRef.current);
+      scanLoopRef.current = null;
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraStatus("idle");
+    setTorchSupported(false);
+    setTorchOn(false);
+  }, []);
+
+  // Grabs one video frame per animation tick, decodes it for a QR code, and
+  // auto-submits the same verify flow manual entry uses. A cooldown after a
+  // hit stops the still-visible QR from re-triggering dozens of times before
+  // the guard moves the pass out of frame.
+  //
+  // tickRef holds the current tick so the loop can recurse through a stable
+  // wrapper instead of referencing `tick` before it's declared.
+  const tickRef = useRef<() => void>(() => {});
+
+  const tick = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
+      return;
+    }
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) {
+      scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(frame.data, frame.width, frame.height, { inversionAttempts: "dontInvert" });
+
+    if (code?.data && !scanCooldownRef.current) {
+      scanCooldownRef.current = true;
+      setPassId(code.data);
+      verifyToken(code.data).finally(() => {
+        setTimeout(() => {
+          scanCooldownRef.current = false;
+        }, 2500);
+      });
+    }
+    scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
+  }, [verifyToken]);
+
+  useEffect(() => {
+    tickRef.current = tick;
+  }, [tick]);
+
+  const startCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraStatus("error");
+      setCameraError("This browser doesn't support camera capture. Use manual entry below.");
+      return;
+    }
+    setCameraStatus("starting");
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      const [track] = stream.getVideoTracks();
+      const capabilities = track?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+      setTorchSupported(Boolean(capabilities && "torch" in capabilities));
+      setCameraStatus("active");
+      scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
+    } catch (err) {
+      setCameraStatus("error");
+      setCameraError(
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "Camera permission denied. Allow camera access in your browser settings, or use manual entry below."
+          : "Could not access the camera. Use manual entry below.",
+      );
+    }
+  }, []);
+
+  async function toggleTorch() {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] });
+      setTorchOn((v) => !v);
+    } catch {
+      // Torch control isn't supported on this device/browser — button stays a no-op.
+    }
+  }
+
+  // Only run the camera on the Verify Pass tab, and only for staff who can
+  // actually use the scanner — stop it the moment either stops being true so
+  // the camera light never stays on when it shouldn't (privacy + battery).
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- starting/stopping the
+       camera is inherently a side effect with an internal state machine
+       (idle/starting/active/error); there's no derived-state alternative. */
+    if (mode === "pass" && canUseScanner) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    return () => stopCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, canUseScanner]);
+
   async function closeVisit(logId: number, name: string) {
     setClosingLogId(logId);
     try {
@@ -267,27 +398,57 @@ export default function StaffScannerPage() {
           <p className={styles.kicker}>Access Control</p>
           <h1>Gate Scanner</h1>
         </div>
-        <span className={styles.offline} role="status">
-          <span className={styles.offlineDot} /> Camera Unavailable
-        </span>
+        {cameraStatus === "active" ? (
+          <span className={styles.online} role="status">
+            <span className={styles.onlineDot} /> Camera Active
+          </span>
+        ) : (
+          <span className={styles.offline} role="status">
+            <span className={styles.offlineDot} />
+            {cameraStatus === "starting" ? "Starting Camera…" : "Camera Unavailable"}
+          </span>
+        )}
       </header>
 
       <div className={styles.layout}>
         <section className={styles.actionCard}>
-          <div className={styles.scanStrip}>
+          {mode === "pass" && cameraStatus !== "error" ? (
+            <div className={styles.cameraFrame}>
+              <video
+                ref={videoRef}
+                className={styles.cameraVideo}
+                playsInline
+                muted
+                autoPlay
+              />
+              <canvas ref={canvasRef} style={{ display: "none" }} />
+              {cameraStatus === "active" ? <div className={styles.cameraReticle} aria-hidden /> : null}
+            </div>
+          ) : null}
+
+          <div className={`${styles.scanStrip} ${cameraStatus === "error" ? styles.scanStripDanger : ""}`}>
             <span className={styles.scanStripIcon} aria-hidden>
               <IconScan size={20} />
             </span>
             <div className={styles.scanStripCopy}>
-              <p>Live camera capture isn&apos;t connected in this preview</p>
+              <p>
+                {cameraStatus === "active"
+                  ? "Point the camera at the visitor's QR pass"
+                  : cameraStatus === "starting"
+                    ? "Starting camera…"
+                    : cameraStatus === "error"
+                      ? (cameraError ?? "Camera unavailable")
+                      : "Camera is off on this tab"}
+              </p>
               <span>Verify a pass or log a visitor manually below.</span>
             </div>
             <button
               type="button"
-              className={styles.torch}
-              disabled
-              title="Torch requires an active camera"
-              aria-disabled="true"
+              className={`${styles.torch} ${torchOn ? styles.torchActive : ""}`}
+              disabled={!torchSupported}
+              onClick={toggleTorch}
+              title={torchSupported ? "Toggle flashlight" : "Torch not supported on this device"}
+              aria-pressed={torchOn}
             >
               <IconFlashlight size={16} />
               <span>Torch</span>
