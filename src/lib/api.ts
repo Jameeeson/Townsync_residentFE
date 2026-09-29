@@ -1,4 +1,4 @@
-import { clearSession } from "./auth";
+import { clearSession, getAccessToken, setAccessToken } from "./auth";
 
 // Fail fast in production builds instead of silently talking to localhost.
 const API_BASE_URL =
@@ -48,10 +48,16 @@ async function send(path: string, options: RequestInit = {}): Promise<Response> 
   if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+  // The httpOnly cookie doesn't reach the backend on browsers that block
+  // third-party cookies cross-site (all iOS browsers). Send the token as a
+  // Bearer header too so those requests still authenticate.
+  const token = getAccessToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   let response: Response;
   try {
-    // The httpOnly session cookie is sent automatically with credentials: "include".
     response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers, credentials: "include" });
   } catch {
     throw new ApiError(0, "Could not reach the server. Check your connection and try again.");
@@ -159,7 +165,9 @@ export async function login(
     throw new ApiError(response.status, (await errorMessage(response)) || "Invalid credentials");
   }
 
-  return response.json();
+  const data = await response.json();
+  if (data.access_token) setAccessToken(data.access_token);
+  return data;
 }
 
 /** Revokes the session server-side and clears the cookie; always clears the local flag. */
