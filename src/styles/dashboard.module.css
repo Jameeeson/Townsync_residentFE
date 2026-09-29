@@ -733,7 +733,6 @@
   }
 
   .topBar {
-    align-items: flex-start;
     padding: var(--space-4) var(--space-4) var(--space-4) 72px;
   }
 
