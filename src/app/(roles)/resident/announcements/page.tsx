@@ -3,10 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import { Megaphone } from "lucide-react";
+import { Megaphone, Pin } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { Announcement, listAnnouncements } from "@/lib/api/resident";
+import { parseServerDate } from "@/lib/datetime";
 import styles from "@/styles/dashboard.module.css";
+
+function formatDate(iso: string | null | undefined): string | null {
+  const date = parseServerDate(iso ?? "");
+  if (!date) return null;
+  return date.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+}
 
 export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -79,7 +86,7 @@ export default function AnnouncementsPage() {
                 style={{ "--ts-stagger-i": i } as CSSProperties}
               >
                 <h3>
-                  {item.is_pinned ? "[Pinned] " : ""}
+                  {item.is_pinned ? <Pin size={14} aria-label="Pinned" /> : null}
                   {item.priority && item.priority !== "Normal" ? (
                     <span className={`ts-badge ${item.priority === "Urgent" ? "ts-badge-danger" : ""}`}>
                       {item.priority}
@@ -89,8 +96,9 @@ export default function AnnouncementsPage() {
                 </h3>
                 <p>{item.content}</p>
                 <span className={styles.announcementDate}>
-                  {item.created_at}
+                  Posted {formatDate(item.created_at) ?? item.created_at}
                   {item.category ? ` • ${item.category}` : ""}
+                  {item.expiry_date ? ` • Effective until ${formatDate(item.expiry_date) ?? item.expiry_date}` : ""}
                 </span>
               </article>
             ))}

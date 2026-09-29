@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "@/styles/visitordets.module.css";
 import {
@@ -68,6 +68,7 @@ function VisitorDetailsInner() {
   const idParam = searchParams.get("id");
   const passId = idParam ? Number(idParam) : NaN;
 
+  const qrRef = useRef<HTMLDivElement>(null);
   const [pass, setPass] = useState<VisitorPass | null>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
@@ -163,7 +164,7 @@ function VisitorDetailsInner() {
     }
   }
 
-  function downloadPass() {
+  function downloadTextFallback() {
     if (!pass) return;
     const content = [
       "TownSync Digital Visitor Pass",
@@ -184,6 +185,57 @@ function VisitorDetailsInner() {
     anchor.click();
     URL.revokeObjectURL(url);
     setSavedNote("Pass file downloaded.");
+  }
+
+  // Rasterizes the on-page QR SVG onto a canvas at a higher resolution than
+  // its display size, so the download is crisp enough for gate staff to
+  // actually scan (140px on-screen is too small to print or re-scan reliably).
+  async function downloadPass() {
+    if (!pass) return;
+    const svgEl = qrRef.current?.querySelector("svg");
+    if (!svgEl) {
+      downloadTextFallback();
+      return;
+    }
+
+    const svgData = new XMLSerializer().serializeToString(svgEl);
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    const pngBlob = await new Promise<Blob | null>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 512;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, 0, 0, size, size);
+        canvas.toBlob((blob) => resolve(blob), "image/png");
+      };
+      img.onerror = () => resolve(null);
+      img.src = svgUrl;
+    });
+    URL.revokeObjectURL(svgUrl);
+
+    if (!pngBlob) {
+      downloadTextFallback();
+      return;
+    }
+
+    const url = URL.createObjectURL(pngBlob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `visitor-pass-${pass.id}.png`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setSavedNote("Pass QR code downloaded.");
   }
 
   async function revokeAccess() {
@@ -350,7 +402,7 @@ function VisitorDetailsInner() {
               <Shield size={16} /> QR Token
             </div>
             {pass?.qr_token ? (
-              <div className={styles.qrWrap}>
+              <div className={styles.qrWrap} ref={qrRef}>
                 <QRCodeSVG value={pass.qr_token} size={140} />
               </div>
             ) : null}
