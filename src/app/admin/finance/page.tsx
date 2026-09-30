@@ -26,7 +26,7 @@ import styles from "../../../components/styles/Finance.module.css";
 type StatusType = "Paid" | "Unpaid" | "Overdue";
 
 interface LedgerApiRecord {
-  id: string;
+  id: number;
   date: string;
   resident_name: string;
   invoice_number: string;
@@ -35,7 +35,7 @@ interface LedgerApiRecord {
 }
 
 interface LedgerRecord {
-  id: string;
+  id: number;
   initials: string;
   name: string;
   invoiceNumber: string;
@@ -111,7 +111,7 @@ function FinancePage() {
   // refresh cannot reopen it behind the admin's back.
   useEffect(() => {
     if (!deepLinkInvoice) return;
-    if (!records.some((r) => r.id === deepLinkInvoice)) return; // ledger still loading
+    if (!records.some((r) => String(r.id) === deepLinkInvoice)) return; // ledger still loading
     /* eslint-disable react-hooks/set-state-in-effect -- one-shot sync from the
        URL, cleared immediately below so it cannot cascade or re-apply. */
     setPaymentInvoiceId(deepLinkInvoice);
@@ -119,7 +119,7 @@ function FinancePage() {
     /* eslint-enable react-hooks/set-state-in-effect */
     router.replace("/admin/finance", { scroll: false });
   }, [deepLinkInvoice, records, router]);
-  const selectedInvoice = payableInvoices.find((r) => r.id === paymentInvoiceId) ?? null;
+  const selectedInvoice = payableInvoices.find((r) => String(r.id) === paymentInvoiceId) ?? null;
 
   const refreshLedger = () => {
     apiGet<FinanceMetrics>("/api/v1/admin/finance/dashboard-metrics").then(setMetrics).catch(() => {});
