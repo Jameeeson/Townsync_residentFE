@@ -8,7 +8,13 @@ import {
   IconUserSlash,
 } from "@/components/icons";
 import { ApiError } from "@/lib/api-client";
-import { getVisitorLogs, type VisitorLog } from "@/lib/services/staff";
+import {
+  getVisitorLogDetail,
+  getVisitorLogs,
+  type VisitorLog,
+  type VisitorLogDetail,
+} from "@/lib/services/staff";
+import { StatDetailModal, type StatDetailRow } from "@/components/StatDetailModal";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import styles from "./logs.module.css";
 import { parseServerDate } from "@/lib/datetime";
@@ -87,6 +93,50 @@ export default function StaffLogsPage() {
       window.clearTimeout(handle);
     };
   }, [query, sessionLoading, canUseLogs]);
+
+  const [detailFor, setDetailFor] = useState<VisitorLog | null>(null);
+  const [detail, setDetail] = useState<VisitorLogDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const openDetail = async (log: VisitorLog) => {
+    setDetailFor(log);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+    try {
+      setDetail(await getVisitorLogDetail(log.id));
+    } catch (e) {
+      setDetailError(e instanceof ApiError ? e.message : "Could not load visitor details.");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const detailRows: StatDetailRow[] = detail
+    ? [
+        { id: "status", title: "Status", lines: [detail.status] },
+        { id: "unit", title: "Destination", lines: [detail.unit_destination] },
+        { id: "in", title: "Entered", lines: [detail.entry_timestamp ?? "Not yet"] },
+        {
+          id: "out",
+          title: "Exited",
+          lines: [
+            detail.exit_timestamp ?? "Still inside / not yet",
+            detail.exit_method === "auto_unverified"
+              ? "Closed automatically — the exit was not scanned."
+              : null,
+          ],
+        },
+        {
+          id: "party",
+          title: `Party of ${detail.party_size}`,
+          lines: [detail.companions.length ? detail.companions.join(", ") : "No companions"],
+        },
+        { id: "vehicle", title: "Vehicle", lines: [detail.vehicle_details] },
+        { id: "idv", title: "ID verified at gate", lines: [detail.id_verified ? "Yes" : "No"] },
+      ]
+    : [];
 
   const groups = useMemo(() => {
     const timeOf = (log: VisitorLog) => {
@@ -180,7 +230,16 @@ export default function StaffLogsPage() {
                           )}
                         </div>
                         <div>
-                          <strong>{log.visitor_name}</strong>
+                          <strong>
+                            <button
+                              type="button"
+                              className={styles.nameButton}
+                              aria-label={`View details for ${log.visitor_name}`}
+                              onClick={() => openDetail(log)}
+                            >
+                              {log.visitor_name}
+                            </button>
+                          </strong>
                           {log.companions && log.companions.length > 0 ? (
                             <p className={styles.party}>
                               +{log.companions.length} guest{log.companions.length === 1 ? "" : "s"}:{" "}
@@ -219,6 +278,18 @@ export default function StaffLogsPage() {
           <p>End of recent logs</p>
         </div>
       </div>
+
+      {detailFor ? (
+        <StatDetailModal
+          title={detailFor.visitor_name}
+          subtitle="Visitor log details"
+          rows={detailRows}
+          loading={detailLoading}
+          error={detailError}
+          onRetry={() => openDetail(detailFor)}
+          onClose={() => setDetailFor(null)}
+        />
+      ) : null}
     </div>
   );
 }

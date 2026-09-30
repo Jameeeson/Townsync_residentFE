@@ -1,5 +1,11 @@
+// Fail fast in production builds instead of silently talking to localhost.
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  (process.env.NODE_ENV === "production" ? "" : "http://localhost:8000");
+
+if (!API_BASE_URL && typeof window !== "undefined") {
+  throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured for this build.");
+}
 
 // All three portals share one backend, so the session cookie lives on the API's
 // domain. This header tells the backend which portal is calling so it scopes the

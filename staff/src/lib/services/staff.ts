@@ -256,6 +256,26 @@ export function getVisitorLogs(search?: string) {
   return api.get<VisitorLog[]>(`/api/v1/staff/logs/visitors${qs}`);
 }
 
+export type VisitorLogDetail = {
+  id: number;
+  visitor_name: string;
+  status: string;
+  unit_destination: string;
+  entry_timestamp: string | null;
+  exit_timestamp: string | null;
+  id_verified: boolean;
+  vehicle_type: string;
+  vehicle_plate: string;
+  vehicle_details: string;
+  companions: string[];
+  party_size: number;
+  exit_method: string | null;
+};
+
+export function getVisitorLogDetail(id: number) {
+  return api.get<VisitorLogDetail>(`/api/v1/staff/logs/visitors/${id}`);
+}
+
 // ----- Settings -----
 
 export type StaffProfile = {

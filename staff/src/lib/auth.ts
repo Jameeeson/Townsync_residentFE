@@ -1,9 +1,6 @@
-import { ApiError, PORTAL, clearSession, hasSession, markSignedIn, setAccessToken } from "./api-client";
+import { API_BASE_URL, ApiError, PORTAL, clearSession, hasSession, markSignedIn, setAccessToken } from "./api-client";
 
 export const STAFF_ROLES = ["Staff", "Maintenance"];
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 export type MeResponse = {
   user_id: number;

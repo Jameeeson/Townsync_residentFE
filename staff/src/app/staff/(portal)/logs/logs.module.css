@@ -172,6 +172,28 @@
   font-size: 0.95rem;
 }
 
+.nameButton {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--navy-900);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nameButton:hover {
+  text-decoration: underline;
+}
+
+.nameButton:focus-visible {
+  outline: 2px solid var(--color-primary-600, #2563eb);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .reason {
   display: block;
   margin-top: 0.15rem;
