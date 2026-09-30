@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   IconClipboardCheck,
   IconSearch,
@@ -8,6 +9,7 @@ import {
 } from "@/components/icons";
 import { ApiError } from "@/lib/api-client";
 import { getVisitorLogs, type VisitorLog } from "@/lib/services/staff";
+import { useStaffSession } from "@/contexts/StaffSessionContext";
 import styles from "./logs.module.css";
 import { parseServerDate } from "@/lib/datetime";
 
@@ -51,12 +53,19 @@ function dayGroupFor(timestamp: string): string {
 }
 
 export default function StaffLogsPage() {
+  const router = useRouter();
+  const { loading: sessionLoading, canUseLogs } = useStaffSession();
   const [query, setQuery] = useState("");
   const [logs, setLogs] = useState<VisitorLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!sessionLoading && !canUseLogs) router.replace("/staff/dashboard");
+  }, [sessionLoading, canUseLogs, router]);
+
+  useEffect(() => {
+    if (sessionLoading || !canUseLogs) return;
     let cancelled = false;
     const handle = window.setTimeout(async () => {
       setLoading(true);
@@ -77,7 +86,7 @@ export default function StaffLogsPage() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [query]);
+  }, [query, sessionLoading, canUseLogs]);
 
   const groups = useMemo(() => {
     const timeOf = (log: VisitorLog) => {

@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TaskDetailsModal, type TaskDetails } from "@/components/TaskDetailsModal";
 import { useToast } from "@/components/Toast";
 import { IconChevron, IconClipboard } from "@/components/icons";
 import { ApiError } from "@/lib/api-client";
 import { listTasks, updateTaskProgress, type MaintenanceTask } from "@/lib/services/staff";
+import { useStaffSession } from "@/contexts/StaffSessionContext";
 import styles from "./calendar.module.css";
 import { parseServerDate } from "@/lib/datetime";
 
@@ -62,6 +64,8 @@ function isSameDay(a: Date, b: Date) {
 
 export default function StaffCalendarPage() {
   const { toast } = useToast();
+  const router = useRouter();
+  const { loading: sessionLoading, canUseCalendar } = useStaffSession();
   const today = useMemo(() => new Date(), []);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [tasks, setTasks] = useState<CalTask[]>([]);
@@ -73,6 +77,11 @@ export default function StaffCalendarPage() {
   const reload = useCallback(() => setReloadTick((t) => t + 1), []);
 
   useEffect(() => {
+    if (!sessionLoading && !canUseCalendar) router.replace("/staff/dashboard");
+  }, [sessionLoading, canUseCalendar, router]);
+
+  useEffect(() => {
+    if (sessionLoading || !canUseCalendar) return;
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -97,7 +106,7 @@ export default function StaffCalendarPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadTick]);
+  }, [reloadTick, sessionLoading, canUseCalendar]);
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, CalTask[]>();

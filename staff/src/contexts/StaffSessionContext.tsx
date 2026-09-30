@@ -21,6 +21,10 @@ type StaffSessionContextValue = {
   isMaintenance: boolean;
   /** True only once we know the account may use the gate scanner. */
   canUseScanner: boolean;
+  /** Calendar is a Security/Staff-shift feature; Maintenance techs don't get it. */
+  canUseCalendar: boolean;
+  /** Logs are a Security/Staff feature; Maintenance techs don't get it. */
+  canUseLogs: boolean;
   refresh: () => void;
   logout: () => Promise<void>;
 };
@@ -90,6 +94,11 @@ export function StaffSessionProvider({ children }: { children: React.ReactNode }
       // Fail closed while the profile is still loading so the Scanner entry
       // never flashes in for an account that will be refused at the gate.
       canUseScanner: staffType !== null && staffType !== "Maintenance",
+      // Calendar backs maintenance-tech availability (see calendar_avail.py);
+      // Staff (Security) accounts have no use for it.
+      canUseCalendar: staffType !== null && staffType !== "Staff",
+      // Logs are a Security/Staff feature; Maintenance accounts don't get it.
+      canUseLogs: staffType !== null && staffType !== "Maintenance",
       refresh: () => setTick((t) => t + 1),
       logout: async () => {
         await authLogout();
