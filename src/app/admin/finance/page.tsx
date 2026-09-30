@@ -122,7 +122,9 @@ function FinancePage() {
   const selectedInvoice = payableInvoices.find((r) => String(r.id) === paymentInvoiceId) ?? null;
 
   const refreshLedger = () => {
-    apiGet<FinanceMetrics>("/api/v1/admin/finance/dashboard-metrics").then(setMetrics).catch(() => {});
+    apiGet<FinanceMetrics>("/api/v1/admin/finance/dashboard-metrics")
+      .then(setMetrics)
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to refresh metrics"));
     const query = statusFilter === "All" ? "" : `?status_filter=${statusFilter}`;
     apiGet<LedgerApiRecord[]>(`/api/v1/admin/finance/ledger${query}`)
       .then((data) =>

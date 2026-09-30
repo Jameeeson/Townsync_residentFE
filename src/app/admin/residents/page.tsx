@@ -62,7 +62,15 @@ type Resident = {
   occupancyType: string | null;
 };
 
-const AVATAR_COLORS = ["#93c5fd", "#a7f3d0", "#cbd5e1", "#fbcfe8", "#fde68a"];
+type DeactivationRequestItem = {
+  request_id: number;
+  user_id: number;
+  email: string;
+  reason: string | null;
+  created_at: string;
+};
+
+const AVATAR_COLORS =["#93c5fd", "#a7f3d0", "#cbd5e1", "#fbcfe8", "#fde68a"];
 
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -310,6 +318,44 @@ export default function DirectoryAndUserManagementPage() {
     if (activeTab !== "residents") return;
     loadResidents();
   }, [activeTab, residentSearch]);
+
+  // Residents file deactivation requests from their settings page; admins resolve them here.
+  const [deactivationRequests, setDeactivationRequests] = useState<DeactivationRequestItem[]>([]);
+  const [deactivationError, setDeactivationError] = useState<string | null>(null);
+  const [deactivationBusyId, setDeactivationBusyId] = useState<number | null>(null);
+
+  const loadDeactivationRequests = () => {
+    apiGet<DeactivationRequestItem[]>("/api/v1/admin/operations/deactivation-requests")
+      .then((data) => {
+        setDeactivationRequests(data);
+        setDeactivationError(null);
+      })
+      .catch((err) =>
+        setDeactivationError(err instanceof Error ? err.message : "Failed to load deactivation requests"),
+      );
+  };
+
+  useEffect(() => {
+    if (activeTab !== "residents") return;
+    loadDeactivationRequests();
+  }, [activeTab]);
+
+  const handleDeactivationDecision = async (requestId: number, action: "approve" | "reject") => {
+    setDeactivationBusyId(requestId);
+    try {
+      await apiPost(`/api/v1/admin/operations/deactivation-requests/${requestId}/${action}`, {});
+      toast(
+        action === "approve" ? "Account deactivated." : "Deactivation request rejected.",
+        action === "approve" ? "warning" : "success",
+      );
+      loadDeactivationRequests();
+      if (action === "approve") loadResidents();
+    } catch (err) {
+      toastError(err, "Could not resolve the deactivation request.");
+    } finally {
+      setDeactivationBusyId(null);
+    }
+  };
 
   const handleResidentStatusChange = async (residentId: number, nextStatus: "Active" | "Suspended") => {
     setResidentBusyId(residentId);
@@ -1079,6 +1125,57 @@ export default function DirectoryAndUserManagementPage() {
               </div>
 
               {residentsError ? <p className={styles.subText}>{residentsError}</p> : null}
+              {deactivationError ? <p className={styles.subText}>{deactivationError}</p> : null}
+
+              {deactivationRequests.length > 0 ? (
+                <section aria-label="Pending deactivation requests" style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0 0 8px" }}>
+                    Deactivation requests ({deactivationRequests.length})
+                  </h3>
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+                    {deactivationRequests.map((req) => (
+                      <li
+                        key={req.request_id}
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          padding: "10px 14px",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 8,
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div className={styles.userName}>{req.email}</div>
+                          <div className={styles.subText}>
+                            {req.reason ? req.reason : "No reason given"} · {req.created_at}
+                          </div>
+                        </div>
+                        <div className={styles.groupActions}>
+                          <button
+                            type="button"
+                            className={styles.secondaryOutlineBtn}
+                            disabled={deactivationBusyId === req.request_id}
+                            onClick={() => handleDeactivationDecision(req.request_id, "reject")}
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.primaryBtn}
+                            disabled={deactivationBusyId === req.request_id}
+                            onClick={() => handleDeactivationDecision(req.request_id, "approve")}
+                          >
+                            Deactivate account
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
 
               <div className={styles.tableWrapper}>
                 <table className={styles.table}>

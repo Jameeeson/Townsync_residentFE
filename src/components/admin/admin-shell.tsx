@@ -86,8 +86,10 @@ export default function AdminShell({ children }: { children: ReactNode }) {
               <p className={styles.brandSub}>Admin Portal</p>
             </div>
           </div>
-          <button 
-            className={styles.mobileClose} 
+          <button
+            type="button"
+            className={styles.mobileClose}
+            aria-label="Close menu"
             onClick={() => setSidebarOpen(false)}
           >
             <X size={20} />
@@ -125,7 +127,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
             <span>Support</span>
           </Link>
           
-          <button onClick={signOut} className={styles.footerItem}>
+          <button type="button" onClick={signOut} className={styles.footerItem}>
             <LogOut size={20} />
             <span>Sign Out</span>
           </button>
@@ -148,8 +150,21 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       </main>
 
       {alertModalOpen ? (
-        <div className={styles.alertModalOverlay} onClick={() => setAlertModalOpen(false)}>
-          <div className={styles.alertModalContent} onClick={(event) => event.stopPropagation()}>
+        <div
+          className={styles.alertModalOverlay}
+          role="presentation"
+          onClick={() => setAlertModalOpen(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setAlertModalOpen(false);
+          }}
+        >
+          <div
+            className={styles.alertModalContent}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Post announcement"
+            onClick={(event) => event.stopPropagation()}
+          >
             <PostAlertPage onClose={() => setAlertModalOpen(false)} />
           </div>
         </div>
