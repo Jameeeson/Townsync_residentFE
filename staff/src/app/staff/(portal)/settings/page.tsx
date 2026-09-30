@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useCallback, useRef, useState } from "react";
 import {
   IconBell,
   IconChevron,
@@ -10,13 +10,16 @@ import {
   IconMail,
   IconPencil,
   IconRefresh,
+  IconX,
 } from "@/components/icons";
 import { useToast } from "@/components/Toast";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
+import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import { ApiError } from "@/lib/api-client";
-import { updateStaffPreferences } from "@/lib/services/staff";
+import { updateStaffPreferences, submitStaffSupportMessage } from "@/lib/services/staff";
 import styles from "./settings.module.css";
+import modalStyles from "@/components/ChangePasswordModal.module.css";
 
 const PREFS_KEY = "townsync.staff.notificationPrefs";
 
@@ -42,6 +45,45 @@ export default function StaffSettingsPage() {
   const [email, setEmail] = useState(() => readPrefs().email);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const docsModalRef = useRef<HTMLDivElement>(null);
+  const closeDocs = useCallback(() => setDocsOpen(false), []);
+  useDialogA11y(docsOpen, closeDocs, docsModalRef);
+
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactTopic, setContactTopic] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+  const contactModalRef = useRef<HTMLDivElement>(null);
+  const closeContact = useCallback(() => setContactOpen(false), []);
+  useDialogA11y(contactOpen, closeContact, contactModalRef);
+
+  async function submitContactAdmin(event: FormEvent) {
+    event.preventDefault();
+    if (!contactTopic.trim() || !contactMessage.trim()) {
+      setContactError("Please fill in a topic and a message.");
+      return;
+    }
+    setContactSubmitting(true);
+    setContactError(null);
+    try {
+      await submitStaffSupportMessage({
+        name: session?.displayName ?? "Staff member",
+        email: session?.profile.email ?? "unknown@townsync.local",
+        topic: contactTopic.trim(),
+        message: contactMessage.trim(),
+      });
+      toast("Sent to the system admin. They'll follow up by email.", "success");
+      setContactTopic("");
+      setContactMessage("");
+      setContactOpen(false);
+    } catch (e) {
+      setContactError(e instanceof ApiError ? e.message : "Could not send this message.");
+    } finally {
+      setContactSubmitting(false);
+    }
+  }
 
   function persist(next: { push: boolean; email: boolean }) {
     try {
@@ -132,9 +174,6 @@ export default function StaffSettingsPage() {
             </button>
           </div>
           <h2>{loading ? "Loading…" : error ? "Unavailable" : session?.displayName}</h2>
-          <span className={styles.shiftId}>
-            Shift ID: {session?.profile.shift_id ?? "N/A"}
-          </span>
           <p className={styles.role}>
             {session
               ? `${session.profile.staff_type} · ${session.profile.employee_id}`
@@ -215,7 +254,7 @@ export default function StaffSettingsPage() {
               <button
                 type="button"
                 className={styles.linkRow}
-                onClick={() => comingSoon("Documentation")}
+                onClick={() => setDocsOpen(true)}
               >
                 <div className={styles.rowIcon}>
                   <IconHelp size={18} />
@@ -229,7 +268,7 @@ export default function StaffSettingsPage() {
               <button
                 type="button"
                 className={styles.linkRow}
-                onClick={() => comingSoon("Admin contact")}
+                onClick={() => setContactOpen(true)}
               >
                 <div className={styles.rowIcon}>
                   <IconHeadset size={18} />
@@ -255,6 +294,112 @@ export default function StaffSettingsPage() {
           onClose={() => setChangePasswordOpen(false)}
           onSuccess={onPasswordChanged}
         />
+      ) : null}
+
+      {docsOpen ? (
+        <div className={modalStyles.overlay} role="presentation" onClick={closeDocs}>
+          <div
+            ref={docsModalRef}
+            className={modalStyles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="staff-docs-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className={modalStyles.header}>
+              <div>
+                <h2 id="staff-docs-title">Documentation</h2>
+                <p>Quick guides for the scanner and visitor logs.</p>
+              </div>
+              <button type="button" className={modalStyles.close} onClick={closeDocs} aria-label="Close">
+                <IconX size={20} />
+              </button>
+            </header>
+            <div className={modalStyles.body}>
+              <div className={styles.docsSection}>
+                <strong>Gate Scanner</strong>
+                <p>
+                  Scan a visitor&apos;s QR pass to check them in or out. If the camera
+                  won&apos;t focus, use Manual Entry and enter the visitor&apos;s ID
+                  details instead. Passes outside the community&apos;s gate hours are
+                  rejected automatically.
+                </p>
+              </div>
+              <div className={styles.docsSection}>
+                <strong>Visitor Logs</strong>
+                <p>
+                  Search by visitor name to review past entries. Each entry shows
+                  check-in and check-out times; a red badge means the visitor was
+                  denied entry.
+                </p>
+              </div>
+              <div className={styles.docsSection}>
+                <strong>Tasks &amp; Preferences</strong>
+                <p>
+                  Maintenance tickets appear on your Tasks and Calendar pages by
+                  priority. Toggle Push Notifications above to get alerted when a
+                  new ticket is assigned to you.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {contactOpen ? (
+        <div className={modalStyles.overlay} role="presentation" onClick={closeContact}>
+          <div
+            ref={contactModalRef}
+            className={modalStyles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="staff-contact-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className={modalStyles.header}>
+              <div>
+                <h2 id="staff-contact-title">Contact System Admin</h2>
+                <p>Escalate an access or shift issue. Sent straight to the admin inbox.</p>
+              </div>
+              <button type="button" className={modalStyles.close} onClick={closeContact} aria-label="Close">
+                <IconX size={20} />
+              </button>
+            </header>
+            <form className={modalStyles.body} onSubmit={submitContactAdmin}>
+              {contactError ? <p className={modalStyles.formError} role="alert">{contactError}</p> : null}
+              <div className={modalStyles.field}>
+                <label htmlFor="contact-topic">Topic</label>
+                <input
+                  id="contact-topic"
+                  type="text"
+                  placeholder="e.g. Locked out of scanner"
+                  value={contactTopic}
+                  onChange={(e) => setContactTopic(e.target.value)}
+                  required
+                />
+              </div>
+              <div className={modalStyles.field}>
+                <label htmlFor="contact-message">Message</label>
+                <textarea
+                  id="contact-message"
+                  rows={4}
+                  placeholder="Describe the issue…"
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
+                  required
+                />
+              </div>
+              <div className={modalStyles.actions}>
+                <button type="submit" className={modalStyles.primary} disabled={contactSubmitting}>
+                  {contactSubmitting ? "Sending…" : "Send to Admin"}
+                </button>
+                <button type="button" className={modalStyles.secondary} onClick={closeContact}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
     </div>
   );

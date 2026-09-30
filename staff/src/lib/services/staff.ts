@@ -282,3 +282,14 @@ export function changeStaffPassword(oldPassword: string, newPassword: string) {
     new_password: newPassword,
   });
 }
+
+// ----- Support (public contact form, also used by residents/admin) -----
+
+export function submitStaffSupportMessage(payload: {
+  name: string;
+  email: string;
+  topic: string;
+  message: string;
+}) {
+  return api.post<{ message: string; id: number }>("/api/v1/support/", payload);
+}

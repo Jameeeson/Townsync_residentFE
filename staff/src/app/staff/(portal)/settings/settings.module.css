@@ -84,15 +84,22 @@
   letter-spacing: -0.02em;
 }
 
-.shiftId {
-  display: inline-flex;
-  margin-top: 0.55rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  background: var(--navy-50);
-  color: var(--navy-700);
-  font-size: 0.78rem;
-  font-weight: 700;
+.docsSection + .docsSection {
+  margin-top: 1rem;
+}
+
+.docsSection strong {
+  display: block;
+  color: var(--navy-900);
+  font-size: 0.92rem;
+  margin-bottom: 0.3rem;
+}
+
+.docsSection p {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .role {
