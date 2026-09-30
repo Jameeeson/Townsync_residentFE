@@ -95,7 +95,6 @@
   /* ---- Layout ---- */
   --container-width: 1180px;
   --font-sans: var(--font-plex-sans), "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-display: var(--font-source-serif), "Source Serif 4", Georgia, "Times New Roman", serif;
 }
 
 @media (prefers-color-scheme: dark) {

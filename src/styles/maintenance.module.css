@@ -46,10 +46,9 @@
 }
 
 .pageTitle {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-weight: 500;
-  font-size: clamp(1.6rem, 3.4vw, 2.1rem);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 2.4vw, 1.75rem);
   letter-spacing: -0.01em;
   color: var(--color-text);
   margin: 0 0 var(--space-2);
@@ -184,11 +183,10 @@
 }
 
 .emptyTitle {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-weight: 700;
   font-size: clamp(1.9rem, 3vw, 3.25rem);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   line-height: 1.1;
   color: var(--color-text);
   margin: var(--space-3) 0 var(--space-4);
@@ -231,7 +229,7 @@
   flex: 1;
   border: none;
   outline: none;
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: clamp(1.05rem, 1.6vw, 1.5rem);
   background: transparent;
   color: var(--color-text);
@@ -1407,9 +1405,10 @@
 }
 
 .reviewPageTitle {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 2.4vw, 1.75rem);
+  letter-spacing: -0.01em;
   color: var(--color-text);
   margin: 0 0 6px;
 }
@@ -1625,9 +1624,10 @@
   border: none;
   outline: none;
   background: transparent;
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(1.35rem, 5vw, 2.75rem);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: clamp(1.35rem, 5vw, 2.5rem);
+  letter-spacing: -0.02em;
   line-height: 1.15;
   color: var(--color-text);
   padding: 0;
@@ -1905,9 +1905,10 @@
 }
 
 .confirmTitle {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  letter-spacing: -0.01em;
   color: var(--color-text);
   margin: 0 0 6px;
 }
@@ -1945,9 +1946,10 @@
 }
 
 .successTicketId {
-  font-family: var(--font-display);
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-weight: 700;
   font-size: clamp(1.75rem, 3.4vw, 2.5rem);
+  letter-spacing: -0.01em;
   color: var(--color-text);
   margin: 0 0 var(--space-4);
 }
