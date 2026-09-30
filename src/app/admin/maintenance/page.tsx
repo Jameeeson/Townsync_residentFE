@@ -31,6 +31,7 @@ import {
   Ban,
   BadgeCheck,
   MessageSquare,
+  UserRound,
 } from "lucide-react";
 
 import styles from "@/components/styles/Maintenance.module.css";
@@ -69,6 +70,10 @@ type PendingRequest = {
   // always showing the pending-ticket defaults.
   status?: string;
   assignedTech?: { name: string; email: string | null } | null;
+  // True when the resident used "Talk to a person" from the AI chat instead
+  // of (or in addition to) letting it finish triage. A marker only - never
+  // changes queue order on its own, see the ORDER BY in the backend.
+  humanRequested?: boolean;
 };
 
 type OngoingJob = {
@@ -137,6 +142,7 @@ type TriageQueueItem = {
   updated_at?: string | null;
   admin_notes?: string | null;
   resident_status?: string | null;
+  human_requested?: boolean;
 };
 
 type DispatchBoardItem = {
@@ -266,6 +272,7 @@ function adaptTriageItem(item: TriageQueueItem): PendingRequest {
     preferredDay: item.preferred_date ?? "No preference given",
     phone: item.resident_phone ?? NOT_AVAILABLE,
     imageUrl: resolveImageUrl(item.initial_image_url),
+    humanRequested: Boolean(item.human_requested),
   };
 }
 
@@ -895,6 +902,11 @@ function PendingRequestsView({
                       {priorityLabel(req.priority)}
                     </span>
                     <div className={styles.aiTag}>AI: {req.aiLabel}</div>
+                    {req.humanRequested ? (
+                      <span className={styles.humanRequestedTag}>
+                        <UserRound size={11} aria-hidden="true" /> Requested a person
+                      </span>
+                    ) : null}
                   </td>
                   <td>
                     <button
