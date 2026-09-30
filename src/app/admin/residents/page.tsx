@@ -355,6 +355,11 @@ export default function DirectoryAndUserManagementPage() {
         action === "approve" ? "success" : "info",
       );
       loadStaffUsers();
+      setViewingStaffUser((prev) =>
+        prev && prev.user_id === userId
+          ? { ...prev, status: action === "approve" ? "Active" : "Rejected" }
+          : prev,
+      );
     } catch (err) {
       toastError(err, `Could not ${action} this account.`);
       setStaffError(err instanceof Error ? err.message : `Failed to ${action} user`);
@@ -432,6 +437,7 @@ export default function DirectoryAndUserManagementPage() {
   };
 
   const [staffMenuOpenId, setStaffMenuOpenId] = useState<number | null>(null);
+  const [viewingStaffUser, setViewingStaffUser] = useState<StaffUser | null>(null);
   const [editingStaffUser, setEditingStaffUser] = useState<StaffUser | null>(null);
   const [editFullName, setEditFullName] = useState("");
   const [editEmployeeId, setEditEmployeeId] = useState("");
@@ -456,6 +462,11 @@ export default function DirectoryAndUserManagementPage() {
         employee_id: editEmployeeId,
       });
       toast(`${editFullName || editingStaffUser.email} updated.`, "success");
+      setViewingStaffUser((prev) =>
+        prev && prev.user_id === editingStaffUser.user_id
+          ? { ...prev, full_name: editFullName, employee_id: editEmployeeId }
+          : prev,
+      );
       setEditingStaffUser(null);
       loadStaffUsers();
     } catch (err) {
@@ -520,6 +531,7 @@ export default function DirectoryAndUserManagementPage() {
     try {
       await apiDelete(`/api/v1/admin/staff/${user.user_id}`);
       toast(`${user.full_name ?? user.email} deleted.`, "success");
+      setViewingStaffUser((prev) => (prev && prev.user_id === user.user_id ? null : prev));
       loadStaffUsers();
     } catch (err) {
       toastError(err, "Could not delete this staff account.");
@@ -782,6 +794,108 @@ export default function DirectoryAndUserManagementPage() {
                   Suspend Resident
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      </AdminShell>
+    );
+  }
+
+  // --- FULL PAGE: Staff/Admin/Maintenance Detail View ---
+  if (viewingStaffUser) {
+    const user = viewingStaffUser;
+    return (
+      <AdminShell>
+        <div className={styles.container}>
+          <button type="button" className={styles.backBtn} onClick={() => setViewingStaffUser(null)}>
+            <ArrowLeft size={16} /> Back
+          </button>
+
+          <header className={styles.header}>
+            <h1>Staff Account</h1>
+            <p>{user.role}</p>
+          </header>
+
+          {staffError ? <p className={styles.subText}>{staffError}</p> : null}
+
+          <div className={styles.card} style={{ padding: "1.5rem" }}>
+            <div className={styles.previewHeader}>
+              <span
+                className={styles.avatar}
+                style={{ backgroundColor: AVATAR_COLORS[user.user_id % AVATAR_COLORS.length], width: 48, height: 48, fontSize: "1.1rem" }}
+              >
+                {initialsFor(user.full_name ?? user.email)}
+              </span>
+              <div className={styles.previewDetails}>
+                <h4>{user.full_name ?? "—"}</h4>
+                <span
+                  className={`${styles.badge} ${
+                    user.status === "Active"
+                      ? styles.badgeGreen
+                      : user.status === "Pending"
+                      ? styles.badgeOrange
+                      : styles.badgeGray
+                  }`}
+                >
+                  {user.status}
+                </span>
+              </div>
+            </div>
+
+            <div className={styles.formGrid2} style={{ marginTop: "1.5rem" }}>
+              <div className={styles.previewMetaRow}>
+                <label>Role</label>
+                <span>{user.role}</span>
+              </div>
+              <div className={styles.previewMetaRow}>
+                <label>Email</label>
+                <span>{user.email}</span>
+              </div>
+              <div className={styles.previewMetaRow}>
+                <label>Employee ID</label>
+                <span>{user.employee_id || "Not provided"}</span>
+              </div>
+              <div className={styles.previewMetaRow}>
+                <label>Registered</label>
+                <span>{user.created_at}</span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              {user.status === "Pending" ? (
+                <>
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    disabled={staffBusyId === user.user_id}
+                    onClick={() => handleUserDecision(user.user_id, "approve")}
+                  >
+                    Approve Account
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.secondaryOutlineBtn}
+                    disabled={staffBusyId === user.user_id}
+                    onClick={() => handleUserDecision(user.user_id, "reject")}
+                  >
+                    Reject Account
+                  </button>
+                </>
+              ) : null}
+              <button type="button" className={styles.secondaryOutlineBtn} onClick={() => openEditStaffUser(user)}>
+                Edit
+              </button>
+              <button type="button" className={styles.secondaryOutlineBtn} onClick={() => openResetPassword(user)}>
+                Reset Password
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryOutlineBtn}
+                disabled={staffBusyId === user.user_id}
+                onClick={() => handleDeleteStaffUser(user)}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
@@ -1233,7 +1347,16 @@ export default function DirectoryAndUserManagementPage() {
                       </tr>
                     ) : (
                       staffUsers.map((user) => (
-                        <tr key={user.user_id}>
+                        <tr
+                          key={user.user_id}
+                          className={styles.clickableRow}
+                          onClick={() => setViewingStaffUser(user)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") setViewingStaffUser(user);
+                          }}
+                          role="button"
+                          tabIndex={0}
+                        >
                           <td className={styles.userNameBold}>{user.full_name ?? "—"}</td>
                           <td>{user.role}</td>
                           <td className={styles.subTextDark}>{user.email}</td>
@@ -1251,7 +1374,11 @@ export default function DirectoryAndUserManagementPage() {
                               {user.status}
                             </span>
                           </td>
-                          <td className={styles.textRight} style={{ position: "relative" }}>
+                          <td
+                            className={styles.textRight}
+                            style={{ position: "relative" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             {user.status === "Pending" ? (
                               <div className={styles.groupActions}>
                                 <button
