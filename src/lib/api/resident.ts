@@ -35,6 +35,7 @@ export interface MaintenanceTicket {
   activity_timeline?: unknown[];
   preferred_date?: string | null;
   resolution_confirmed_at?: string | null;
+  human_requested?: boolean;
 }
 
 
@@ -53,6 +54,10 @@ export async function createMaintenanceTicket(fields: {
   priority_level: string;
   detailed_description: string;
   preferred_date?: string;
+  /** Marks a "Talk to a person" escalation from the AI chat. The server
+   * decides urgency independently of priority_level for these - see
+   * resolve_escalation_priority on the backend. */
+  human_requested?: boolean;
   images?: File[];
 }): Promise<MaintenanceTicket> {
   const form = new FormData();
@@ -61,6 +66,7 @@ export async function createMaintenanceTicket(fields: {
   form.set("priority_level", fields.priority_level);
   form.set("detailed_description", fields.detailed_description);
   if (fields.preferred_date) form.set("preferred_date", fields.preferred_date);
+  if (fields.human_requested) form.set("human_requested", "true");
   fields.images?.forEach((file) => form.append("images", file));
   return apiClient.post<MaintenanceTicket>("/api/v1/resident/maintenance/tickets", form);
 }
@@ -133,6 +139,8 @@ export interface AiChatTurnResponse {
   summary_state: AiSummaryState;
   is_complete: boolean;
   ticket_id: number | null;
+  /** True if this message matched an emergency keyword server-side. */
+  emergency: boolean;
 }
 
 /** Real, session-based AI maintenance triage chat (Groq-backed, unlike the stubbed ai-chat above). */

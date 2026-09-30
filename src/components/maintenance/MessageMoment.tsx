@@ -7,6 +7,8 @@ interface MessageMomentProps {
   message: ChatMessageData;
   isLatest: boolean;
   urgentNote?: string | null;
+  /** Only offered on the latest AI reply, before it's already been used. */
+  onNotHelpful?: () => void;
 }
 
 function formatTime(iso: string): string {
@@ -17,7 +19,7 @@ function formatTime(iso: string): string {
   }
 }
 
-export function MessageMoment({ message, isLatest, urgentNote }: MessageMomentProps) {
+export function MessageMoment({ message, isLatest, urgentNote, onNotHelpful }: MessageMomentProps) {
   const entrance = isLatest ? "ts-fade-in-up" : "";
 
   if (message.role === "user") {
@@ -46,6 +48,11 @@ export function MessageMoment({ message, isLatest, urgentNote }: MessageMomentPr
         {message.understood?.length ? <UnderstoodChips items={message.understood} /> : null}
       </div>
       <span className={styles.bubbleTimestamp}>TownSync AI · {formatTime(message.timestamp)}</span>
+      {highlight && onNotHelpful ? (
+        <button type="button" className={styles.notHelpfulBtn} onClick={onNotHelpful}>
+          Not helpful? Talk to a person instead
+        </button>
+      ) : null}
     </div>
   );
 }

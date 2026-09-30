@@ -10,9 +10,11 @@ interface ConversationStreamProps {
   messages: ChatMessageData[];
   loading: boolean;
   urgentNote?: string | null;
+  /** Offered only on the latest AI reply, when set. */
+  onNotHelpful?: () => void;
 }
 
-export function ConversationStream({ messages, loading, urgentNote }: ConversationStreamProps) {
+export function ConversationStream({ messages, loading, urgentNote, onNotHelpful }: ConversationStreamProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,6 +30,7 @@ export function ConversationStream({ messages, loading, urgentNote }: Conversati
           message={message}
           isLatest={i === messages.length - 1}
           urgentNote={urgentNote}
+          onNotHelpful={i === messages.length - 1 ? onNotHelpful : undefined}
         />
       ))}
       {loading ? <TypingIndicator /> : null}

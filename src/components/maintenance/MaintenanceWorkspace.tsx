@@ -13,6 +13,7 @@ import { CaseFile } from "./CaseFile";
 import { ReviewBrief } from "./ReviewBrief";
 import { SuccessPanel } from "./SuccessPanel";
 import { HelpfulResource } from "./HelpfulResource";
+import { TalkToPersonPanel } from "./TalkToPersonPanel";
 import { DevPreviewBar } from "./DevPreviewBar";
 import { TicketHistoryPanel } from "./TicketHistoryPanel";
 
@@ -90,6 +91,17 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
               ? "If this affects safety or building access, we'll mark this as an immediate priority for dispatch today."
               : null
           }
+          onNotHelpful={
+            !chat.isComplete && !chat.notHelpful && !chat.loading ? chat.markNotHelpful : undefined
+          }
+        />
+
+        <TalkToPersonPanel
+          visible={chat.canTalkToPerson}
+          emergency={chat.emergencyDetected}
+          escalating={chat.escalating}
+          escalateError={chat.escalateError}
+          onEscalate={chat.escalateToHuman}
         />
 
         <HelpfulResource category={chat.summaryState?.category ?? null} />

@@ -1,14 +1,20 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   maintenanceAiChatTurn,
   createMaintenanceTicket,
+  sendTicketChatMessage,
   type AiSummaryState,
   type MaintenanceTicket,
 } from "@/lib/api/resident";
 import { ApiClientError } from "@/lib/apiClient";
 import { deriveReportFields, diffNewlyCollected, type UnderstoodItem } from "@/lib/maintenanceReport";
+
+/** Turns before "Talk to a person" appears on its own (an emergency keyword
+ * or a "not helpful" mark can also surface it sooner - see canTalkToPerson). */
+const TALK_TO_PERSON_THRESHOLD = 3;
 
 export type ChatRole = "ai" | "user";
 
@@ -70,6 +76,7 @@ const PREVIEW_TICKET: MaintenanceTicket = {
 };
 
 export function useMaintenanceChat() {
+  const router = useRouter();
   const [phase, setPhase] = useState<WorkspacePhase>("empty");
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [input, setInput] = useState("");
@@ -79,6 +86,12 @@ export function useMaintenanceChat() {
   const [isComplete, setIsComplete] = useState(false);
   const [loading, setLoading] = useState(false);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+
+  // "Talk to a person" escalation
+  const [emergencyDetected, setEmergencyDetected] = useState(false);
+  const [notHelpful, setNotHelpful] = useState(false);
+  const [escalating, setEscalating] = useState(false);
+  const [escalateError, setEscalateError] = useState("");
 
   const [draft, setDraft] = useState<RequestDraft | null>(null);
   const [draftStartedAt, setDraftStartedAt] = useState<number | null>(null);
@@ -108,6 +121,7 @@ export function useMaintenanceChat() {
         setSummaryState(result.summary_state);
         setSuggestedOptions(result.suggested_options);
         setIsComplete(result.is_complete);
+        if (result.emergency) setEmergencyDetected(true);
 
         const nextFields = deriveReportFields(result.summary_state, result.is_complete);
         const understood = diffNewlyCollected(lastFieldsRef.current, nextFields);
@@ -201,6 +215,9 @@ export function useMaintenanceChat() {
     setSummaryState(null);
     setSuggestedOptions([]);
     setIsComplete(false);
+    setEmergencyDetected(false);
+    setNotHelpful(false);
+    setEscalateError("");
     lastFieldsRef.current = deriveReportFields(null, false);
   }, []);
 
@@ -272,6 +289,76 @@ export function useMaintenanceChat() {
     }
   }, [draft, attachments, submitting]);
 
+  const userTurnCount = useMemo(
+    () => messages.filter((m) => m.role === "user").length,
+    [messages]
+  );
+
+  /** Hidden by default; surfaced by an emergency keyword, a "not helpful"
+   * mark, or reaching the turn threshold - whichever comes first. */
+  const canTalkToPerson = useMemo(
+    () => emergencyDetected || notHelpful || userTurnCount >= TALK_TO_PERSON_THRESHOLD,
+    [emergencyDetected, notHelpful, userTurnCount]
+  );
+
+  const markNotHelpful = useCallback(() => {
+    setNotHelpful(true);
+  }, []);
+
+  const escalateToHuman = useCallback(async () => {
+    if (escalating) return;
+    setEscalating(true);
+    setEscalateError("");
+
+    const gathered =
+      summaryState?.gathered_detail ||
+      messages.filter((m) => m.role === "user").map((m) => m.text).join(" ") ||
+      "Resident requested a person before AI triage could gather full details.";
+    const location = summaryState?.location;
+    const description = [
+      gathered,
+      location ? `(Location: ${location})` : null,
+      "Resident asked to speak with a person about this issue.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    try {
+      const ticket = await createMaintenanceTicket({
+        subject: summaryState?.subject || "Maintenance Request",
+        category: summaryState?.category || "Other",
+        priority_level: summaryState?.urgency_level || "Medium",
+        detailed_description: description,
+        human_requested: true,
+      });
+
+      // Best-effort: seed the human thread with context so whoever picks it
+      // up isn't starting from a blank chat. The ticket is already the
+      // source of truth if this one post fails - the resident can still
+      // type into the thread themselves once it opens.
+      try {
+        const opening = emergencyDetected
+          ? `This may be an emergency: ${gathered}`
+          : `I'd like to talk to someone about this: ${gathered}`;
+        await sendTicketChatMessage(ticket.id, opening);
+      } catch {
+        // ignored - see comment above
+      }
+
+      router.push(`/resident/maintenance/chat?id=${ticket.id}`);
+    } catch (err) {
+      setEscalateError(
+        err instanceof ApiClientError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not reach a person right now. Please try again."
+      );
+    } finally {
+      setEscalating(false);
+    }
+  }, [escalating, summaryState, messages, emergencyDetected, router]);
+
   return {
     phase,
     messages,
@@ -297,6 +384,13 @@ export function useMaintenanceChat() {
     submitting,
     submitError,
     submittedTicket,
+    emergencyDetected,
+    notHelpful,
+    canTalkToPerson,
+    markNotHelpful,
+    escalating,
+    escalateError,
+    escalateToHuman,
     submitRequest,
     previewPhase,
     maxAttachments: MAX_ATTACHMENTS,
