@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, LifeBuoy } from "lucide-react";
+import { Search, LifeBuoy, X } from "lucide-react";
 import { apiGet, apiPatch } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import AdminShell from "@/components/admin/admin-shell";
 import styles from "@/components/styles/Support.module.css";
+import modalStyles from "@/components/styles/Resident.module.css";
 
 interface SupportMessage {
   id: number;
@@ -24,6 +25,11 @@ export default function AdminSupportPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
+  const [confirmTarget, setConfirmTarget] = useState<SupportMessage | null>(null);
+  const [confirmNote, setConfirmNote] = useState("");
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+
   const loadMessages = () => {
     apiGet<SupportMessage[]>("/api/v1/admin/support/")
       .then(setMessages)
@@ -34,17 +40,41 @@ export default function AdminSupportPage() {
     loadMessages();
   }, []);
 
-  const toggleStatus = async (m: SupportMessage) => {
-    const nextStatus = m.status === "resolved" ? "open" : "resolved";
-    setBusyId(m.id);
+  const openConfirm = (m: SupportMessage) => {
+    setConfirmTarget(m);
+    setConfirmNote("");
+    setNotifyEmail(true);
+  };
+
+  const submitToggleStatus = async () => {
+    if (!confirmTarget) return;
+    const nextStatus = confirmTarget.status === "resolved" ? "open" : "resolved";
+    setBusyId(confirmTarget.id);
+    setConfirmSubmitting(true);
     try {
-      await apiPatch(`/api/v1/admin/support/${m.id}`, { status: nextStatus });
-      toast(nextStatus === "resolved" ? "Marked resolved." : "Reopened.", "success");
+      const res = await apiPatch<{ message: string; emailed: boolean }>(
+        `/api/v1/admin/support/${confirmTarget.id}`,
+        {
+          status: nextStatus,
+          note: confirmNote.trim() || null,
+          notify_email: nextStatus === "resolved" && notifyEmail,
+        },
+      );
+      toast(
+        nextStatus === "resolved"
+          ? res.emailed
+            ? "Marked resolved and emailed the sender."
+            : "Marked resolved (in-app only)."
+          : "Reopened.",
+        "success",
+      );
+      setConfirmTarget(null);
       loadMessages();
     } catch (err) {
       toastError(err, "Could not update this message.");
     } finally {
       setBusyId(null);
+      setConfirmSubmitting(false);
     }
   };
 
@@ -127,7 +157,7 @@ export default function AdminSupportPage() {
                           type="button"
                           className={styles.actionBtn}
                           disabled={busyId === m.id}
-                          onClick={() => toggleStatus(m)}
+                          onClick={() => openConfirm(m)}
                         >
                           {m.status === "resolved" ? "Reopen" : "Mark Resolved"}
                         </button>
@@ -140,6 +170,78 @@ export default function AdminSupportPage() {
           </div>
         </div>
       </div>
+
+      {confirmTarget ? (
+        <div className={modalStyles.modalOverlay}>
+          <div className={modalStyles.modalContent}>
+            <div className={modalStyles.modalHeader}>
+              <div>
+                <h2>{confirmTarget.status === "resolved" ? "Reopen Message" : "Mark Resolved"}</h2>
+                <p>
+                  {confirmTarget.name} - &quot;{confirmTarget.topic}&quot;
+                </p>
+              </div>
+              <button
+                type="button"
+                className={modalStyles.closeBtn}
+                onClick={() => setConfirmTarget(null)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className={modalStyles.modalBody}>
+              <div className={modalStyles.formGroup}>
+                <label>
+                  {confirmTarget.status === "resolved"
+                    ? "Note (visible to admins only)"
+                    : "Note for the sender (optional)"}
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Fixed on our end, please try again."
+                  value={confirmNote}
+                  onChange={(e) => setConfirmNote(e.target.value)}
+                />
+              </div>
+              {confirmTarget.status !== "resolved" ? (
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={notifyEmail}
+                    onChange={(e) => setNotifyEmail(e.target.checked)}
+                  />
+                  Email {confirmTarget.email} that this was resolved
+                </label>
+              ) : (
+                <p className={styles.email}>
+                  Reopening only changes status in this inbox - the sender is not emailed.
+                </p>
+              )}
+            </div>
+            <div className={modalStyles.modalFooter}>
+              <button
+                type="button"
+                className={modalStyles.cancelBtn}
+                onClick={() => setConfirmTarget(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={modalStyles.submitBtn}
+                disabled={confirmSubmitting}
+                onClick={submitToggleStatus}
+              >
+                {confirmSubmitting
+                  ? "Saving..."
+                  : confirmTarget.status === "resolved"
+                  ? "Reopen"
+                  : "Mark Resolved"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AdminShell>
   );
 }
