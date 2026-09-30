@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search, LifeBuoy } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPatch } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import AdminShell from "@/components/admin/admin-shell";
 import styles from "@/components/styles/Support.module.css";
 
@@ -17,15 +18,35 @@ interface SupportMessage {
 }
 
 export default function AdminSupportPage() {
+  const { toast, toastError } = useToast();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
-  useEffect(() => {
+  const loadMessages = () => {
     apiGet<SupportMessage[]>("/api/v1/admin/support/")
       .then(setMessages)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load support inbox"));
+  };
+
+  useEffect(() => {
+    loadMessages();
   }, []);
+
+  const toggleStatus = async (m: SupportMessage) => {
+    const nextStatus = m.status === "resolved" ? "open" : "resolved";
+    setBusyId(m.id);
+    try {
+      await apiPatch(`/api/v1/admin/support/${m.id}`, { status: nextStatus });
+      toast(nextStatus === "resolved" ? "Marked resolved." : "Reopened.", "success");
+      loadMessages();
+    } catch (err) {
+      toastError(err, "Could not update this message.");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -69,12 +90,13 @@ export default function AdminSupportPage() {
                   <th>Message</th>
                   <th>Status</th>
                   <th>Received</th>
+                  <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={6}>
                       <div className={styles.empty}>
                         <LifeBuoy size={20} style={{ marginBottom: "0.5rem" }} />
                         <div>No support messages found.</div>
@@ -93,13 +115,23 @@ export default function AdminSupportPage() {
                       <td>
                         <span
                           className={`${styles.badge} ${
-                            m.status === "Resolved" ? styles.badgeResolved : styles.badgeOpen
+                            m.status === "resolved" ? styles.badgeResolved : styles.badgeOpen
                           }`}
                         >
                           {m.status}
                         </span>
                       </td>
                       <td>{m.created_at ?? "—"}</td>
+                      <td style={{ textAlign: "right" }}>
+                        <button
+                          type="button"
+                          className={styles.actionBtn}
+                          disabled={busyId === m.id}
+                          onClick={() => toggleStatus(m)}
+                        >
+                          {m.status === "resolved" ? "Reopen" : "Mark Resolved"}
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}

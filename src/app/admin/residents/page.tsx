@@ -801,108 +801,6 @@ export default function DirectoryAndUserManagementPage() {
     );
   }
 
-  // --- FULL PAGE: Staff/Admin/Maintenance Detail View ---
-  if (viewingStaffUser) {
-    const user = viewingStaffUser;
-    return (
-      <AdminShell>
-        <div className={styles.container}>
-          <button type="button" className={styles.backBtn} onClick={() => setViewingStaffUser(null)}>
-            <ArrowLeft size={16} /> Back
-          </button>
-
-          <header className={styles.header}>
-            <h1>Staff Account</h1>
-            <p>{user.role}</p>
-          </header>
-
-          {staffError ? <p className={styles.subText}>{staffError}</p> : null}
-
-          <div className={styles.card} style={{ padding: "1.5rem" }}>
-            <div className={styles.previewHeader}>
-              <span
-                className={styles.avatar}
-                style={{ backgroundColor: AVATAR_COLORS[user.user_id % AVATAR_COLORS.length], width: 48, height: 48, fontSize: "1.1rem" }}
-              >
-                {initialsFor(user.full_name ?? user.email)}
-              </span>
-              <div className={styles.previewDetails}>
-                <h4>{user.full_name ?? "—"}</h4>
-                <span
-                  className={`${styles.badge} ${
-                    user.status === "Active"
-                      ? styles.badgeGreen
-                      : user.status === "Pending"
-                      ? styles.badgeOrange
-                      : styles.badgeGray
-                  }`}
-                >
-                  {user.status}
-                </span>
-              </div>
-            </div>
-
-            <div className={styles.formGrid2} style={{ marginTop: "1.5rem" }}>
-              <div className={styles.previewMetaRow}>
-                <label>Role</label>
-                <span>{user.role}</span>
-              </div>
-              <div className={styles.previewMetaRow}>
-                <label>Email</label>
-                <span>{user.email}</span>
-              </div>
-              <div className={styles.previewMetaRow}>
-                <label>Employee ID</label>
-                <span>{user.employee_id || "Not provided"}</span>
-              </div>
-              <div className={styles.previewMetaRow}>
-                <label>Registered</label>
-                <span>{user.created_at}</span>
-              </div>
-            </div>
-
-            <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              {user.status === "Pending" ? (
-                <>
-                  <button
-                    type="button"
-                    className={styles.primaryBtn}
-                    disabled={staffBusyId === user.user_id}
-                    onClick={() => handleUserDecision(user.user_id, "approve")}
-                  >
-                    Approve Account
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.secondaryOutlineBtn}
-                    disabled={staffBusyId === user.user_id}
-                    onClick={() => handleUserDecision(user.user_id, "reject")}
-                  >
-                    Reject Account
-                  </button>
-                </>
-              ) : null}
-              <button type="button" className={styles.secondaryOutlineBtn} onClick={() => openEditStaffUser(user)}>
-                Edit
-              </button>
-              <button type="button" className={styles.secondaryOutlineBtn} onClick={() => openResetPassword(user)}>
-                Reset Password
-              </button>
-              <button
-                type="button"
-                className={styles.secondaryOutlineBtn}
-                disabled={staffBusyId === user.user_id}
-                onClick={() => handleDeleteStaffUser(user)}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      </AdminShell>
-    );
-  }
-
   // --- FULL PAGE: Add Resident Form View (Picture 1) ---
   if (isAddingResident) {
     return (
@@ -1561,6 +1459,116 @@ export default function DirectoryAndUserManagementPage() {
           )}
         </div>
       </div>
+
+      {/* --- MODAL: Staff/Admin/Maintenance Detail View --- */}
+      {viewingStaffUser && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <div className={styles.modalHeader}>
+              <div>
+                <h2>Staff Account</h2>
+                <p>{viewingStaffUser.role}</p>
+              </div>
+              <button type="button" className={styles.closeBtn} onClick={() => setViewingStaffUser(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              {staffError ? <p className={styles.subText}>{staffError}</p> : null}
+              <div className={styles.previewHeader}>
+                <span
+                  className={styles.avatar}
+                  style={{
+                    backgroundColor: AVATAR_COLORS[viewingStaffUser.user_id % AVATAR_COLORS.length],
+                    width: 48,
+                    height: 48,
+                    fontSize: "1.1rem",
+                  }}
+                >
+                  {initialsFor(viewingStaffUser.full_name ?? viewingStaffUser.email)}
+                </span>
+                <div className={styles.previewDetails}>
+                  <h4>{viewingStaffUser.full_name ?? "—"}</h4>
+                  <span
+                    className={`${styles.badge} ${
+                      viewingStaffUser.status === "Active"
+                        ? styles.badgeGreen
+                        : viewingStaffUser.status === "Pending"
+                        ? styles.badgeOrange
+                        : styles.badgeGray
+                    }`}
+                  >
+                    {viewingStaffUser.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.formGrid2} style={{ marginTop: "1.5rem" }}>
+                <div className={styles.previewMetaRow}>
+                  <label>Role</label>
+                  <span>{viewingStaffUser.role}</span>
+                </div>
+                <div className={styles.previewMetaRow}>
+                  <label>Email</label>
+                  <span>{viewingStaffUser.email}</span>
+                </div>
+                <div className={styles.previewMetaRow}>
+                  <label>Employee ID</label>
+                  <span>{viewingStaffUser.employee_id || "Not provided"}</span>
+                </div>
+                <div className={styles.previewMetaRow}>
+                  <label>Registered</label>
+                  <span>{viewingStaffUser.created_at}</span>
+                </div>
+              </div>
+            </div>
+            <div className={styles.modalFooter} style={{ flexWrap: "wrap", justifyContent: "flex-start", gap: "0.75rem" }}>
+              {viewingStaffUser.status === "Pending" ? (
+                <>
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    disabled={staffBusyId === viewingStaffUser.user_id}
+                    onClick={() => handleUserDecision(viewingStaffUser.user_id, "approve")}
+                  >
+                    Approve Account
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.secondaryOutlineBtn}
+                    disabled={staffBusyId === viewingStaffUser.user_id}
+                    onClick={() => handleUserDecision(viewingStaffUser.user_id, "reject")}
+                  >
+                    Reject Account
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                className={styles.secondaryOutlineBtn}
+                onClick={() => openEditStaffUser(viewingStaffUser)}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryOutlineBtn}
+                onClick={() => openResetPassword(viewingStaffUser)}
+              >
+                Reset Password
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryOutlineBtn}
+                disabled={staffBusyId === viewingStaffUser.user_id}
+                onClick={() => handleDeleteStaffUser(viewingStaffUser)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- MODAL: Register Staff --- */}
       {showRegisterStaff && (

@@ -114,6 +114,25 @@
   color: #15803d;
 }
 
+.actionBtn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0b1a2d;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.actionBtn:hover {
+  background: #f8fafc;
+}
+
+.actionBtn:disabled {
+  opacity: 0.6;
+}
+
 .empty {
   padding: 2rem 1.5rem;
   text-align: center;
