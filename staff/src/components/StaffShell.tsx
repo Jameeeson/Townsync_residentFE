@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   IconBell,
   IconCalendar,
@@ -12,6 +12,7 @@ import {
   IconSettings,
 } from "@/components/icons";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
+import { getStaffNotifications, type StaffNotificationItem } from "@/lib/services/staff";
 import styles from "./StaffShell.module.css";
 
 const NAV = [
@@ -26,18 +27,40 @@ const NAV = [
   { href: "/staff/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
-// Live notifications aren't wired to the backend yet — the panel opens to an
-// honest empty state rather than fabricated activity.
-const NOTIFICATIONS: { id: string; title: string; meta: string }[] = [];
+const NOTIFICATION_POLL_MS = 60_000;
 
 export function StaffShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session, loading, error, canUseScanner, canUseCalendar, canUseLogs } =
     useStaffSession();
   const [notifOpen, setNotifOpen] = useState(false);
-  const [unread, setUnread] = useState(false);
+  const [notifications, setNotifications] = useState<StaffNotificationItem[]>([]);
+  const [notifTotal, setNotifTotal] = useState(0);
+  const [seenCount, setSeenCount] = useState(0);
   const panelId = useId();
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const loadNotifications = useCallback(() => {
+    if (!session) return;
+    getStaffNotifications()
+      .then((data) => {
+        setNotifications(data.items);
+        setNotifTotal(data.total);
+      })
+      .catch(() => {
+        setNotifications([]);
+        setNotifTotal(0);
+      });
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    loadNotifications();
+    const timer = setInterval(loadNotifications, NOTIFICATION_POLL_MS);
+    return () => clearInterval(timer);
+  }, [session, loadNotifications]);
+
+  const unread = notifTotal > seenCount;
 
   const nav = NAV.filter((item) => {
     if ("scannerOnly" in item && !canUseScanner) return false;
@@ -118,13 +141,14 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 className={styles.iconBtn}
                 aria-label={
-                  unread ? "Notifications, unread items" : "Notifications"
+                  notifTotal > 0 ? `Notifications, ${notifTotal} pending` : "Notifications"
                 }
                 aria-expanded={notifOpen}
                 aria-controls={panelId}
                 onClick={() => {
+                  if (!notifOpen) loadNotifications();
                   setNotifOpen((v) => !v);
-                  setUnread(false);
+                  setSeenCount(notifTotal);
                 }}
               >
                 <IconBell size={20} />
@@ -140,16 +164,14 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
                   <div className={styles.notifHead}>
                     <strong>Notifications</strong>
                   </div>
-                  {NOTIFICATIONS.length === 0 ? (
-                    <p className={styles.notifEmpty}>
-                      Live notifications aren&apos;t available yet.
-                    </p>
+                  {notifications.length === 0 ? (
+                    <p className={styles.notifEmpty}>You&apos;re all caught up.</p>
                   ) : (
                     <ul className={styles.notifList}>
-                      {NOTIFICATIONS.map((n) => (
-                        <li key={n.id}>
+                      {notifications.map((n, i) => (
+                        <li key={`${n.type}-${i}`}>
                           <p>{n.title}</p>
-                          <span>{n.meta}</span>
+                          <span>{n.detail ?? n.created_at ?? ""}</span>
                         </li>
                       ))}
                     </ul>

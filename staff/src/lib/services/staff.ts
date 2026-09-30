@@ -56,6 +56,25 @@ export function getExpectedVisitorBreakdown() {
   return api.get<ExpectedVisitorItem[]>("/api/v1/staff/dashboard/expected-visitors");
 }
 
+/** Bell-icon feed: assigned tickets (Maintenance) or today's expected visitors (Staff). */
+export type StaffNotificationItem = {
+  type: string;
+  title: string;
+  detail: string | null;
+  created_at: string | null;
+  href: string;
+};
+
+export type StaffNotifications = {
+  total: number;
+  counts: Record<string, number>;
+  items: StaffNotificationItem[];
+};
+
+export function getStaffNotifications() {
+  return api.get<StaffNotifications>("/api/v1/staff/dashboard/notifications");
+}
+
 // ----- Tasks (Maintenance staff only) -----
 
 export type TaskStatus = "Open" | "Assigned" | "Ongoing" | "Completed" | "Cancelled";
