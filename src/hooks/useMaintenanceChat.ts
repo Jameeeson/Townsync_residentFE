@@ -12,10 +12,6 @@ import {
 import { ApiClientError } from "@/lib/apiClient";
 import { deriveReportFields, diffNewlyCollected, type UnderstoodItem } from "@/lib/maintenanceReport";
 
-/** Turns before "Talk to a person" appears on its own (an emergency keyword
- * or a "not helpful" mark can also surface it sooner - see canTalkToPerson). */
-const TALK_TO_PERSON_THRESHOLD = 3;
-
 export type ChatRole = "ai" | "user";
 
 export interface ChatMessageData {
@@ -289,17 +285,9 @@ export function useMaintenanceChat() {
     }
   }, [draft, attachments, submitting]);
 
-  const userTurnCount = useMemo(
-    () => messages.filter((m) => m.role === "user").length,
-    [messages]
-  );
-
-  /** Hidden by default; surfaced by an emergency keyword, a "not helpful"
-   * mark, or reaching the turn threshold - whichever comes first. */
-  const canTalkToPerson = useMemo(
-    () => emergencyDetected || notHelpful || userTurnCount >= TALK_TO_PERSON_THRESHOLD,
-    [emergencyDetected, notHelpful, userTurnCount]
-  );
+  /** Hidden by default; the AI decides. The backend sets `emergency` when the
+   * model flags `needs_human` (or a safety keyword matches). */
+  const canTalkToPerson = useMemo(() => emergencyDetected || notHelpful, [emergencyDetected, notHelpful]);
 
   const markNotHelpful = useCallback(() => {
     setNotHelpful(true);

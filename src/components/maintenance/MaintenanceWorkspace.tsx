@@ -91,9 +91,6 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
               ? "If this affects safety or building access, we'll mark this as an immediate priority for dispatch today."
               : null
           }
-          onNotHelpful={
-            !chat.isComplete && !chat.notHelpful && !chat.loading ? chat.markNotHelpful : undefined
-          }
         />
 
         <TalkToPersonPanel

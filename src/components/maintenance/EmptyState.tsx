@@ -49,7 +49,7 @@ export function EmptyState({ value, onChange, onSubmit }: EmptyStateProps) {
           <input
             ref={inputRef}
             className={styles.emptyInputField}
-            placeholder="Tell us what happened… (e.g. 'The dishwasher is overflowing soapy water in 4B')"
+            placeholder="Tell us what happened…"
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
