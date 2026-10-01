@@ -7,35 +7,38 @@ export interface ParsedIdFields {
 
 type NamePart = "first" | "middle" | "last" | "full";
 
-// Exact-match label -> which part of the name it holds. Matched against the
-// text before a ":" on the same line, so this only fires for ID formats where
-// the label and value share one line (e.g. "Last Name: RIVERA").
-const NAME_LABELS: Record<string, NamePart> = {
-  "NAME": "full",
-  "FULL NAME": "full",
-  "GIVEN NAME": "first",
-  "GIVEN NAMES": "first",
-  "FIRST NAME": "first",
-  "PANGALAN": "first",
-  "LAST NAME": "last",
-  "SURNAME": "last",
-  "FAMILY NAME": "last",
-  "APELYIDO": "last",
-  "MIDDLE NAME": "middle",
-};
+// Keyword groups, most-specific first. A line is classified by the first group whose
+// keyword appears in it, so "Gitnang Apelyido/Middle Name" resolves to "middle" even
+// though "Apelyido" (a "last" keyword) is also a substring of that line.
+const NAME_LABEL_GROUPS: { part: NamePart; keywords: string[] }[] = [
+  { part: "middle", keywords: ["MIDDLE NAME", "GITNANG APELYIDO", "GITNANG"] },
+  { part: "last", keywords: ["LAST NAME", "SURNAME", "FAMILY NAME", "APELYIDO"] },
+  { part: "first", keywords: ["GIVEN NAME", "GIVEN NAMES", "FIRST NAME", "PANGALAN"] },
+  { part: "full", keywords: ["FULL NAME", "NAME"] },
+];
+
+function classifyNameLabel(line: string): NamePart | null {
+  const upper = line.toUpperCase();
+  for (const group of NAME_LABEL_GROUPS) {
+    if (group.keywords.some((kw) => upper.includes(kw))) return group.part;
+  }
+  return null;
+}
+
+function isUsableNameValue(value: string): boolean {
+  if (!value) return false;
+  const alphaChars = value.replace(/[^a-zA-Z]/g, "").length;
+  return alphaChars / value.length >= 0.6;
+}
 
 function extractLabeledNameValue(line: string): { part: NamePart; value: string } | null {
   const colonIndex = line.indexOf(":");
   if (colonIndex === -1) return null;
 
-  const label = line.slice(0, colonIndex).trim().toUpperCase();
+  const label = line.slice(0, colonIndex).trim();
   const value = line.slice(colonIndex + 1).trim();
-  const part = NAME_LABELS[label];
-  if (!part || !value) return null;
-
-  // Guard against grabbing a noisy/non-name value that happens to follow a name-ish label.
-  const alphaChars = value.replace(/[^a-zA-Z]/g, "").length;
-  if (alphaChars / value.length < 0.6) return null;
+  const part = classifyNameLabel(label);
+  if (!part || !isUsableNameValue(value)) return null;
 
   return { part, value };
 }
@@ -99,30 +102,34 @@ export function parseIdText(text: string): ParsedIdFields {
       labeledParts[extracted.part] = extracted.value;
     }
   }
+
+  // Strategy B: bilingual label on its own line with no colon (PhilSys-style, e.g.
+  // "Apelyido/Last Name" followed on the next line(s) by "DELA CRUZ"). Fills in
+  // whichever parts Strategy A didn't already find from a same-line pair.
+  for (let i = 0; i < lines.length; i++) {
+    const part = classifyNameLabel(lines[i]);
+    if (!part || labeledParts[part]) continue;
+
+    // The value sits immediately after its label in these formats. Stop as soon as we
+    // hit the next field's label (or a clearly bad line), so a short value like "JUAN"
+    // doesn't lose out to a longer value belonging to the *next* field further down.
+    for (let j = i + 1; j <= i + 2 && j < lines.length; j++) {
+      if (classifyNameLabel(lines[j])) break;
+      const score = scoreAsName(lines[j]);
+      if (score < 0) break;
+      if (score >= 0.5) {
+        labeledParts[part] = lines[j];
+        break;
+      }
+    }
+  }
+
   if (labeledParts.full) {
     bestName = labeledParts.full;
     highestScore = 1;
-  } else if (labeledParts.first || labeledParts.last) {
+  } else if (labeledParts.first || labeledParts.last || labeledParts.middle) {
     bestName = [labeledParts.first, labeledParts.middle, labeledParts.last].filter(Boolean).join(" ");
     highestScore = 1;
-  }
-
-  // Strategy B: PhilSys-style "GIVEN NAME" label on its own line, with the actual
-  // name printed on one of the next few lines.
-  if (!bestName) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].toUpperCase();
-
-      if (line.includes("GIVEN NAME") || line.includes("PANGALAN")) {
-        for (let j = i + 1; j <= i + 3 && j < lines.length; j++) {
-          const score = scoreAsName(lines[j]);
-          if (score > highestScore) {
-            highestScore = score;
-            bestName = lines[j];
-          }
-        }
-      }
-    }
   }
 
   // Strategy C: fallback if neither label-driven strategy found anything — just
@@ -139,9 +146,9 @@ export function parseIdText(text: string): ParsedIdFields {
 
   // 3. Determine ID Type
   let idType = "National ID";
-  if (/driver|license|dl/i.test(fullText)) idType = "Driver's License";
+  if (/driver|license|\bdl\b/i.test(fullText)) idType = "Driver's License";
   else if (/passport/i.test(fullText)) idType = "Passport";
-  else if (/umid|sss|philhealth|tin/i.test(fullText)) idType = "Government ID";
+  else if (/\b(umid|sss|philhealth|tin)\b/i.test(fullText)) idType = "Government ID";
 
   return {
     fullName: bestName.replace(/[^a-zA-Z\s,.]/g, ""), // Clean noise

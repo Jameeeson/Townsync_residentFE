@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWorker } from "tesseract.js";
+import { createWorker, PSM } from "tesseract.js";
 import { parseIdText } from "@/lib/ocrParser";
 
 export const runtime = "nodejs";
@@ -137,9 +137,22 @@ export async function POST(request: NextRequest) {
     let processedImage: Buffer;
     if (sharp) {
       try {
-        processedImage = await sharp(buffer, { limitInputPixels: MAX_PIXELS })
+        const oriented = sharp(buffer, { limitInputPixels: MAX_PIXELS }).rotate(); // auto-orient from EXIF
+        const { width = 0 } = await oriented.metadata();
+
+        // ID photos are often captured small (webcam/low-res upload); Tesseract's accuracy
+        // scales with resolution, so upscale anything below a reasonable working width.
+        const MIN_WIDTH = 1600;
+        let pipeline = oriented;
+        if (width > 0 && width < MIN_WIDTH) {
+          pipeline = pipeline.resize({ width: MIN_WIDTH, kernel: "lanczos3" });
+        }
+
+        processedImage = await pipeline
           .grayscale() // Tesseract works better on B&W
           .normalize() // Fix exposure
+          .linear(1.3, -20) // extra contrast boost to push faint watermark/security patterns toward white
+          .sharpen({ sigma: 1 })
           .toBuffer();
       } catch {
         return NextResponse.json({ error: "That file is not a readable image." }, { status: 415 });
@@ -154,6 +167,12 @@ export async function POST(request: NextRequest) {
     }
 
     worker = await createWorker("eng");
+    // ID cards are scattered field blocks, not paragraphs — SPARSE_TEXT finds disjoint
+    // text regions far better than the default AUTO mode, which expects a uniform page.
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+      preserve_interword_spaces: "1",
+    });
     const {
       data: { text },
     } = await worker.recognize(processedImage);
