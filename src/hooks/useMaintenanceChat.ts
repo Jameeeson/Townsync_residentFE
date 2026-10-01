@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   maintenanceAiChatTurn,
+  cancelMaintenanceTicket,
   createMaintenanceTicket,
   sendTicketChatMessage,
   type AiSummaryState,
@@ -180,6 +181,14 @@ export function useMaintenanceChat() {
   }, []);
 
   const discardRequest = useCallback(() => {
+    // The AI chat already filed this as a real 'Open' ticket (see aiTicketId above);
+    // discarding the draft must cancel it server-side too, or it's orphaned as Open
+    // forever. Best-effort and not awaited: the resident expects an instant exit.
+    if (aiTicketId != null) {
+      cancelMaintenanceTicket(aiTicketId).catch(() => {
+        // ignored - nothing left in this flow to show the error on
+      });
+    }
     setDraft(null);
     setDraftStartedAt(null);
     setSubmitError("");
@@ -194,7 +203,7 @@ export function useMaintenanceChat() {
     setNotHelpful(false);
     setEscalateError("");
     lastFieldsRef.current = deriveReportFields(null, false);
-  }, []);
+  }, [aiTicketId]);
 
   const updateDraft = useCallback((patch: Partial<RequestDraft>) => {
     setDraft((d) => (d ? { ...d, ...patch } : d));
