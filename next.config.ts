@@ -23,6 +23,13 @@ const nextConfig: NextConfig = {
       "./node_modules/@img/sharp-linux-x64/**/*",
       "./node_modules/tesseract.js/**/*",
       "./node_modules/tesseract.js-core/**/*",
+      // tesseract.js's worker thread (worker-script/node/index.js) require()s these
+      // itself at runtime, outside Next's static import graph, so the tracer misses them.
+      "./node_modules/bmp-js/**/*",
+      "./node_modules/is-url/**/*",
+      "./node_modules/regenerator-runtime/**/*",
+      "./node_modules/node-fetch/**/*",
+      "./node_modules/wasm-feature-detect/**/*",
     ],
   },
 };
