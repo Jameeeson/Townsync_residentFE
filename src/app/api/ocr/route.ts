@@ -1,9 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createWorker } from "tesseract.js";
 import { parseIdText } from "@/lib/ocrParser";
-import sharp from "sharp";
 
 export const runtime = "nodejs";
+
+// sharp is loaded lazily and treated as optional. It needs a native libvips file at runtime; if the
+// deployment is ever missing it, a top-level import would make EVERY scan fail with a 500 before this
+// handler even runs. Without it we skip the grayscale/normalize step and validate the image ourselves.
+type Sharp = (typeof import("sharp"))["default"];
+let sharpModule: Sharp | null | undefined;
+
+async function loadSharp(): Promise<Sharp | null> {
+  if (sharpModule !== undefined) return sharpModule;
+  try {
+    sharpModule = (await import("sharp")).default;
+  } catch (error) {
+    console.error("sharp is unavailable; OCR will run without image preprocessing:", error);
+    sharpModule = null;
+  }
+  return sharpModule;
+}
+
+// Dimensions from the file header (PNG / JPEG only), so the decoded-pixel limit still holds without sharp.
+function readDimensions(buf: Buffer): { width: number; height: number } | null {
+  if (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47 && buf.readUInt32BE(4) === 0x0d0a1a0a) {
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  if (buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) {
+        i += 1;
+        continue;
+      }
+      const marker = buf[i + 1];
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+        i += 2;
+        continue;
+      }
+      const isStartOfFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+      if (isStartOfFrame) {
+        return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+      }
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+  }
+  return null;
+}
 
 // This endpoint is public (it powers ID scanning during registration), so it is
 // bounded on every axis an anonymous caller could abuse: origin, size, file type,
@@ -90,14 +133,24 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // sharp decodes by content, not by the claimed MIME type, and refuses oversized images.
+    const sharp = await loadSharp();
     let processedImage: Buffer;
-    try {
-      processedImage = await sharp(buffer, { limitInputPixels: MAX_PIXELS })
-        .grayscale() // Tesseract works better on B&W
-        .normalize() // Fix exposure
-        .toBuffer();
-    } catch {
-      return NextResponse.json({ error: "That file is not a readable image." }, { status: 415 });
+    if (sharp) {
+      try {
+        processedImage = await sharp(buffer, { limitInputPixels: MAX_PIXELS })
+          .grayscale() // Tesseract works better on B&W
+          .normalize() // Fix exposure
+          .toBuffer();
+      } catch {
+        return NextResponse.json({ error: "That file is not a readable image." }, { status: 415 });
+      }
+    } else {
+      // Fallback: accept only PNG/JPEG we can measure, and enforce the same pixel limit from the header.
+      const dimensions = readDimensions(buffer);
+      if (!dimensions || dimensions.width * dimensions.height > MAX_PIXELS) {
+        return NextResponse.json({ error: "That file is not a readable image." }, { status: 415 });
+      }
+      processedImage = buffer;
     }
 
     worker = await createWorker("eng");
