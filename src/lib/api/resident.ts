@@ -58,6 +58,9 @@ export async function createMaintenanceTicket(fields: {
    * decides urgency independently of priority_level for these - see
    * resolve_escalation_priority on the backend. */
   human_requested?: boolean;
+  /** The AI chat files a ticket itself when triage completes. Passing its id
+   * completes that ticket instead of creating a duplicate. */
+  ticket_id?: number | null;
   images?: File[];
 }): Promise<MaintenanceTicket> {
   const form = new FormData();
@@ -67,6 +70,7 @@ export async function createMaintenanceTicket(fields: {
   form.set("detailed_description", fields.detailed_description);
   if (fields.preferred_date) form.set("preferred_date", fields.preferred_date);
   if (fields.human_requested) form.set("human_requested", "true");
+  if (fields.ticket_id != null) form.set("ticket_id", String(fields.ticket_id));
   fields.images?.forEach((file) => form.append("images", file));
   return apiClient.post<MaintenanceTicket>("/api/v1/resident/maintenance/tickets", form);
 }

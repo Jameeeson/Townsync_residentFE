@@ -52,6 +52,8 @@ export function useMaintenanceChat() {
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Ticket the backend already filed when the AI triage completed (null until then).
+  const [aiTicketId, setAiTicketId] = useState<number | null>(null);
   const [summaryState, setSummaryState] = useState<AiSummaryState | null>(null);
   const [suggestedOptions, setSuggestedOptions] = useState<string[]>([]);
   const [isComplete, setIsComplete] = useState(false);
@@ -89,6 +91,7 @@ export function useMaintenanceChat() {
       try {
         const result = await maintenanceAiChatTurn(trimmed, sessionId);
         setSessionId(result.session_id);
+        if (result.ticket_id != null) setAiTicketId(result.ticket_id);
         setSummaryState(result.summary_state);
         setSuggestedOptions(result.suggested_options);
         setIsComplete(result.is_complete);
@@ -183,6 +186,7 @@ export function useMaintenanceChat() {
     setPhase("empty");
     setMessages([]);
     setSessionId(null);
+    setAiTicketId(null);
     setSummaryState(null);
     setSuggestedOptions([]);
     setIsComplete(false);
@@ -217,6 +221,7 @@ export function useMaintenanceChat() {
         priority_level: draft.urgency || "Medium",
         detailed_description: description,
         preferred_date: draft.preferredDate || undefined,
+        ticket_id: aiTicketId,
         images: attachments.map((a) => a.file),
       });
       setSubmittedTicket(ticket);
@@ -232,7 +237,7 @@ export function useMaintenanceChat() {
     } finally {
       setSubmitting(false);
     }
-  }, [draft, attachments, submitting]);
+  }, [draft, attachments, submitting, aiTicketId]);
 
   /** Hidden by default; the AI decides. The backend sets `emergency` when the
    * model flags `needs_human` (or a safety keyword matches). */
@@ -267,6 +272,7 @@ export function useMaintenanceChat() {
         priority_level: summaryState?.urgency_level || "Medium",
         detailed_description: description,
         human_requested: true,
+        ticket_id: aiTicketId,
       });
 
       // Best-effort: seed the human thread with context so whoever picks it
@@ -294,7 +300,7 @@ export function useMaintenanceChat() {
     } finally {
       setEscalating(false);
     }
-  }, [escalating, summaryState, messages, emergencyDetected, router]);
+  }, [escalating, summaryState, messages, emergencyDetected, aiTicketId, router]);
 
   return {
     phase,
