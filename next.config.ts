@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
   reactCompiler: true,
-  serverExternalPackages: ["tesseract.js"],
+  serverExternalPackages: ["tesseract.js", "sharp"],
 };
 
 export default nextConfig;
