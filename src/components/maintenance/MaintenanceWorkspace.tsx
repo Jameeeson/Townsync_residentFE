@@ -14,18 +14,12 @@ import { ReviewBrief } from "./ReviewBrief";
 import { SuccessPanel } from "./SuccessPanel";
 import { HelpfulResource } from "./HelpfulResource";
 import { TalkToPersonPanel } from "./TalkToPersonPanel";
-import { DevPreviewBar } from "./DevPreviewBar";
 import { TicketHistoryPanel } from "./TicketHistoryPanel";
 
 export function MaintenanceWorkspace() {
   const chat = useMaintenanceChat();
 
-  return (
-    <>
-      {renderPhase(chat)}
-      <DevPreviewBar onPreview={chat.previewPhase} />
-    </>
-  );
+  return <>{renderPhase(chat)}</>;
 }
 
 function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {

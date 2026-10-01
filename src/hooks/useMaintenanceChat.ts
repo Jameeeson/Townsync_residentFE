@@ -46,31 +46,6 @@ const FALLBACK_MESSAGE =
 
 const MAX_ATTACHMENTS = 4;
 
-/**
- * Dev-only fixtures so the review/success layouts can be inspected without a live AI backend.
- * Never reachable in production — gated both here and at the trigger UI (DevPreviewBar).
- */
-const PREVIEW_SUMMARY: AiSummaryState = {
-  category: "Plumbing",
-  urgency_level: "High",
-  subject: "Kitchen sink leaking steadily",
-  location: "Kitchen, under the sink",
-  gathered_detail:
-    "The kitchen sink has been leaking steadily since this morning, with water pooling under the cabinet.",
-  confidence_score: 0.93,
-};
-
-const PREVIEW_TICKET: MaintenanceTicket = {
-  id: 8492,
-  subject: "Kitchen sink leaking steadily",
-  category: "Plumbing",
-  priority_level: "High",
-  detailed_description:
-    "The kitchen sink has been leaking steadily since this morning, with water pooling under the cabinet. (Location: Kitchen, under the sink)",
-  status: "Submitted",
-  created_at: new Date().toISOString(),
-};
-
 export function useMaintenanceChat() {
   const router = useRouter();
   const [phase, setPhase] = useState<WorkspacePhase>("empty");
@@ -221,32 +196,6 @@ export function useMaintenanceChat() {
     setDraft((d) => (d ? { ...d, ...patch } : d));
   }, []);
 
-  /** Dev-only: jump straight to the review or success layout using fixture data. */
-  const previewPhase = useCallback((target: "review" | "success") => {
-    if (process.env.NODE_ENV === "production") return;
-
-    if (target === "review") {
-      setSummaryState(PREVIEW_SUMMARY);
-      setIsComplete(true);
-      setDraft({
-        subject: PREVIEW_SUMMARY.subject ?? "",
-        category: PREVIEW_SUMMARY.category ?? "",
-        location: PREVIEW_SUMMARY.location ?? "",
-        description: PREVIEW_SUMMARY.gathered_detail ?? "",
-        urgency: PREVIEW_SUMMARY.urgency_level ?? "Medium",
-        preferredDate: "",
-        entryPermission: false,
-        entryNotes: "",
-      });
-      setDraftStartedAt(Date.now());
-      setSubmitError("");
-      setPhase("review");
-    } else {
-      setSubmittedTicket(PREVIEW_TICKET);
-      setPhase("success");
-    }
-  }, []);
-
   const submitRequest = useCallback(async () => {
     if (!draft || submitting) return;
     setSubmitting(true);
@@ -380,7 +329,6 @@ export function useMaintenanceChat() {
     escalateError,
     escalateToHuman,
     submitRequest,
-    previewPhase,
     maxAttachments: MAX_ATTACHMENTS,
   };
 }
