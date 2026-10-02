@@ -419,13 +419,6 @@
   }
 }
 
-@media (max-width: 640px) {
-  .conversationColumn {
-    height: clamp(440px, 80dvh, 640px);
-    padding: 1.25rem 1rem;
-    border-radius: var(--radius-md);
-  }
-}
 
 .conversationHeader {
   flex-shrink: 0;
@@ -2239,3 +2232,116 @@
   color: var(--color-primary-700);
 }
 
+/* Phones: the column has a fixed height and everything except the stream is
+   flex-shrink: 0, so the header, gathered chips, talk-to-a-person panel and
+   composer used to take the whole column and squeeze the conversation itself to
+   0px. Here the column gets (almost) the full screen height and the surrounding
+   parts go compact - single scrollable rows instead of wrapping stacks - so the
+   messages always keep most of the space. Kept last in the file so it overrides
+   the base rules above. */
+@media (max-width: 640px) {
+  .conversationColumn {
+    height: max(460px, calc(100dvh - 7.5rem));
+    padding: 0.85rem 0.85rem 0.75rem;
+    border-radius: var(--radius-md);
+  }
+
+  .conversationHeader {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .conversationHeaderSub,
+  .ticketDraftPill {
+    display: none;
+  }
+
+  .gatheredBar {
+    margin-bottom: var(--space-3);
+  }
+
+  .gatheredBarLabel {
+    display: none;
+  }
+
+  .gatheredChips,
+  .optionRow {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Let chips scroll to the column edge instead of clipping at the padding. */
+    margin-inline: -0.85rem;
+    padding-inline: 0.85rem;
+  }
+
+  .gatheredChips::-webkit-scrollbar,
+  .optionRow::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gatheredChip,
+  .optionChip,
+  .gatheredConfidence {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .stream {
+    min-height: 140px;
+  }
+
+  .talkToPerson,
+  .helpfulResource {
+    margin: var(--space-2) 0;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  /* Text and button share one line; an escalation error still wraps below. */
+  .talkToPersonText {
+    min-width: 0;
+    flex-basis: 0;
+    font-size: 0.75rem;
+  }
+
+  /* The button says it all; the non-emergency prompt never takes more than two
+     lines. The emergency wording is always shown in full. */
+  .talkToPerson:not(.talkToPersonEmergency) .talkToPersonText span {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .talkToPersonBtn,
+  .talkToPersonBtnEmergency {
+    padding: 0.45rem 0.75rem;
+  }
+
+  .composerArea {
+    padding-top: var(--space-2);
+  }
+
+  .optionRow {
+    margin-bottom: var(--space-2);
+  }
+
+  .composerHint {
+    margin-top: var(--space-2);
+  }
+}
+
+/* Smallest phones: a clipped "Not getting…" reads as broken, so the
+   non-emergency prompt is just its button. */
+@media (max-width: 400px) {
+  .talkToPerson:not(.talkToPersonEmergency) .talkToPersonText {
+    display: none;
+  }
+
+  .talkToPerson:not(.talkToPersonEmergency) .talkToPersonBtn {
+    flex: 1;
+    justify-content: center;
+  }
+}
