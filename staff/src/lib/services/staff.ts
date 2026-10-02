@@ -102,14 +102,22 @@ export function getTask(taskId: number) {
   return api.get<MaintenanceTask>(`/api/v1/staff/tasks/${taskId}`);
 }
 
+export type AssessedPriority = "Low" | "Medium" | "High" | "Emergency";
+
+/** Completing requires `assessment`: the technician's own priority call. */
 export function updateTaskProgress(
   taskId: number,
   status: "Ongoing" | "Completed",
   workDone: string,
+  assessment?: { priority: AssessedPriority; comment?: string },
 ) {
   const form = new FormData();
   form.set("status", status);
   form.set("work_done", workDone);
+  if (assessment) {
+    form.set("assessed_priority", assessment.priority);
+    if (assessment.comment) form.set("priority_comment", assessment.comment);
+  }
   return api.patchForm<{ message: string; status: string }>(
     `/api/v1/staff/tasks/${taskId}/progress`,
     form,

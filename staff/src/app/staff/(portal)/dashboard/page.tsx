@@ -10,6 +10,7 @@ import {
 import { StatDetailModal, type StatDetailRow } from "@/components/StatDetailModal";
 import { SuccessModal } from "@/components/SuccessModal";
 import { TaskDetailsModal, type TaskDetails } from "@/components/TaskDetailsModal";
+import { CompleteTaskModal, type CompletionAssessment } from "@/components/CompleteTaskModal";
 import { useToast } from "@/components/Toast";
 import {
   IconArrowRight,
@@ -127,6 +128,8 @@ export default function StaffDashboardPage() {
   const [successOpen, setSuccessOpen] = useState(false);
   const [submittedUnit, setSubmittedUnit] = useState("");
   const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
+  // Task waiting for the technician's "how urgent was it really?" answer before completing.
+  const [completingId, setCompletingId] = useState<number | null>(null);
 
   const [statView, setStatView] = useState<StatView>(null);
   const [statLoading, setStatLoading] = useState(false);
@@ -207,6 +210,7 @@ export default function StaffDashboardPage() {
     return t.status === "done";
   });
 
+  const completing = tasks.find((t) => t.id === completingId) ?? null;
   const selected: TaskDetails | null =
     tasks.find((t) => t.id === selectedId) ?? null;
 
@@ -277,14 +281,19 @@ export default function StaffDashboardPage() {
     },
   } as const;
 
-  async function completeTask(id: number) {
+  function completeTask(id: number) {
+    setSelectedId(null);
+    setCompletingId(id);
+  }
+
+  async function finishTask(id: number, assessment: CompletionAssessment) {
     setBusyTaskId(id);
     try {
-      await updateTaskProgress(id, "Completed", "Work completed on-site.");
+      await updateTaskProgress(id, "Completed", "Work completed on-site.", assessment);
       setTasks((prev) =>
         prev.map((t) => (t.id === id ? { ...t, status: "done", meta: "Completed just now" } : t)),
       );
-      setSelectedId(null);
+      setCompletingId(null);
       toast("Task marked complete.", "success");
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not update the task.", "danger");
@@ -581,6 +590,15 @@ export default function StaffDashboardPage() {
             if (task.status === "pending") startTask(id);
             else completeTask(id);
           }}
+        />
+      ) : null}
+      {completing ? (
+        <CompleteTaskModal
+          taskTitle={completing.title}
+          filedPriority={`${completing.priority[0].toUpperCase()}${completing.priority.slice(1)}`}
+          busy={busyTaskId === completing.id}
+          onClose={() => setCompletingId(null)}
+          onConfirm={(assessment) => finishTask(completing.id, assessment)}
         />
       ) : null}
       {maintOpen ? (

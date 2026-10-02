@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TaskDetailsModal, type TaskDetails } from "@/components/TaskDetailsModal";
+import { CompleteTaskModal, type CompletionAssessment } from "@/components/CompleteTaskModal";
 import { useToast } from "@/components/Toast";
 import { IconChevron, IconClipboard } from "@/components/icons";
 import { ApiError } from "@/lib/api-client";
@@ -73,6 +74,8 @@ export default function StaffCalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
+  // Task waiting for the technician's "how urgent was it really?" answer before completing.
+  const [completingId, setCompletingId] = useState<number | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const reload = useCallback(() => setReloadTick((t) => t + 1), []);
 
@@ -139,12 +142,18 @@ export default function StaffCalendarPage() {
   const unscheduled = tasks.filter((t) => !t.deadline && t.status !== "done");
   const monthLabel = cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const selected: TaskDetails | null = tasks.find((t) => t.id === selectedId) ?? null;
+  const completing = tasks.find((t) => t.id === completingId) ?? null;
 
-  async function completeTask(id: number) {
+  function completeTask(id: number) {
+    setSelectedId(null);
+    setCompletingId(id);
+  }
+
+  async function finishTask(id: number, assessment: CompletionAssessment) {
     setBusyTaskId(id);
     try {
-      await updateTaskProgress(id, "Completed", "Work completed on-site.");
-      setSelectedId(null);
+      await updateTaskProgress(id, "Completed", "Work completed on-site.", assessment);
+      setCompletingId(null);
       toast("Task marked complete.", "success");
       reload();
     } catch (e) {
@@ -292,6 +301,15 @@ export default function StaffCalendarPage() {
             if (task.status === "pending") startTask(id);
             else completeTask(id);
           }}
+        />
+      ) : null}
+      {completing ? (
+        <CompleteTaskModal
+          taskTitle={completing.title}
+          filedPriority={`${completing.priority[0].toUpperCase()}${completing.priority.slice(1)}`}
+          busy={busyTaskId === completing.id}
+          onClose={() => setCompletingId(null)}
+          onConfirm={(assessment) => finishTask(completing.id, assessment)}
         />
       ) : null}
     </div>
