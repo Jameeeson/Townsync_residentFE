@@ -19,6 +19,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import AdminShell from "@/components/admin/admin-shell";
+import { PriorityDatabankPanel } from "@/components/admin/priority-databank-panel";
 import styles from "@/components/styles/Communications.module.css";
 import { parseServerDate } from "@/lib/datetime";
 
@@ -529,14 +530,7 @@ function AIChatbotTab() {
       </section>
 
       <div className={styles.mainGrid}>
-        <section className={styles.card}>
-          <div className={styles.cardHeader}>
-            <h2>Recent Interactions</h2>
-          </div>
-          <p className={styles.subText}>
-            The backend does not yet expose a per-conversation transcript list for admins — only aggregated metrics above.
-          </p>
-        </section>
+        <PriorityDatabankPanel className={styles.card} />
 
         <aside className={styles.sidebar}>
           <ActivityTrendsCard />

@@ -1,0 +1,70 @@
+/* Priority-learning databank panel (Operations > AI Chatbot Monitoring).
+   One hue (the page's #1f4a9e) for every magnitude bar; text stays in ink tokens. */
+
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.header h2 { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.25rem; }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 600; color: #5b6b82; }
+.liveDot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); }
+.liveDotStale { background: #94a3b8; box-shadow: none; }
+.manage { font-size: 0.8rem; font-weight: 700; color: #1f4a9e; text-decoration: none; white-space: nowrap; }
+.manage:hover { text-decoration: underline; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.tile { border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.85rem 1rem; background: #f8fafc; min-width: 0; }
+.tileLabel { font-size: 0.7rem; font-weight: 700; color: #5b6b82; text-transform: uppercase; letter-spacing: 0.02em; margin: 0; }
+.tileValue { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin: 0.25rem 0 0; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tileSub { font-size: 0.75rem; color: #5b6b82; margin: 0.25rem 0 0; }
+
+.sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+.section h3 { font-size: 0.85rem; font-weight: 700; color: #0f172a; margin: 0 0 0.25rem; }
+.sectionHint { font-size: 0.75rem; color: #5b6b82; margin: 0 0 0.85rem; }
+
+/* Horizontal magnitude bars: label | track | value */
+.hbars { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
+.hbar { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) 3.25rem; align-items: center; gap: 0.6rem; font-size: 0.8rem; }
+.hbarLabel { color: #334155; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbarTrack { height: 10px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+.hbarFill { height: 100%; background: #1f4a9e; border-radius: 0 4px 4px 0; min-width: 2px; transition: width 0.4s ease; }
+.hbarValue { text-align: right; color: #0f172a; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hbarEmpty { color: #94a3b8; font-weight: 600; }
+.hbar:hover .hbarFill { background: #163a80; }
+
+/* Daily column chart */
+.columns { display: flex; align-items: flex-end; gap: 4px; height: 110px; border-bottom: 1px solid #e2e8f0; }
+.column { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
+.columnFill { width: 100%; background: #1f4a9e; border-radius: 4px 4px 0 0; transition: height 0.4s ease; }
+.column:hover .columnFill { background: #163a80; }
+.columnZero { height: 2px; background: #e2e8f0; border-radius: 1px; }
+.columnLabels { display: flex; justify-content: space-between; font-size: 0.7rem; color: #5b6b82; margin-top: 0.4rem; }
+
+.correction { font-size: 0.8rem; color: #334155; margin: 0.85rem 0 0; line-height: 1.6; }
+.correction strong { color: #0f172a; font-variant-numeric: tabular-nums; }
+
+/* Recent verdicts */
+.recent { margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.25rem; }
+.recent h3 { font-size: 0.85rem; font-weight: 700; color: #0f172a; margin: 0 0 0.75rem; }
+.recentList { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.recentItem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem 0.75rem; padding: 0.7rem 0.85rem; border: 1px solid #e2e8f0; border-radius: 10px; }
+.recentText { font-size: 0.85rem; color: #0f172a; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recentMeta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; font-size: 0.72rem; color: #5b6b82; }
+.vote { padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #334155; font-weight: 600; }
+.voteMatch { background: #eff6ff; color: #1e40af; }
+.final { padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: #0f172a; color: #fff; align-self: start; }
+.excluded { text-decoration: line-through; opacity: 0.6; }
+
+.footer { margin-top: 1.25rem; font-size: 0.75rem; color: #5b6b82; }
+.empty { padding: 1.5rem; text-align: center; color: #5b6b82; font-size: 0.85rem; border: 1px dashed #cbd5e1; border-radius: 10px; }
+
+@media (max-width: 900px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sections { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 420px) {
+  .hbar { grid-template-columns: 5.25rem minmax(0, 1fr) 2.75rem; }
+  .tileValue { font-size: 1.35rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hbarFill, .columnFill { transition: none; }
+}

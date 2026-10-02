@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiGet, apiPost, apiPatch, ApiError, API_BASE_URL } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
@@ -32,11 +33,13 @@ import {
   BadgeCheck,
   MessageSquare,
   UserRound,
+  Scale,
 } from "lucide-react";
 
 import styles from "@/components/styles/Maintenance.module.css";
 import AdminShell from "@/components/admin/admin-shell";
 import { parseServerDate } from "@/lib/datetime";
+import { PriorityVotesPanel } from "@/components/admin/priority-votes-panel";
 
 /* ─── Shared domain data (one source of truth) ─── */
 
@@ -605,6 +608,10 @@ function MaintenanceCommand() {
             <p>Live dispatch and triage overview.</p>
             {loadError ? <p className={styles.errorText}>{loadError}</p> : null}
           </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Link href="/admin/maintenance/learning" className={styles.calendarToggle}>
+            <Scale size={15} /> Priority Learning
+          </Link>
           <button
             type="button"
             className={`${styles.calendarToggle} ${detailView === "calendar" ? styles.calendarToggleActive : ""}`}
@@ -618,6 +625,7 @@ function MaintenanceCommand() {
             <Calendar size={15} />
             {detailView === "calendar" ? "List View" : "Calendar View"}
           </button>
+          </div>
         </header>
 
         <section className={styles.statsGrid}>
@@ -1741,6 +1749,8 @@ const PRIORITY_OPTIONS: { value: string; label: string; cls: string }[] = [
   { value: "Emergency", label: "Emergency", cls: styles.sevHigh },
 ];
 
+const MIN_PRIORITY_REASON = 10;
+
 function toLocalInput(value: string | null | undefined): string {
   return value ? value.replace(" ", "T").slice(0, 16) : "";
 }
@@ -1767,6 +1777,8 @@ function TicketEditor({
   const [title, setTitle] = useState(subject);
   const [desc, setDesc] = useState(description);
   const [priority, setPriority] = useState(priorityLevel);
+  const [priorityReason, setPriorityReason] = useState("");
+  const [votesKey, setVotesKey] = useState(0);
   const [notes, setNotes] = useState(adminNotes ?? "");
   const [due, setDue] = useState(toLocalInput(deadline));
   const [saving, setSaving] = useState(false);
@@ -1792,10 +1804,21 @@ function TicketEditor({
       toast("A completion deadline is required.", "warning");
       return;
     }
+    // Changing the priority is a vote in the ticket's priority verdict, so it needs a reason.
+    if (priority !== priorityLevel && priorityReason.trim().length < MIN_PRIORITY_REASON) {
+      setMessage({
+        ok: false,
+        text: `Explain why this ticket is ${priority} priority (at least ${MIN_PRIORITY_REASON} characters).`,
+      });
+      return;
+    }
     const body: Record<string, string> = {};
     if (title !== subject) body.subject = title.trim();
     if (desc !== description) body.description = desc.trim();
-    if (priority !== priorityLevel) body.priority_level = priority;
+    if (priority !== priorityLevel) {
+      body.priority_level = priority;
+      body.priority_reason = priorityReason.trim();
+    }
     if (notes !== (adminNotes ?? "")) body.admin_notes = notes;
     if (showDeadline && due !== toLocalInput(deadline)) body.deadline = due.replace("T", " ");
     setSaving(true);
@@ -1804,6 +1827,8 @@ function TicketEditor({
       await apiPatch(`/api/v1/admin/maintenance/tickets/${requestId}`, body);
       setMessage({ ok: true, text: "Ticket updated." });
       toast(`Ticket #${requestId} updated.`, "success");
+      setPriorityReason("");
+      setVotesKey((k) => k + 1);
       onSaved();
     } catch (e) {
       const text = e instanceof ApiError ? e.message : "Could not update the ticket.";
@@ -1851,6 +1876,25 @@ function TicketEditor({
           ))}
         </div>
       </div>
+      {priority !== priorityLevel ? (
+        <div className={styles.inputGroup} style={{ marginTop: "1rem" }}>
+          <label htmlFor={`priority-reason-${requestId}`}>
+            Why is this {priority} priority? <span className={styles.requiredMark}>*</span>
+          </label>
+          <textarea
+            id={`priority-reason-${requestId}`}
+            className={styles.textareaField}
+            rows={2}
+            required
+            aria-required="true"
+            maxLength={1000}
+            value={priorityReason}
+            placeholder={`Changing from ${priorityLevel}. e.g. Door cannot be locked, the unit is unsecured`}
+            onChange={(e) => setPriorityReason(e.target.value)}
+          />
+          <span className={styles.helpText}>Saved as your vote; the system learns from it for similar tickets.</span>
+        </div>
+      ) : null}
       {showDeadline ? (
         <div className={styles.inputGroup} style={{ marginTop: "1rem" }}>
           <label htmlFor={`ticket-deadline-${requestId}`}>
@@ -1886,6 +1930,7 @@ function TicketEditor({
           <span className={message.ok ? styles.helpText : styles.errorText}>{message.text}</span>
         ) : null}
       </div>
+      <PriorityVotesPanel requestId={requestId} refreshKey={votesKey} />
     </>
   );
 }
