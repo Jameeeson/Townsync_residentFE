@@ -28,6 +28,7 @@ export interface RegisterResidentPayload {
   id_number: string;
   address: string;
   password: string;
+  occupancy?: "homeowner" | "tenant";
 }
 
 export async function login(email: string, password: string): Promise<LoginTokenResponse> {

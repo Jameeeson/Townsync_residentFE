@@ -22,6 +22,7 @@ export default function RegisterDetailsPage() {
     password: "",
     confirmPassword: "",
   });
+  const [occupancy, setOccupancy] = useState<"homeowner" | "tenant">("homeowner");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -41,10 +42,11 @@ export default function RegisterDetailsPage() {
       ...prev,
       fullName: data.fullName,
       idNumber: data.idNumber,
-      idType: data.idType || "National ID",
+      idType: "National ID",
       email: data.email,
       unit: data.unit,
     }));
+    if (data.role === "tenant") setOccupancy("tenant");
   }, [router]);
 
   function updateField(key: keyof typeof form, value: string) {
@@ -77,10 +79,11 @@ export default function RegisterDetailsPage() {
       await registerResident({
         name: form.fullName,
         email: form.email,
-        id_type: form.idType,
+        id_type: "National ID",
         id_number: form.idNumber,
         address: form.unit,
         password: form.password,
+        occupancy,
       });
       router.push("/register/success");
     } catch (err) {
@@ -119,23 +122,21 @@ export default function RegisterDetailsPage() {
           </div>
 
           <div className={styles.field} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
-            <label htmlFor="idNumber">ID Number</label>
+            <label htmlFor="idNumber">PhilSys Card Number</label>
             <input
               id="idNumber"
               value={form.idNumber}
               onChange={(e) => updateField("idNumber", e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9\s\-]{12,19}"
+              title="The 12- or 16-digit number printed on your National ID"
               required
             />
           </div>
 
           <div className={styles.field} style={{ "--ts-stagger-i": 2 } as CSSProperties}>
             <label htmlFor="idType">ID Type</label>
-            <input
-              id="idType"
-              value={form.idType}
-              onChange={(e) => updateField("idType", e.target.value)}
-              required
-            />
+            <input id="idType" value="Philippine National ID" disabled readOnly />
           </div>
 
           <div className={styles.field} style={{ "--ts-stagger-i": 3 } as CSSProperties}>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, KeyboardEvent, Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import styles from "@/styles/chat.module.css";
-import { ArrowLeft, ArrowUp, Phone } from "lucide-react";
+import { ArrowLeft, ArrowUp } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { getTicketChat, sendTicketChatMessage, type TicketChatThread } from "@/lib/api/resident";
 import { parseServerDate } from "@/lib/datetime";
@@ -197,12 +197,6 @@ function TicketMessaging() {
           </button>
         </div>
       </form>
-      <p className={styles.composerHint}>
-        For emergencies, please call the resident hotline instead of waiting on a reply.{" "}
-        <a href="tel:+15550123456" className={styles.hotlineLink}>
-          <Phone size={12} /> Call hotline
-        </a>
-      </p>
     </div>
   );
 }

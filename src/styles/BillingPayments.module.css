@@ -98,6 +98,26 @@
   gap: 6px;
 }
 
+.dueBadgePaid {
+  background: var(--color-success-100);
+  color: var(--color-success-700);
+}
+
+.dueBadgeOverdue {
+  background: var(--color-danger-100);
+  color: var(--color-danger-700);
+}
+
+.dueTerms {
+  font-weight: 600;
+  color: var(--color-text) !important;
+}
+
+.dueWarning {
+  color: var(--color-danger-700) !important;
+  font-weight: 600;
+}
+
 .amount {
   font-size: 2.75rem;
   font-weight: 800;

@@ -240,6 +240,13 @@ export interface BillingSummary {
   overall_due_date: string | null;
   breakdown_notes: string | null;
   urgency_banner: string | null;
+  /** "overdue" | "due_soon" | "upcoming" | "paid_up" */
+  billing_status?: "overdue" | "due_soon" | "upcoming" | "paid_up";
+  /** Earliest unpaid due date, otherwise the next scheduled one. */
+  next_due_date?: string | null;
+  monthly_due?: number | null;
+  due_day?: number | null;
+  unit_number?: string | null;
 }
 
 export interface BillingHistoryItem {
@@ -298,6 +305,11 @@ export interface Announcement {
 
 export async function listAnnouncements(): Promise<Announcement[]> {
   return apiClient.get<Announcement[]>("/api/v1/resident/announcements/");
+}
+
+/** Hides an announcement from the caller's own feed; other residents still see it. */
+export async function dismissAnnouncement(id: number): Promise<{ message: string; id: number }> {
+  return apiClient.delete(`/api/v1/resident/announcements/${id}`);
 }
 
 export async function getAnnouncement(id: number): Promise<Announcement> {
@@ -377,12 +389,4 @@ export async function submitSupport(body: {
   message: string;
 }): Promise<{ message: string; id: number }> {
   return apiClient.post("/api/v1/support/", body);
-}
-
-// --- Uploads ---
-
-export async function uploadFile(file: File): Promise<{ url: string }> {
-  const form = new FormData();
-  form.set("file", file);
-  return apiClient.post("/api/v1/uploads/", form);
 }

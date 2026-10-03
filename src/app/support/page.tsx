@@ -17,9 +17,13 @@ export default function SupportPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setSent(false);
     setLoading(true);
 
-    const form = new FormData(event.currentTarget);
+    // Captured before the await: React clears event.currentTarget afterwards,
+    // so resetting through the event used to throw after a successful send.
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
 
     try {
       await submitSupport({
@@ -29,7 +33,7 @@ export default function SupportPage() {
         message: String(form.get("message") ?? "").trim(),
       });
       setSent(true);
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (err) {
       const message =
         err instanceof ApiClientError
@@ -47,8 +51,8 @@ export default function SupportPage() {
     <LegalShell>
       <h1 className={styles.title}>Contact Support</h1>
       <p className={styles.lead}>
-        Reach property management for access issues, billing questions, or urgent community
-        concerns. For unit emergencies, call your resident hotline.
+        Reach property management for access issues, billing questions, or community concerns.
+        Your message goes to the admin team, and you will get a confirmation by email.
       </p>
 
       {sent ? (
@@ -66,7 +70,7 @@ export default function SupportPage() {
       <form className={`${styles.form} ts-stagger`} onSubmit={handleSubmit}>
         <div className={styles.field} style={{ "--ts-stagger-i": 0 } as CSSProperties}>
           <label htmlFor="name">Full name</label>
-          <input id="name" name="name" required placeholder="Alex Resident" />
+          <input id="name" name="name" required maxLength={120} placeholder="Alex Resident" />
         </div>
         <div className={styles.field} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
           <label htmlFor="email">Email</label>
@@ -74,11 +78,11 @@ export default function SupportPage() {
         </div>
         <div className={styles.field} style={{ "--ts-stagger-i": 2 } as CSSProperties}>
           <label htmlFor="topic">Topic</label>
-          <input id="topic" name="topic" required placeholder="Billing, access, visitors..." />
+          <input id="topic" name="topic" required maxLength={150} placeholder="Billing, access, visitors..." />
         </div>
         <div className={styles.field} style={{ "--ts-stagger-i": 3 } as CSSProperties}>
           <label htmlFor="message">Message</label>
-          <textarea id="message" name="message" required placeholder="How can we help?" />
+          <textarea id="message" name="message" required maxLength={5000} placeholder="How can we help?" />
         </div>
         <div className={styles.actions}>
           <button className={styles.primaryBtn} type="submit" disabled={loading}>
@@ -90,8 +94,8 @@ export default function SupportPage() {
               "Send Message"
             )}
           </button>
-          <a className={styles.secondaryBtn} href="mailto:support@townsync.app">
-            Email support@townsync.app
+          <a className={styles.secondaryBtn} href="mailto:townsync.support@gmail.com">
+            Email townsync.support@gmail.com
           </a>
         </div>
       </form>

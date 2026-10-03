@@ -7,6 +7,7 @@ import styles from "@/styles/BillingPayments.module.css";
 import SuccessModal from "./success";
 import { Clock, Megaphone, Filter, Eye, CheckCircle2, AlertCircle } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
+import { formatDueDate, formatPeso, ordinal } from "@/lib/billingDates";
 import {
   BillingHistoryItem,
   BillingSummary,
@@ -136,9 +137,26 @@ export default function BillingPayments() {
         <section className={styles.balanceCard} style={{ "--ts-stagger-i": 0 } as CSSProperties}>
           <div className={styles.balanceHeader}>
             <span className={styles.cardLabel}>CURRENT BALANCE</span>
-            <div className={styles.dueBadge}>
-              <Clock size={14} /> {summary?.urgency_banner || "Due soon"}
-            </div>
+            {summary ? (
+              <div
+                className={`${styles.dueBadge} ${
+                  summary.billing_status === "overdue"
+                    ? styles.dueBadgeOverdue
+                    : summary.billing_status === "paid_up"
+                      ? styles.dueBadgePaid
+                      : ""
+                }`}
+              >
+                {summary.billing_status === "paid_up" ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+                {summary.billing_status === "overdue"
+                  ? "Past due"
+                  : summary.billing_status === "due_soon"
+                    ? "Due soon"
+                    : summary.billing_status === "upcoming"
+                      ? "Upcoming"
+                      : "All paid"}
+              </div>
+            ) : null}
           </div>
           <div className={styles.amount}>
             {summary ? formatMoney(summary.current_balance) : "₱ —"}
@@ -146,8 +164,20 @@ export default function BillingPayments() {
           <hr className={styles.divider} />
           <div className={styles.balanceFooter}>
             <strong>
-              Due Date: {summary?.overall_due_date || "—"}
+              {summary?.billing_status === "paid_up" ? "Next due date" : "Due date"}:{" "}
+              {formatDueDate(summary?.next_due_date ?? summary?.overall_due_date)}
             </strong>
+            {summary?.monthly_due != null && summary?.due_day != null ? (
+              <p className={styles.dueTerms}>
+                {summary.unit_number ? `${summary.unit_number}: ` : ""}
+                {formatPeso(summary.monthly_due)} per month, due every {ordinal(summary.due_day)}
+              </p>
+            ) : null}
+            {summary?.urgency_banner ? (
+              <p className={styles.dueWarning} role="alert">
+                {summary.urgency_banner}
+              </p>
+            ) : null}
             <p>{summary?.breakdown_notes || "Includes monthly HOA & utilities when applicable."}</p>
           </div>
         </section>

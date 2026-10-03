@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
         {sent ? (
           <div style={{ padding: "0 32px 32px", textAlign: "center" }} className="ts-fade-in-up">
             <p className={styles.successText} style={{ marginBottom: 20 }}>
-              If an account exists for that email, reset instructions are on the way.
+              If an account exists for that email, reset instructions are on the way. The link works once and expires in 5 minutes.
             </p>
             <Link className={styles.submitBtn} href="/login" style={{ display: "inline-flex" }}>
               Return to Login

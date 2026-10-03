@@ -113,7 +113,7 @@
 
 .unitDetailsSection { margin-top: var(--space-7); border-top: 1px solid var(--color-border); padding-top: var(--space-6); }
 .sectionLabel { font-size: 0.875rem; font-weight: 700; color: var(--color-text); margin-bottom: var(--space-4); }
-.unitGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+.unitGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); }
 .infoText { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--color-text-tertiary); margin-top: var(--space-3); }
 
 .cardActions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-7); }
@@ -129,6 +129,19 @@
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 .cancelBtn:hover { background: var(--color-surface-2); }
+/* Disabled (nothing changed yet / saving): light fill with readable grey text
+   instead of a dimmed navy button with dark text on it. */
+.saveBtn:disabled,
+.saveBtn:disabled:hover {
+  background: var(--color-surface-sunken); color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong); opacity: 1; cursor: not-allowed;
+}
+.cancelBtn:disabled,
+.cancelBtn:disabled:hover {
+  background: var(--color-surface); color: var(--color-text-tertiary); opacity: 1; cursor: not-allowed;
+}
+.saveBtn:focus-visible,
+.cancelBtn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
 /* Toggles & Switch */
 .toggleItem {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Circle, Loader2, Phone } from "lucide-react";
+import { Check, Circle, Loader2 } from "lucide-react";
 import styles from "@/styles/maintenance.module.css";
 import type { MaintenanceTicket } from "@/lib/api/resident";
 import { priorityTone } from "@/lib/maintenanceStatus";
@@ -163,12 +163,6 @@ export function SuccessPanel({ ticket }: { ticket: MaintenanceTicket }) {
           </button>
         </div>
 
-        <p className={styles.confirmFooterNote}>
-          Immediate hazard or water leak?{" "}
-          <a href="tel:+15550123456" className={styles.hotlineLink}>
-            <Phone size={12} /> Call 24/7 Dispatch Hotline
-          </a>
-        </p>
       </div>
     </div>
   );

@@ -144,9 +144,14 @@ export function parseIdText(text: string): ParsedIdFields {
     });
   }
 
-  // 3. Determine ID Type
-  let idType = "National ID";
-  if (/driver|license|\bdl\b/i.test(fullText)) idType = "Driver's License";
+  // 3. Determine ID Type. Only the Philippine National ID (PhilSys) is accepted
+  // for self-registration, so it must be positively recognised: either its
+  // printed title or its 16-digit PhilSys Card Number (####-####-####-####).
+  const philsysTitle =
+    /PAMBANSANG|PAGKAKAKILANLAN|PHILIPPINE\s*IDENTIFICATION|PHIL\s*SYS|PHILID|NATIONAL\s*ID/i.test(fullText);
+  let idType = "Unknown";
+  if (philsysTitle || philsysMatch) idType = "National ID";
+  else if (/driver|license|\bdl\b/i.test(fullText)) idType = "Driver's License";
   else if (/passport/i.test(fullText)) idType = "Passport";
   else if (/\b(umid|sss|philhealth|tin)\b/i.test(fullText)) idType = "Government ID";
 

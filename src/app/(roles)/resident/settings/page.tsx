@@ -18,8 +18,10 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
+import { formatDueDate, formatPeso, ordinal } from "@/lib/billingDates";
 import { changePassword, logout } from "@/lib/api/auth";
 import {
+  getBillingSummary,
   getDeactivationRequest,
   getLoginHistory,
   getPreferences,
@@ -105,7 +107,9 @@ function ProfileView() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
+  const [leaseStart, setLeaseStart] = useState("");
   const [leaseEnd, setLeaseEnd] = useState("");
+  const [billingTerms, setBillingTerms] = useState<string>("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -122,7 +126,16 @@ function ProfileView() {
         setEmail(profile.email || "");
         setPhone(profile.phone_number || "");
         setUnitNumber(profile.unit_number || "");
+        setLeaseStart(profile.lease_start || "");
         setLeaseEnd(profile.lease_end || "");
+        getBillingSummary()
+          .then((b) => {
+            if (cancelled || b.monthly_due == null || b.due_day == null) return;
+            setBillingTerms(
+              `${formatPeso(b.monthly_due)} / month · due every ${ordinal(b.due_day)} · next ${formatDueDate(b.next_due_date)}`,
+            );
+          })
+          .catch(() => undefined);
         setDefaults({ email: profile.email || "", phone: profile.phone_number || "" });
       } catch (err) {
         if (!cancelled) {
@@ -240,8 +253,26 @@ function ProfileView() {
             <input type="text" value={unitNumber} disabled className={styles.disabledInput} />
           </div>
           <div className={styles.inputGroup}>
+            <label>Lease Start</label>
+            <input
+              type="text"
+              value={leaseStart ? formatDueDate(leaseStart) : "—"}
+              disabled
+              className={styles.disabledInput}
+            />
+          </div>
+          <div className={styles.inputGroup}>
             <label>Lease End</label>
-            <input type="text" value={leaseEnd || "—"} disabled className={styles.disabledInput} />
+            <input
+              type="text"
+              value={leaseEnd ? formatDueDate(leaseEnd) : "—"}
+              disabled
+              className={styles.disabledInput}
+            />
+          </div>
+          <div className={styles.inputGroup}>
+            <label>HOA Dues</label>
+            <input type="text" value={billingTerms || "—"} disabled className={styles.disabledInput} />
           </div>
         </div>
         <p className={styles.infoText}>
@@ -358,7 +389,8 @@ function NotificationsView() {
               <h3 className={styles.cardTitle}>Channels</h3>
             </div>
             <p className={styles.cardInfoText}>
-              Backend stores channel-level preferences (email / SMS / push) for all notification types.
+              Choose how TownSync reaches you. With email on, announcements and account updates are sent to the
+              address in your profile. Urgent safety notices are always emailed.
             </p>
             <div className={`${styles.stackToggles} ts-stagger`}>
               <div style={{ "--ts-stagger-i": 0 } as CSSProperties}>
@@ -371,15 +403,6 @@ function NotificationsView() {
                 />
               </div>
               <div style={{ "--ts-stagger-i": 1 } as CSSProperties}>
-                <ToggleItem
-                  label="SMS Updates"
-                  active={prefs.sms_notifications}
-                  onToggle={() =>
-                    setPrefs((p) => ({ ...p, sms_notifications: !p.sms_notifications }))
-                  }
-                />
-              </div>
-              <div style={{ "--ts-stagger-i": 2 } as CSSProperties}>
                 <ToggleItem
                   label="Mobile App Push"
                   active={prefs.push_notifications}
