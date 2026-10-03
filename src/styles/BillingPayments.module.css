@@ -2,7 +2,6 @@
   width: 100%;
   padding: var(--space-5) var(--space-5) var(--space-8);
   background-color: var(--color-bg);
-  min-height: 100vh;
   color: var(--color-text);
 }
 
@@ -377,5 +376,105 @@
   }
   .amount {
     font-size: 2.25rem;
+  }
+}
+
+/* Phones: the resident layout already pads the page and owns the scroll, so
+   this page neither adds a second gutter nor forces itself to a full screen
+   tall (which left an empty stretch to scroll through). */
+@media (max-width: 640px) {
+  .container {
+    padding: var(--space-1) var(--space-1) var(--space-6);
+  }
+}
+
+/* Phones: each payment becomes a two-line row (what + amount, then date,
+   status and the view button) instead of a five-column table squeezed into a
+   sideways-scrolling strip. */
+@media (max-width: 640px) {
+  .pageTitle {
+    font-size: 1.4rem;
+  }
+
+  .pageDesc {
+    font-size: 0.875rem;
+  }
+
+  .topGrid {
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+  }
+
+  .balanceCard {
+    padding: var(--space-5);
+  }
+
+  .amount {
+    font-size: 1.75rem;
+  }
+
+  .tableHeader {
+    padding: var(--space-4);
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "desc desc amount"
+      "date status action";
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table td {
+    display: block;
+    padding: 0;
+    border: none;
+  }
+
+  .descCell {
+    grid-area: desc;
+    min-width: 0;
+  }
+
+  .amountCell {
+    grid-area: amount;
+    align-self: start;
+    white-space: nowrap;
+  }
+
+  .dateCell {
+    grid-area: date;
+    font-size: 0.8125rem;
+  }
+
+  .statusCell {
+    grid-area: status;
+  }
+
+  .actionCell {
+    grid-area: action;
+  }
+
+  .actionBtn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .table td.emptyRow {
+    grid-column: 1 / -1;
+    padding: var(--space-4);
   }
 }

@@ -587,3 +587,17 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Small phones: display type scaled to the screen, not to a billboard. */
+@media (max-width: 480px) {
+  .heroTitle {
+    font-size: clamp(2rem, 9.5vw, 2.5rem);
+    line-height: 1.08;
+  }
+
+  .sectionHeadingLeft,
+  .sectionHeadingCenter {
+    font-size: 1.6rem;
+    margin-bottom: var(--space-6);
+  }
+}

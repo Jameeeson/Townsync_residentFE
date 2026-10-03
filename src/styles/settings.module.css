@@ -2,7 +2,6 @@
   width: 100%;
   padding: var(--space-7) var(--space-5) var(--space-9);
   background-color: var(--color-bg);
-  min-height: 100vh;
   color: var(--color-text);
 }
 
@@ -226,4 +225,13 @@
   .sideColumn { grid-template-columns: 1fr; }
   .twoColGrid, .unitGrid { grid-template-columns: 1fr; }
   .stickyFooter { margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-7)); padding: var(--space-4); }
+}
+
+/* Phones: the resident layout already pads the page and owns the scroll, so
+   this page neither adds a second gutter nor forces itself to a full screen
+   tall (which left an empty stretch to scroll through). */
+@media (max-width: 640px) {
+  .container {
+    padding: var(--space-1) var(--space-1) var(--space-6);
+  }
 }

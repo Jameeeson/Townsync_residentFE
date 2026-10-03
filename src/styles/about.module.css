@@ -184,3 +184,10 @@
   .missionGrid { grid-template-columns: 1fr; }
   .wideCard { grid-column: span 1; }
 }
+
+@media (max-width: 480px) {
+  .missionTitle,
+  .valuesHeader h2 {
+    font-size: 1.6rem;
+  }
+}

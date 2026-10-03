@@ -1,4 +1,7 @@
-import { BookOpen, Zap } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { BookOpen, ChevronDown, Zap } from "lucide-react";
 import styles from "@/styles/maintenance.module.css";
 
 const RESOURCES: Array<{ match: RegExp; icon: typeof BookOpen; title: string; body: string }> = [
@@ -16,7 +19,13 @@ const RESOURCES: Array<{ match: RegExp; icon: typeof BookOpen; title: string; bo
   },
 ];
 
+/**
+ * A short safety tip for the issue's category. On phones it starts collapsed
+ * to its title so it doesn't push the conversation off screen; on wider
+ * screens the body is always shown (see .helpfulResourceBodyCollapsed).
+ */
 export function HelpfulResource({ category }: { category: string | null }) {
+  const [open, setOpen] = useState(false);
   if (!category) return null;
   const resource = RESOURCES.find((r) => r.match.test(category));
   if (!resource) return null;
@@ -25,11 +34,23 @@ export function HelpfulResource({ category }: { category: string | null }) {
 
   return (
     <div className={`${styles.helpfulResource} ts-fade-in-up`}>
-      <div className={styles.helpfulResourceHeader}>
+      <button
+        type="button"
+        className={styles.helpfulResourceHeader}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
         <Icon size={15} aria-hidden="true" />
         <span>{resource.title}</span>
-      </div>
-      <p className={styles.helpfulResourceBody}>{resource.body}</p>
+        <ChevronDown
+          size={15}
+          aria-hidden="true"
+          className={`${styles.helpfulResourceChevron} ${open ? styles.helpfulResourceChevronOpen : ""}`}
+        />
+      </button>
+      <p className={`${styles.helpfulResourceBody} ${open ? "" : styles.helpfulResourceBodyCollapsed}`}>
+        {resource.body}
+      </p>
     </div>
   );
 }

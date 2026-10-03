@@ -213,3 +213,10 @@
     text-align: center;
   }
 }
+
+@media (max-width: 480px) {
+  .sectionTitle,
+  .darkTitle {
+    font-size: 1.55rem;
+  }
+}

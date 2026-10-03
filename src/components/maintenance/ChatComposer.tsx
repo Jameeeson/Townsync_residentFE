@@ -2,7 +2,7 @@
 
 import { FormEvent, KeyboardEvent } from "react";
 import type { CSSProperties } from "react";
-import { AlertTriangle, ArrowUp } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import styles from "@/styles/maintenance.module.css";
 
 interface ChatComposerProps {
@@ -76,11 +76,6 @@ export function ChatComposer({
           </button>
         </div>
       </form>
-      <p className={styles.composerHint}>
-        <AlertTriangle size={12} aria-hidden="true" />
-        For emergencies threatening safety or active flooding, please call the Emergency Hotline
-        immediately.
-      </p>
     </div>
   );
 }

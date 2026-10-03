@@ -249,15 +249,15 @@ export default function BillingPayments() {
               {filtered.map((item) => (
                 <tr key={`${item.inv}-${item.date}`}>
                   <td className={styles.dateCell}>{item.date}</td>
-                  <td>
+                  <td className={styles.descCell}>
                     <div className={styles.descMain}>{item.description}</div>
                     <div className={styles.descSub}>{item.inv}</div>
                   </td>
                   <td className={styles.amountCell}>{item.amount}</td>
-                  <td>
+                  <td className={styles.statusCell}>
                     <StatusBadge status={item.status} />
                   </td>
-                  <td className={styles.textRight}>
+                  <td className={`${styles.textRight} ${styles.actionCell}`}>
                     <button
                       type="button"
                       onClick={() => handleViewClick(item)}

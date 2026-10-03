@@ -1,7 +1,6 @@
 .container {
   padding: var(--space-5);
   background-color: var(--color-bg);
-  min-height: 100vh;
   color: var(--color-text);
   max-width: 1200px;
   margin: 0 auto;
@@ -283,4 +282,31 @@
   font-size: 0.875rem;
   font-weight: 600;
   margin-bottom: var(--space-4);
+}
+
+/* Phones: the resident layout already pads the page and owns the scroll, so
+   this page neither adds a second gutter nor forces itself to a full screen
+   tall (which left an empty stretch to scroll through). */
+@media (max-width: 640px) {
+  .container {
+    padding: var(--space-1) var(--space-1) var(--space-6);
+  }
+}
+
+@media (max-width: 640px) {
+  .metaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4) var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .metaItem {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .actionGroup > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }

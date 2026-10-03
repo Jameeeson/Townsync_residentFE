@@ -275,7 +275,7 @@ export function ReviewBrief({
           </div>
           <div className={styles.reviewFooterActions}>
             <button type="button" className={styles.reviewBtnSecondary} onClick={onDiscard}>
-              Cancel &amp; Discard
+              <span className={styles.hideOnPhone}>Cancel &amp; </span>Discard
             </button>
             <button
               type="button"
@@ -283,7 +283,14 @@ export function ReviewBrief({
               onClick={onSubmit}
               disabled={submitting || !ready}
             >
-              {submitting ? "Submitting…" : "Submit Maintenance Request"} <ArrowRight size={15} />
+              {submitting ? (
+                "Submitting…"
+              ) : (
+                <>
+                  Submit <span className={styles.hideOnPhone}>Maintenance </span>Request
+                </>
+              )}{" "}
+              <ArrowRight size={15} aria-hidden="true" />
             </button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCw } from "lucide-react";
+import { ClipboardCheck, RotateCw } from "lucide-react";
 import styles from "@/styles/maintenance.module.css";
 import { useMaintenanceChat } from "@/hooks/useMaintenanceChat";
 import { deriveReportFields, isUrgentSignal } from "@/lib/maintenanceReport";
@@ -96,6 +96,14 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
         />
 
         <HelpfulResource category={chat.summaryState?.category ?? null} />
+
+        {chat.isComplete ? (
+          // The case file (with its own Review button) sits below the chat on
+          // narrower screens; this keeps the next step in view without scrolling.
+          <button type="button" className={styles.inlineReviewBtn} onClick={chat.beginReview}>
+            <ClipboardCheck size={16} aria-hidden="true" /> All details gathered — Review &amp; submit
+          </button>
+        ) : null}
 
         <ChatComposer
           value={chat.input}

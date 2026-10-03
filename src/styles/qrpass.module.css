@@ -1,7 +1,6 @@
 .container {
   padding: var(--space-5);
   background-color: var(--color-bg);
-  min-height: 100vh;
   color: var(--color-text);
 }
 
@@ -365,4 +364,13 @@
   font-size: 0.8rem;
   line-height: 1.45;
   color: #5b6b82;
+}
+
+/* Phones: the resident layout already pads the page and owns the scroll, so
+   this page neither adds a second gutter nor forces itself to a full screen
+   tall (which left an empty stretch to scroll through). */
+@media (max-width: 640px) {
+  .container {
+    padding: var(--space-1) var(--space-1) var(--space-6);
+  }
 }

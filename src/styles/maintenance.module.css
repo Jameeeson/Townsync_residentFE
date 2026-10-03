@@ -2345,3 +2345,427 @@
     justify-content: center;
   }
 }
+
+/* ============================================================
+   Safety tip header is a disclosure button (collapsed on phones)
+   ============================================================ */
+
+button.helpfulResourceHeader {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: default;
+}
+
+.helpfulResourceChevron {
+  display: none;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.helpfulResourceChevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ============================================================
+   Small screens — the conversation must stay readable.
+   The chat column fills the screen height and every fixed band
+   around the message stream (header, chips, tip, options) is
+   trimmed so the messages themselves get the space. The review
+   phase drops its inner scroll panel and lets the page scroll,
+   with the submit buttons pinned to the bottom.
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0.25rem 0 1.5rem;
+  }
+
+  .pageHeader {
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+  }
+
+  .pageEyebrow {
+    font-size: 0.66rem;
+    margin-bottom: 4px;
+  }
+
+  .pageTitle {
+    font-size: 1.35rem;
+    margin-bottom: 4px;
+  }
+
+  .pageDesc {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .pageStatusPill {
+    padding: 4px 10px;
+    font-size: 0.72rem;
+  }
+
+  /* Idle state */
+  .workspaceEmpty {
+    padding: 1.25rem 1rem;
+  }
+
+  .emptyTitle {
+    font-size: 1.6rem;
+  }
+
+  .emptySubtitle {
+    font-size: 0.9rem;
+  }
+
+  .emptyReturnHint {
+    display: none;
+  }
+
+  .emptyInputField {
+    font-size: 16px; /* below 16px iOS zooms the page on focus */
+  }
+
+  /* Conversation */
+  .conversationGrid {
+    gap: var(--space-4);
+  }
+
+  .conversationColumn {
+    height: calc(100dvh - 96px);
+    min-height: 460px;
+    max-height: 760px;
+    padding: 0.85rem 0.8rem 0.75rem;
+    border-radius: var(--radius-md);
+  }
+
+  .conversationHeader {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .conversationHeaderName {
+    font-size: 0.875rem;
+  }
+
+  .diagnosticModeBadge {
+    font-size: 0.58rem;
+  }
+
+  .conversationHeaderSub,
+  .ticketDraftPill {
+    display: none;
+  }
+
+  .gatheredBar {
+    margin-bottom: 0.5rem;
+  }
+
+  .gatheredBarLabel {
+    display: none;
+  }
+
+  .gatheredChips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .gatheredChips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gatheredChip {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+  }
+
+  .gatheredConfidence {
+    flex-shrink: 0;
+    margin-left: 0;
+    font-size: 0.7rem;
+  }
+
+  .stream {
+    min-height: 180px;
+    padding-right: 0;
+  }
+
+  .bubbleRow {
+    max-width: 92%;
+    margin-bottom: var(--space-4);
+  }
+
+  .bubble {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .bubbleText {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .bubbleUrgentNote {
+    font-size: 0.78rem;
+  }
+
+  .understoodBlock {
+    margin-top: var(--space-3);
+  }
+
+  .understoodChip {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+  }
+
+  .helpfulResource {
+    margin: 0.4rem 0 0.25rem;
+    padding: 0.55rem 0.7rem;
+  }
+
+  button.helpfulResourceHeader {
+    font-size: 0.78rem;
+    cursor: pointer;
+    margin-bottom: 0;
+  }
+
+  .helpfulResourceChevron {
+    display: block;
+  }
+
+  .helpfulResourceBody {
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+  }
+
+  .helpfulResourceBodyCollapsed {
+    display: none;
+  }
+
+  .talkToPerson {
+    margin: 0.4rem 0 0.25rem;
+    padding: 0.55rem 0.7rem;
+    gap: var(--space-2);
+  }
+
+  .talkToPersonText {
+    min-width: 0;
+    font-size: 0.78rem;
+  }
+
+  .talkToPersonBtn,
+  .talkToPersonBtnEmergency {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .composerArea {
+    padding-top: 0.5rem;
+  }
+
+  .optionRow {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 0.5rem;
+    padding-bottom: 2px;
+  }
+
+  .optionRow::-webkit-scrollbar {
+    display: none;
+  }
+
+  .optionChip {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0.42rem 0.7rem;
+    font-size: 0.78rem;
+  }
+
+  .composerWrapper {
+    padding: 4px 4px 4px 12px;
+  }
+
+  .composerField {
+    font-size: 16px; /* below 16px iOS zooms the page on focus */
+  }
+
+  .composerSendBtn {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Review */
+  .reviewDoc {
+    height: auto;
+    padding: 1rem 0.9rem 0;
+    border-radius: var(--radius-md);
+  }
+
+  .reviewScrollArea {
+    flex: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .reviewFooterWrap {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: var(--space-2) -0.9rem 0;
+    padding: 0.75rem 0.9rem calc(0.75rem + env(safe-area-inset-bottom));
+    background: var(--color-surface);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: 0 -8px 16px rgba(15, 27, 48, 0.06);
+  }
+
+  .reviewPageTitle {
+    font-size: 1.3rem;
+  }
+
+  .reviewPageSubtitle {
+    font-size: 0.85rem;
+  }
+
+  .reviewSubject {
+    font-size: 1.1rem;
+  }
+
+  .reviewFooter {
+    gap: var(--space-2);
+  }
+
+  .readyIndicator {
+    font-size: 0.78rem;
+  }
+
+  /* One compact row: Discard | Submit, so the pinned footer stays short. */
+  .reviewFooterActions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .reviewFooterActions > * {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  .hideOnPhone {
+    display: none;
+  }
+
+  /* Visit-day picker: an even 2x2 grid instead of a ragged wrap. */
+  .segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .segmentedBtn {
+    padding: 0.6rem 0.5rem;
+    font-size: 0.8rem;
+    border-right: 1px solid var(--color-border-strong);
+    border-bottom: 1px solid var(--color-border-strong);
+  }
+
+  .segmentedBtn:nth-child(2n) {
+    border-right: none;
+  }
+
+  .segmentedBtn:nth-last-child(-n + 2):nth-child(odd),
+  .segmentedBtn:last-child {
+    border-bottom: none;
+  }
+
+  .reviewDateInput,
+  .entryNotesInput {
+    font-size: 16px;
+  }
+
+  .trustBar {
+    display: none;
+  }
+}
+
+/* In-chat "Review & submit" — only where the case file isn't beside the chat. */
+.inlineReviewBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0.4rem 0 0.25rem;
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-600);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.inlineReviewBtn:hover {
+  background: var(--color-primary-700);
+}
+
+.inlineReviewBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+@media (min-width: 1080px) {
+  .inlineReviewBtn {
+    display: none;
+  }
+}
+
+/* Phones: history filters stay on one swipeable line (they were wrapping
+   into tall pills), and the history list grows with the page instead of
+   being a second scroll area inside the scrolling page. */
+@media (max-width: 640px) {
+  .historyFilters {
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: var(--space-3) var(--space-4) 0;
+  }
+
+  .historyFilters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .historyFilterBtn {
+    flex-shrink: 0;
+    min-height: 32px;
+    white-space: nowrap;
+  }
+
+  .historyList {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
