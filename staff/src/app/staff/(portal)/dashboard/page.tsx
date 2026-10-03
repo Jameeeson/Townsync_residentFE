@@ -117,15 +117,98 @@ function toUiTask(t: MaintenanceTask): Task {
   };
 }
 
+type PanelTab = { id: string; label: string; count?: number };
+
+/** One card: title, filter tabs (with counts) in its header, then its content. */
+function Panel({
+  title,
+  tabs,
+  active,
+  onChange,
+  ariaLabel,
+  action,
+  children,
+}: {
+  title: string;
+  tabs: PanelTab[];
+  active: string;
+  onChange: (id: string) => void;
+  ariaLabel: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={styles.panel} aria-label={title}>
+      <header className={styles.panelHead}>
+        <div className={styles.panelTitle}>
+          <h2>{title}</h2>
+          {action}
+        </div>
+        <div className={styles.tabs} role="tablist" aria-label={ariaLabel}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active === tab.id}
+              className={`${styles.tab} ${active === tab.id ? styles.tabActive : ""}`}
+              onClick={() => onChange(tab.id)}
+            >
+              {tab.label}
+              {typeof tab.count === "number" ? <span className={styles.tabCount}>{tab.count}</span> : null}
+            </button>
+          ))}
+        </div>
+      </header>
+      <div className={styles.panelBody}>{children}</div>
+    </section>
+  );
+}
+
+function StatTile({
+  icon,
+  label,
+  value,
+  onClick,
+  hint = "View breakdown",
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  onClick: () => void;
+  hint?: string;
+  tone?: "green";
+}) {
+  return (
+    <button type="button" className={`${styles.stat} ${tone === "green" ? styles.statGreen : ""}`} onClick={onClick}>
+      <span className={styles.statIcon}>{icon}</span>
+      <span className={styles.statText}>
+        <span className={styles.statLabel}>{label}</span>
+        <strong>{value}</strong>
+      </span>
+      <small className={styles.statHint}>
+        {hint} <IconArrowRight size={12} />
+      </small>
+    </button>
+  );
+}
+
+function isToday(value: string): boolean {
+  const d = parseServerDate(value);
+  return Boolean(d && d.toDateString() === new Date().toDateString());
+}
+
 export default function StaffDashboardPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { session, canUseScanner, isMaintenance } = useStaffSession();
+  const { session, canUseScanner, canUseLogs, isMaintenance } = useStaffSession();
   // Security (Staff) accounts have no maintenance tasks; their dashboard is the
   // gate and visitor view only. canUseScanner is true once the role is known
   // to be non-Maintenance, so nothing flashes in while the session loads.
   const isSecurity = canUseScanner;
   const [filter, setFilter] = useState<Filter>("all");
+  const [activityFilter, setActivityFilter] = useState("all");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [summary, setSummary] = useState<StaffDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -184,6 +267,10 @@ export default function StaffDashboardPage() {
         if (!cancelled) setLoading(false);
       }
 
+      if (!isMaintenance) {
+        if (!cancelled) setTasks([]);
+        return;
+      }
       try {
         const rawTasks = await listTasks();
         if (!cancelled) {
@@ -206,10 +293,24 @@ export default function StaffDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadTick]);
+  }, [reloadTick, isMaintenance]);
 
   const pendingCount = summary?.pending_tasks_count ?? tasks.filter((t) => t.status !== "done").length;
   const visitorCount = summary?.expected_visitors_count ?? 0;
+
+  const counts = {
+    pending: tasks.filter((t) => t.status === "pending").length,
+    progress: tasks.filter((t) => t.status === "progress").length,
+    done: tasks.filter((t) => t.status === "done").length,
+  };
+  const events = summary?.recent_events ?? [];
+  const eventCount = (type: string) => events.filter((e) => e.event_type === type).length;
+  const visibleEvents = activityFilter === "all" ? events : events.filter((e) => e.event_type === activityFilter);
+  const arrivalsToday = events.filter((e) => e.event_type === "gate_in" && isToday(e.timestamp)).length;
+  const departuresToday = events.filter((e) => e.event_type === "gate_out" && isToday(e.timestamp)).length;
+  // Accounts without a saved name greet with the email's local part, not the whole address.
+  const greetingName = session ? session.firstName.split("@")[0] : "";
+  const todayLabel = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
   const filtered = tasks.filter((t) => {
     if (filter === "all") return t.status !== "done";
@@ -355,9 +456,9 @@ export default function StaffDashboardPage() {
         <section className={styles.hero}>
           <div>
             <p className={styles.kicker}>
-              Staff Tasks {session ? `· ${session.profile.staff_type}` : ""}
+              {isMaintenance ? "Maintenance" : isSecurity ? "Security Desk" : "Staff"} · {todayLabel}
             </p>
-            <h1>Welcome back{session ? `, ${session.firstName}` : ""}</h1>
+            <h1>Welcome back{greetingName ? `, ${greetingName}` : ""}</h1>
             <p className={styles.lede}>
               {error ? (
                 <>
@@ -366,237 +467,245 @@ export default function StaffDashboardPage() {
                     Retry
                   </button>
                 </>
+              ) : isMaintenance ? (
+                "Here are the jobs assigned to you and what changed recently."
               ) : (
-                "Your townhouse community is secure and active today."
+                "Today's visitors and gate activity at a glance."
               )}
             </p>
           </div>
-          <div
-            className={`${styles.stats} ${isMaintenance ? styles.statsTwo : ""} ${
-              isSecurity ? styles.statsOne : ""
-            }`}
-          >
-            {isSecurity ? null : (
-              <button
-                type="button"
-                className={styles.stat}
-                onClick={() => openStat("tasks")}
-                aria-haspopup="dialog"
-              >
-                <IconClipboard size={20} className={styles.statIcon} />
-                <span>Active Tasks</span>
-                <strong>{loading ? "…" : `${pendingCount} open`}</strong>
-                <small className={styles.statHint}>
-                  View breakdown <IconArrowRight size={12} />
-                </small>
+          <div className={styles.heroActions}>
+            {canUseScanner ? (
+              <Link href="/staff/scanner" className={styles.heroPrimary}>
+                <IconScan size={18} /> Open Gate Scanner
+              </Link>
+            ) : null}
+            {isMaintenance ? (
+              <button type="button" className={styles.heroPrimary} onClick={() => setMaintOpen(true)}>
+                <IconDoc size={18} /> New Maintenance Log
               </button>
-            )}
-            {/* Visitor traffic is a security-desk concern; Maintenance techs
-                have no gate duties, so the tile is noise for them. */}
-            {isMaintenance ? null : (
-              <button
-                type="button"
-                className={`${styles.stat} ${styles.statGreen}`}
-                onClick={() => openStat("visitors")}
-                aria-haspopup="dialog"
-              >
-                <IconUsers size={20} className={styles.statIcon} />
-                <span>Visitors</span>
-                <strong>{loading ? "…" : `${visitorCount} expected`}</strong>
-                <small className={styles.statHint}>
-                  View breakdown <IconArrowRight size={12} />
-                </small>
-              </button>
-            )}
-            {isSecurity ? null : (
-              <button
-                type="button"
-                className={styles.statWide}
-                onClick={() => openStat("assigned")}
-                aria-haspopup="dialog"
-              >
-                <div>
-                  <span>Shift Overview</span>
-                  <strong>Assigned Tasks</strong>
-                  <small className={styles.statHint}>
-                  View breakdown <IconArrowRight size={12} />
-                </small>
-                </div>
-                <em>{tasks.length}</em>
-              </button>
-            )}
+            ) : null}
           </div>
         </section>
 
-        <div className={`${styles.grid} ${isSecurity ? styles.gridSecurity : ""}`}>
-          {isSecurity ? null : (
-            <section className={styles.mainCol}>
-              <div className={styles.toolbar}>
-                <div className={styles.filters} role="group" aria-label="Task filters">
-                  {(
-                    [
-                      ["all", "All"],
-                      ["pending", "Pending"],
-                      ["progress", "In Progress"],
-                      ["done", "Done"],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      aria-pressed={filter === id}
-                      className={`${styles.filter} ${filter === id ? styles.filterActive : ""}`}
-                      onClick={() => setFilter(id)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className={styles.manageHint}>Manage your operational duties for today.</p>
-              </div>
+        <section className={styles.stats} aria-label="Summary">
+          {isMaintenance ? (
+            <>
+              <StatTile
+                icon={<IconClipboard size={18} />}
+                label="Open tasks"
+                value={loading ? "…" : pendingCount}
+                onClick={() => openStat("tasks")}
+              />
+              <StatTile
+                icon={<IconWrench size={18} />}
+                label="In progress"
+                value={counts.progress}
+                onClick={() => setFilter("progress")}
+                hint="Show in list"
+              />
+              <StatTile
+                icon={<IconShieldCheck size={18} />}
+                label="Completed"
+                value={counts.done}
+                tone="green"
+                onClick={() => setFilter("done")}
+                hint="Show in list"
+              />
+            </>
+          ) : (
+            <>
+              <StatTile
+                icon={<IconUsers size={18} />}
+                label="Visitors expected today"
+                value={loading ? "…" : visitorCount}
+                tone="green"
+                onClick={() => openStat("visitors")}
+              />
+              <StatTile
+                icon={<IconShield size={18} />}
+                label="Arrivals today"
+                value={loading ? "…" : arrivalsToday}
+                onClick={() => setActivityFilter("gate_in")}
+                hint="Show in activity"
+              />
+              <StatTile
+                icon={<IconShieldCheck size={18} />}
+                label="Departures today"
+                value={loading ? "…" : departuresToday}
+                onClick={() => setActivityFilter("gate_out")}
+                hint="Show in activity"
+              />
+            </>
+          )}
+        </section>
 
+        <div className={isMaintenance ? styles.board : styles.boardSingle}>
+          {isMaintenance ? (
+            <Panel
+              title="My Tasks"
+              tabs={[
+                { id: "all", label: "Active", count: counts.pending + counts.progress },
+                { id: "pending", label: "Pending", count: counts.pending },
+                { id: "progress", label: "In Progress", count: counts.progress },
+                { id: "done", label: "Done", count: counts.done },
+              ]}
+              active={filter}
+              onChange={(id) => setFilter(id as Filter)}
+              ariaLabel="Task filters"
+            >
               {tasksError ? (
                 <p className={styles.empty} role="status">
                   {tasksError}
                 </p>
-              ) : filtered.length === 0 ? (
+              ) : loading && tasks.length === 0 ? (
                 <p className={styles.empty} role="status">
-                  No tasks in this view.
+                  Loading tasks…
                 </p>
+              ) : filtered.length === 0 ? (
+                <div className={styles.emptyState} role="status">
+                  <IconClipboard size={22} />
+                  <p>
+                    {filter === "done"
+                      ? "No completed tasks yet."
+                      : filter === "progress"
+                        ? "Nothing in progress. Start a pending task when you're on site."
+                        : "You're all caught up. New assignments will appear here."}
+                  </p>
+                </div>
               ) : (
-                <div className={styles.taskGrid}>
+                <ul className={styles.taskList}>
                   {filtered.map((task) => (
-                    <article key={task.id} className={styles.taskCard}>
-                      <div className={styles.taskTop}>
-                        <span
-                          className={`${styles.priority} ${
-                            task.priority === "high"
-                              ? styles.priorityHigh
-                              : task.priority === "medium"
-                                ? styles.priorityMed
-                                : styles.priorityLow
-                          }`}
-                        >
-                          {task.priority === "high"
-                            ? "High Priority"
+                    <li key={task.id} className={styles.taskRow}>
+                      <span
+                        className={`${styles.taskIcon} ${
+                          task.priority === "high"
+                            ? styles.toneHigh
                             : task.priority === "medium"
-                              ? "Medium Priority"
-                              : "Low Priority"}
-                        </span>
-                        <span className={styles.taskGlyph}>
-                          {task.icon === "wrench" ? (
-                            <IconWrench size={18} />
-                          ) : task.icon === "snow" ? (
-                            <IconSnowflake size={18} />
-                          ) : (
-                            <IconShield size={18} />
-                          )}
-                        </span>
-                      </div>
-                      <h3>{task.title}</h3>
-                      <div className={styles.taskMeta}>
-                        <span>
-                          <IconMapPin size={14} /> {task.location}
-                        </span>
-                        <span>
-                          <IconClock size={14} /> {task.meta}
-                        </span>
+                              ? styles.toneMed
+                              : styles.toneLow
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {task.icon === "snow" ? (
+                          <IconSnowflake size={18} />
+                        ) : task.icon === "shield" ? (
+                          <IconShield size={18} />
+                        ) : (
+                          <IconWrench size={18} />
+                        )}
+                      </span>
+                      <div className={styles.taskBody}>
+                        <div className={styles.taskTitleRow}>
+                          <h3>
+                            {task.title} <span className={styles.taskId}>#{task.id}</span>
+                          </h3>
+                          <span
+                            className={`${styles.priority} ${
+                              task.priority === "high"
+                                ? styles.priorityHigh
+                                : task.priority === "medium"
+                                  ? styles.priorityMed
+                                  : styles.priorityLow
+                            }`}
+                          >
+                            {task.priority === "high" ? "High" : task.priority === "medium" ? "Medium" : "Low"}
+                          </span>
+                          <span className={`${styles.statusPill} ${styles[`status_${task.status}`]}`}>
+                            {task.status === "done" ? "Done" : task.status === "progress" ? "In progress" : "Pending"}
+                          </span>
+                        </div>
+                        {task.description ? <p className={styles.taskDesc}>{task.description}</p> : null}
+                        <div className={styles.taskMeta}>
+                          <span>
+                            <IconMapPin size={14} /> {task.location}
+                          </span>
+                          <span>
+                            <IconClock size={14} /> {task.meta}
+                          </span>
+                        </div>
                       </div>
                       <div className={styles.taskActions}>
-                        {task.status === "done" ? (
-                          <button type="button" className={styles.btnPrimary} disabled>
-                            Completed
-                          </button>
-                        ) : (
+                        <button type="button" className={styles.btnGhost} onClick={() => setSelectedId(task.id)}>
+                          Details
+                        </button>
+                        {task.status === "done" ? null : (
                           <button
                             type="button"
                             className={styles.btnPrimary}
                             disabled={busyTaskId === task.id}
-                            onClick={() =>
-                              task.status === "pending"
-                                ? startTask(task.id)
-                                : completeTask(task.id)
-                            }
+                            onClick={() => (task.status === "pending" ? startTask(task.id) : completeTask(task.id))}
                           >
-                            {busyTaskId === task.id
-                              ? "Saving…"
-                              : task.status === "pending"
-                                ? "Start"
-                                : "Complete"}
+                            {busyTaskId === task.id ? "Saving…" : task.status === "pending" ? "Start" : "Complete"}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className={styles.btnGhost}
-                          onClick={() => setSelectedId(task.id)}
-                        >
-                          Details
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-          <aside className={styles.sideCol}>
-            <div className={styles.actions}>
-              {canUseScanner ? (
-                <Link href="/staff/scanner" className={styles.actionPrimary}>
-                  <IconScan size={20} /> Gate Scanner
-                </Link>
-              ) : null}
-              {isMaintenance ? (
-                <button
-                  type="button"
-                  className={styles.actionSecondary}
-                  onClick={() => setMaintOpen(true)}
-                >
-                  <IconDoc size={20} /> New Maintenance Log
-                </button>
-              ) : null}
-            </div>
-
-            <section className={styles.activity}>
-              <div className={styles.activityHead}>
-                <h2>Recent Activity</h2>
-                <Link href="/staff/logs">View All</Link>
-              </div>
-              {loading ? (
-                <p className={styles.empty} role="status">
-                  Loading activity…
-                </p>
-              ) : !summary || summary.recent_events.length === 0 ? (
-                <p className={styles.empty} role="status">
-                  No recent activity.
-                </p>
-              ) : (
-                <ul className={styles.activityList}>
-                  {summary.recent_events.map((item, idx) => (
-                    <li key={`${item.timestamp}-${idx}`}>
-                      <span
-                        className={`${styles.activityIcon} ${
-                          item.event_type === "Gate Entry" ? styles.iconBlue : styles.iconGreen
-                        }`}
-                      >
-                        {item.event_type === "Gate Entry" ? (
-                          <IconShield size={16} />
-                        ) : item.event_type === "Unit Task" ? (
-                          <IconWrench size={16} />
-                        ) : (
-                          <IconShieldCheck size={16} />
-                        )}
-                      </span>
-                      <div>
-                        <p>{item.description}</p>
-                        <span>{item.timestamp}</span>
                       </div>
                     </li>
                   ))}
                 </ul>
               )}
-            </section>
-          </aside>
+            </Panel>
+          ) : null}
+
+          <Panel
+            title={isMaintenance ? "Recent Activity" : "Gate Activity"}
+            tabs={
+              isMaintenance
+                ? [
+                    { id: "all", label: "All", count: events.length },
+                    { id: "task_assigned", label: "Assigned", count: eventCount("task_assigned") },
+                    { id: "task_completed", label: "Completed", count: eventCount("task_completed") },
+                  ]
+                : [
+                    { id: "all", label: "All", count: events.length },
+                    { id: "gate_in", label: "Arrivals", count: eventCount("gate_in") },
+                    { id: "gate_out", label: "Departures", count: eventCount("gate_out") },
+                  ]
+            }
+            active={activityFilter}
+            onChange={setActivityFilter}
+            ariaLabel="Activity filters"
+            action={
+              canUseLogs ? (
+                <Link href="/staff/logs" className={styles.panelLink}>
+                  View all logs <IconArrowRight size={14} />
+                </Link>
+              ) : null
+            }
+          >
+            {loading && !summary ? (
+              <p className={styles.empty} role="status">
+                Loading activity…
+              </p>
+            ) : visibleEvents.length === 0 ? (
+              <div className={styles.emptyState} role="status">
+                <IconClock size={22} />
+                <p>{events.length === 0 ? "No recent activity yet." : "Nothing matches this filter."}</p>
+              </div>
+            ) : (
+              <ul className={styles.activityList}>
+                {visibleEvents.map((item, idx) => (
+                  <li key={`${item.event_type}-${item.timestamp}-${idx}`}>
+                    <span className={`${styles.activityIcon} ${styles[`event_${item.event_type}`] ?? ""}`} aria-hidden="true">
+                      {item.event_type === "gate_in" ? (
+                        <IconShield size={16} />
+                      ) : item.event_type === "gate_out" ? (
+                        <IconArrowRight size={16} />
+                      ) : item.event_type === "task_completed" ? (
+                        <IconShieldCheck size={16} />
+                      ) : (
+                        <IconWrench size={16} />
+                      )}
+                    </span>
+                    <div className={styles.activityText}>
+                      <p>{item.description}</p>
+                      <time>{formatWhen(item.timestamp) ?? item.timestamp}</time>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
         </div>
       </div>
 
