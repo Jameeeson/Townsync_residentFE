@@ -44,7 +44,7 @@ export default function AdminForgotPasswordPage() {
             {/* Worded so it reveals nothing about whether the address exists. */}
             <p className={styles.successBanner}>
               If an administrator account exists for that address, a reset link has
-              been sent. The link expires in 30 minutes and can be used once.
+              been sent. The link expires in 5 minutes and can be used once.
             </p>
             <Link href="/" className={styles.primaryButton}>
               Back to Login
@@ -95,7 +95,7 @@ export default function AdminForgotPasswordPage() {
           </>
         )}
 
-        <footer className={styles.cardFooter}>TownSync OS v1.0.4</footer>
+        <footer className={styles.cardFooter}>TownSync OS v1.0.0-beta</footer>
       </section>
     </main>
   );

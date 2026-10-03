@@ -19,8 +19,10 @@ import {
   Printer,
   ShieldCheck,
   Send,
+  Home,
 } from "lucide-react";
 import AdminShell from "../../../components/admin/admin-shell";
+import PropertyRatesModal, { ordinal } from "../../../components/admin/property-rates-modal";
 import styles from "../../../components/styles/Finance.module.css";
 
 type StatusType = "Paid" | "Unpaid" | "Overdue";
@@ -61,6 +63,106 @@ function formatCurrency(amount: number): string {
   return `₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+type StatementResidentType = "All" | "Owner" | "Tenant";
+type StatementDelivery = "Email" | "Portal" | "Print";
+
+interface StatementPreview {
+  billing_period: string;
+  due_date: string;
+  eligible_residents: number;
+  already_billed: number;
+  to_create: number;
+  default_monthly_due: number;
+  default_due_day: number;
+  custom_rate_count: number;
+  default_rate_count: number;
+  shared_property_count: number;
+  total_new_amount: number;
+}
+
+interface StatementLine {
+  invoice_id: number;
+  invoice_number: string;
+  resident_name: string;
+  unit_number: string | null;
+  email: string | null;
+  amount: number;
+  penalty_amount: number;
+  due_date: string;
+  status: string;
+}
+
+interface StatementRunResult {
+  message: string;
+  billing_period: string;
+  delivery: StatementDelivery;
+  created: number;
+  skipped: number;
+  emails_queued: number;
+  statements: StatementLine[];
+}
+
+/** Previous, current and next month as YYYY-MM, labelled for the period picker. */
+function buildPeriodOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  return [-1, 0, 1].map((offset) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const name = d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const suffix = offset === 0 ? " (current)" : offset === 1 ? " (next)" : " (previous)";
+    return { value, label: name + suffix };
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Opens a print-ready page with one statement per sheet. */
+function printStatements(lines: StatementLine[], periodLabel: string): boolean {
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) return false;
+  const sheets = lines
+    .map(
+      (l) => `
+      <section class="sheet">
+        <header><h1>TownSync HOA Statement</h1><p>${escapeHtml(periodLabel)}</p></header>
+        <table>
+          <tr><th>Invoice</th><td>${escapeHtml(l.invoice_number)}</td></tr>
+          <tr><th>Resident</th><td>${escapeHtml(l.resident_name)}</td></tr>
+          <tr><th>Unit</th><td>${escapeHtml(l.unit_number ?? "-")}</td></tr>
+          <tr><th>Amount</th><td>${escapeHtml(formatCurrency(l.amount))}</td></tr>
+          ${l.penalty_amount > 0 ? `<tr><th>Penalty</th><td>${escapeHtml(formatCurrency(l.penalty_amount))}</td></tr>` : ""}
+          <tr><th>Total due</th><td><strong>${escapeHtml(formatCurrency(l.amount + l.penalty_amount))}</strong></td></tr>
+          <tr><th>Due date</th><td>${escapeHtml(l.due_date)}</td></tr>
+          <tr><th>Status</th><td>${escapeHtml(l.status)}</td></tr>
+        </table>
+        <footer>Pay through the TownSync resident portal (Billing) or at the HOA office.</footer>
+      </section>`,
+    )
+    .join("");
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Statements - ${escapeHtml(periodLabel)}</title>
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;margin:0}
+      .sheet{padding:48px;page-break-after:always;max-width:640px;margin:0 auto}
+      header{border-bottom:2px solid #1e3a8a;margin-bottom:24px}
+      h1{font-size:22px;margin:0 0 4px}
+      header p{margin:0 0 12px;color:#475569}
+      table{width:100%;border-collapse:collapse;font-size:14px}
+      th{text-align:left;color:#475569;font-weight:600;padding:8px 0;width:40%}
+      td{text-align:right;padding:8px 0;border-bottom:1px solid #e2e8f0}
+      footer{margin-top:24px;font-size:12px;color:#64748b}
+    </style></head><body>${sheets}</body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
+  return true;
+}
+
 function FinancePage() {
   const { toast, toastError } = useToast();
   const router = useRouter();
@@ -96,6 +198,65 @@ function FinancePage() {
   const [error, setError] = useState<string | null>(null);
   const [generatingStatements, setGeneratingStatements] = useState(false);
   const [statementMessage, setStatementMessage] = useState<string | null>(null);
+  const [statementPeriodOptions] = useState(buildPeriodOptions);
+  const [statementPeriod, setStatementPeriod] = useState(() => statementPeriodOptions[1].value);
+  const [statementResidentType, setStatementResidentType] = useState<StatementResidentType>("All");
+  const [statementDelivery, setStatementDelivery] = useState<StatementDelivery>("Email");
+  const [statementPreview, setStatementPreview] = useState<StatementPreview | null>(null);
+  const [statementPreviewError, setStatementPreviewError] = useState<string | null>(null);
+  const [statementPreviewNonce, setStatementPreviewNonce] = useState(0);
+  const [isRatesOpen, setIsRatesOpen] = useState(false);
+
+  // The summary card reflects the chosen period and resident type.
+  useEffect(() => {
+    if (!isGenerateStatementOpen) return;
+    let cancelled = false;
+    /* eslint-disable react-hooks/set-state-in-effect -- reset before refetch */
+    setStatementPreview(null);
+    setStatementPreviewError(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    apiGet<StatementPreview>(
+      `/api/v1/admin/finance/batch-statements/preview?billing_period=${statementPeriod}&resident_type=${statementResidentType}`,
+    )
+      .then((data) => {
+        if (!cancelled) setStatementPreview(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setStatementPreviewError(err instanceof Error ? err.message : "Could not load the summary.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGenerateStatementOpen, statementPeriod, statementResidentType, statementPreviewNonce]);
+
+  const runStatements = async () => {
+    setGeneratingStatements(true);
+    setStatementMessage(null);
+    try {
+      const result = await apiPost<StatementRunResult>("/api/v1/admin/finance/batch-statements", {
+        billing_period: statementPeriod,
+        resident_type: statementResidentType,
+        delivery: statementDelivery,
+      });
+      setStatementMessage(result.message);
+      toast(result.message, result.created > 0 ? "success" : "info");
+      if (statementDelivery === "Print") {
+        const label = statementPeriodOptions.find((o) => o.value === statementPeriod)?.label ?? statementPeriod;
+        if (result.statements.length === 0) {
+          toast("There are no statements to print for this period.", "info");
+        } else if (!printStatements(result.statements, label)) {
+          toast("Allow pop-ups for this site to print statements.", "warning");
+        }
+      }
+      setStatementPreviewNonce((n) => n + 1);
+      refreshLedger();
+    } catch (err) {
+      toastError(err, "Could not generate statements.");
+      setStatementMessage(err instanceof Error ? err.message : "Failed to generate statements");
+    } finally {
+      setGeneratingStatements(false);
+    }
+  };
 
   const visibleRecords = searchTerm.trim()
     ? records.filter((r) => {
@@ -264,9 +425,15 @@ function FinancePage() {
             <button className={styles.btnSecondary} onClick={handleExportCSV}>
               <Download size={16} /> Export CSV
             </button>
+            <button type="button" className={styles.btnSecondary} onClick={() => setIsRatesOpen(true)}>
+              <Home size={16} /> Property Rates
+            </button>
             <button 
               className={styles.btnPrimary} 
-              onClick={() => setIsGenerateStatementOpen(true)}
+              onClick={() => {
+                setStatementMessage(null);
+                setIsGenerateStatementOpen(true);
+              }}
             >
               <FileText size={16} /> Generate Batch Statements
             </button>
@@ -576,52 +743,85 @@ function FinancePage() {
       {/* --- MODAL 2: GENERATE STATEMENT --- */}
       {isGenerateStatementOpen && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
+          <div className={styles.modalContent} role="dialog" aria-modal="true" aria-labelledby="stmt-title">
             <div className={styles.modalHeader}>
               <div className={styles.titleWithIcon}>
                 <FileText size={20} color="#1e3a8a" />
-                <h2>Generate Statement</h2>
+                <h2 id="stmt-title">Generate Statement</h2>
               </div>
-              <button onClick={() => setIsGenerateStatementOpen(false)} className={styles.closeBtn}>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setIsGenerateStatementOpen(false)}
+                className={styles.closeBtn}
+              >
                 <X size={20} />
               </button>
             </div>
 
             <div className={styles.modalBody}>
-              <div className={styles.formRow} title="Not configurable yet — the batch run always covers every resident for the current period.">
+              <div className={styles.formRow}>
                 <div className={styles.formGroup}>
-                  <label>Billing Period</label>
-                  <select defaultValue="October 2024" disabled>
-                    <option value="October 2024">Current period</option>
+                  <label htmlFor="stmt-period">Billing Period</label>
+                  <select
+                    id="stmt-period"
+                    value={statementPeriod}
+                    onChange={(e) => setStatementPeriod(e.target.value)}
+                    disabled={generatingStatements}
+                  >
+                    {statementPeriodOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className={styles.formGroup}>
                   <label>Resident Type</label>
-                  <div className={styles.segmentedControl}>
-                    <button className={styles.segmentActive} disabled>
-                      All
-                    </button>
-                    <button disabled>Owners</button>
-                    <button disabled>Tenants</button>
+                  <div className={styles.segmentedControl} role="radiogroup" aria-label="Resident type">
+                    {(["All", "Owner", "Tenant"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        role="radio"
+                        aria-checked={statementResidentType === t}
+                        className={statementResidentType === t ? styles.segmentActive : ""}
+                        disabled={generatingStatements}
+                        onClick={() => setStatementResidentType(t)}
+                      >
+                        {t === "All" ? "All" : t === "Owner" ? "Owners" : "Tenants"}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              <div className={styles.formGroup} title="Not configurable yet — statements are always emailed.">
+              <div className={styles.formGroup}>
                 <label>Delivery Method</label>
-                <div className={styles.deliveryGrid}>
-                  <button className={`${styles.deliveryOption} ${styles.deliveryOptionActive}`} disabled>
-                    <Mail size={20} />
-                    <span>Email</span>
-                  </button>
-                  <button className={styles.deliveryOption} disabled>
-                    <Globe size={20} />
-                    <span>Portal</span>
-                  </button>
-                  <button className={styles.deliveryOption} disabled>
-                    <Printer size={20} />
-                    <span>Print</span>
-                  </button>
+                <div className={styles.deliveryGrid} role="radiogroup" aria-label="Delivery method">
+                  {(
+                    [
+                      { key: "Email", icon: <Mail size={20} />, hint: "Email each new statement" },
+                      { key: "Portal", icon: <Globe size={20} />, hint: "Post to residents' Billing page only" },
+                      { key: "Print", icon: <Printer size={20} />, hint: "Open printable statements" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={statementDelivery === opt.key}
+                      title={opt.hint}
+                      className={`${styles.deliveryOption} ${
+                        statementDelivery === opt.key ? styles.deliveryOptionActive : ""
+                      }`}
+                      disabled={generatingStatements}
+                      onClick={() => setStatementDelivery(opt.key)}
+                    >
+                      {opt.icon}
+                      <span>{opt.key}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -632,9 +832,42 @@ function FinancePage() {
                 </div>
                 <div className={styles.summaryDetails}>
                   <h4>Statement Summary</h4>
-                  <p className={styles.sumNotice}>
-                    This runs the backend&apos;s monthly billing engine in the background; it does not report a statement count or delivery time.
-                  </p>
+                  <button type="button" className={styles.linkBtn} onClick={() => setIsRatesOpen(true)}>
+                    Manage property rates
+                  </button>
+                  {statementPreviewError ? (
+                    <p className={styles.sumNotice}>{statementPreviewError}</p>
+                  ) : !statementPreview ? (
+                    <p className={styles.sumNotice}>Calculating…</p>
+                  ) : (
+                    <>
+                      <div className={styles.summaryStats}>
+                        <div>
+                          <span className={styles.sumLabel}>NEW STATEMENTS</span>
+                          <p className={styles.sumValue}>{statementPreview.to_create}</p>
+                        </div>
+                        <div>
+                          <span className={styles.sumLabel}>TOTAL BILLED</span>
+                          <p className={styles.sumValueGreen}>{formatCurrency(statementPreview.total_new_amount)}</p>
+                        </div>
+                      </div>
+                      <p className={styles.sumNotice}>
+                        Each property is billed its own amount on its own due day (default: the{" "}
+                        {ordinal(statementPreview.default_due_day)} of the month)
+                        {statementPreview.to_create > 0
+                          ? ` (${statementPreview.custom_rate_count} custom, ${statementPreview.default_rate_count} at the ${formatCurrency(statementPreview.default_monthly_due)} default)`
+                          : ""}
+                        .{" "}
+                        {statementPreview.already_billed > 0
+                          ? `${statementPreview.already_billed} of ${statementPreview.eligible_residents} active residents already have a statement for this period and will be skipped.`
+                          : `${statementPreview.eligible_residents} active resident(s) match.`}
+                        {statementDelivery === "Print" ? " Print includes every statement for the period." : ""}
+                        {statementPreview.shared_property_count > 0
+                          ? ` Note: ${statementPreview.shared_property_count} propert${statementPreview.shared_property_count === 1 ? "y has" : "ies have"} more than one resident, and each resident gets a statement.`
+                          : ""}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -642,37 +875,43 @@ function FinancePage() {
 
               <div className={styles.modalFooterRight}>
                 <button
+                  type="button"
                   className={styles.btnSecondary}
                   onClick={() => setIsGenerateStatementOpen(false)}
                 >
-                  Cancel
+                  {statementMessage ? "Close" : "Cancel"}
                 </button>
                 <button
+                  type="button"
                   className={styles.btnNavy}
-                  disabled={generatingStatements}
-                  onClick={async () => {
-                    setGeneratingStatements(true);
-                    try {
-                      const result = await apiPost<{ status: string; message: string }>(
-                        "/api/v1/admin/finance/batch-statements",
-                      );
-                      setStatementMessage(result.message);
-                      toast(result.message || "Batch statement run started.", "success");
-                    } catch (err) {
-                      toastError(err, "Could not start the batch statement run.");
-                      setStatementMessage(err instanceof Error ? err.message : "Failed to start batch run");
-                    } finally {
-                      setGeneratingStatements(false);
-                    }
-                  }}
+                  disabled={
+                    generatingStatements ||
+                    !statementPreview ||
+                    (statementDelivery !== "Print" && statementPreview.to_create === 0)
+                  }
+                  onClick={runStatements}
                 >
-                  {generatingStatements ? "Starting..." : "Generate & Send"} <Send size={14} />
+                  {generatingStatements
+                    ? "Generating..."
+                    : statementDelivery === "Email"
+                    ? "Generate & Send"
+                    : statementDelivery === "Portal"
+                    ? "Generate & Post"
+                    : "Generate & Print"}{" "}
+                  {statementDelivery === "Print" ? <Printer size={14} /> : <Send size={14} />}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {isRatesOpen ? (
+        <PropertyRatesModal
+          onClose={() => setIsRatesOpen(false)}
+          onChanged={() => setStatementPreviewNonce((n) => n + 1)}
+        />
+      ) : null}
 
       {/* --- MODAL 3: PAYMENT SUCCESS --- */}
       {isSuccessOpen && (

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "../../../lib/api";
+import { formatDay as formatDate, ordinal } from "../../../components/admin/property-rates-modal";
 import { useToast } from "@/components/ui/toast";
 import {
   Users,
@@ -20,6 +21,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  MessageSquare,
 } from "lucide-react";
 
 import {
@@ -31,6 +33,8 @@ import {
   type ResidentDocument,
 } from "../../../lib/resident-documents";
 import AdminShell from "../../../components/admin/admin-shell";
+import { StaffChatModal } from "../../../components/admin/staff-chat";
+import { formatServerFull } from "../../../lib/datetime";
 import styles from "../../../components/styles/Resident.module.css";
 
 // --- Types ---
@@ -47,6 +51,15 @@ type ResidentApiRecord = {
   phone_number: string | null;
   move_in_date: string | null;
   occupancy_type: string | null;
+  id_type?: string | null;
+  id_number?: string | null;
+  lease_start?: string | null;
+  lease_end?: string | null;
+  monthly_due?: number | null;
+  monthly_due_is_custom?: boolean;
+  due_day?: number | null;
+  due_day_is_custom?: boolean;
+  next_due_date?: string | null;
 };
 
 type Resident = {
@@ -60,6 +73,15 @@ type Resident = {
   phoneNumber: string | null;
   moveInDate: string | null;
   occupancyType: string | null;
+  idType: string | null;
+  idNumber: string | null;
+  leaseStart: string | null;
+  leaseEnd: string | null;
+  monthlyDue: number | null;
+  monthlyDueIsCustom: boolean;
+  dueDay: number | null;
+  dueDayIsCustom: boolean;
+  nextDueDate: string | null;
 };
 
 type DeactivationRequestItem = {
@@ -294,24 +316,36 @@ export default function DirectoryAndUserManagementPage() {
 
   const loadResidents = () => {
     const query = residentSearch ? `?search=${encodeURIComponent(residentSearch)}` : "";
-    apiGet<ResidentApiRecord[]>(`/api/v1/admin/residents/${query}`)
-      .then((data) =>
-        setResidents(
-          data.map((item, index) => ({
-            id: item.id,
-            unit: item.unit_number ?? "—",
-            initials: initialsFor(item.full_name ?? item.username),
-            avatarColor: AVATAR_COLORS[index % AVATAR_COLORS.length],
-            name: item.full_name ?? item.username,
-            email: item.username,
-            status: item.status,
-            phoneNumber: item.phone_number,
-            moveInDate: item.move_in_date,
-            occupancyType: item.occupancy_type,
-          })),
-        ),
-      )
-      .catch((err) => setResidentsError(err instanceof Error ? err.message : "Failed to load residents"));
+    return apiGet<ResidentApiRecord[]>(`/api/v1/admin/residents/${query}`)
+      .then((data) => {
+        const mapped: Resident[] = data.map((item, index) => ({
+          id: item.id,
+          unit: item.unit_number ?? "—",
+          initials: initialsFor(item.full_name ?? item.username),
+          avatarColor: AVATAR_COLORS[index % AVATAR_COLORS.length],
+          name: item.full_name ?? item.username,
+          email: item.username,
+          status: item.status,
+          phoneNumber: item.phone_number,
+          moveInDate: item.move_in_date,
+          occupancyType: item.occupancy_type,
+          idType: item.id_type ?? null,
+          idNumber: item.id_number ?? null,
+          leaseStart: item.lease_start ?? null,
+          leaseEnd: item.lease_end ?? null,
+          monthlyDue: item.monthly_due ?? null,
+          monthlyDueIsCustom: Boolean(item.monthly_due_is_custom),
+          dueDay: item.due_day ?? null,
+          dueDayIsCustom: Boolean(item.due_day_is_custom),
+          nextDueDate: item.next_due_date ?? null,
+        }));
+        setResidents(mapped);
+        return mapped;
+      })
+      .catch((err) => {
+        setResidentsError(err instanceof Error ? err.message : "Failed to load residents");
+        return null;
+      });
   };
 
   useEffect(() => {
@@ -369,6 +403,146 @@ export default function DirectoryAndUserManagementPage() {
       setResidentsError(err instanceof Error ? err.message : `Failed to update resident status`);
     } finally {
       setResidentBusyId(null);
+    }
+  };
+
+  // Resident profile modal: view, edit details, set a new password, suspend/reactivate.
+  const [residentModalTab, setResidentModalTab] = useState<"details" | "password">("details");
+  const [residentEditing, setResidentEditing] = useState(false);
+  const [residentForm, setResidentForm] = useState({
+    fullName: "",
+    email: "",
+    unit: "",
+    phone: "",
+    moveInDate: "",
+    occupancy: "Homeowner" as "Homeowner" | "Tenant",
+    leaseStart: "",
+    leaseEnd: "",
+    monthlyDue: "",
+    dueDay: "",
+  });
+  const [residentSaving, setResidentSaving] = useState(false);
+  const [residentFormError, setResidentFormError] = useState<string | null>(null);
+  const [residentNewPassword, setResidentNewPassword] = useState("");
+  const [residentConfirmPassword, setResidentConfirmPassword] = useState("");
+  const [showResidentPassword, setShowResidentPassword] = useState(false);
+
+  const openResidentModal = (resident: Resident, tab: "details" | "password" = "details") => {
+    setResidentMenuOpenId(null);
+    setViewingResident(resident);
+    setResidentModalTab(tab);
+    setResidentEditing(false);
+    setResidentFormError(null);
+    setResidentNewPassword("");
+    setResidentConfirmPassword("");
+    setShowResidentPassword(false);
+  };
+
+  const startResidentEdit = (resident: Resident) => {
+    setResidentForm({
+      fullName: resident.name,
+      email: resident.email,
+      unit: resident.unit === "—" ? "" : resident.unit,
+      phone: resident.phoneNumber ?? "",
+      moveInDate: resident.moveInDate ?? "",
+      occupancy: resident.occupancyType === "Tenant" ? "Tenant" : "Homeowner",
+      leaseStart: resident.leaseStart ?? "",
+      leaseEnd: resident.leaseEnd ?? "",
+      monthlyDue: resident.monthlyDue != null ? String(resident.monthlyDue) : "",
+      dueDay: resident.dueDay != null ? String(resident.dueDay) : "",
+    });
+    setResidentFormError(null);
+    setResidentEditing(true);
+  };
+
+  const saveResidentDetails = async () => {
+    if (!viewingResident) return;
+    if (!residentForm.fullName.trim() || !residentForm.email.trim() || !residentForm.unit.trim()) {
+      setResidentFormError("Full name, email, and unit are required.");
+      return;
+    }
+    if (residentForm.leaseStart && residentForm.leaseEnd && residentForm.leaseEnd < residentForm.leaseStart) {
+      setResidentFormError("Lease end must be on or after the lease start.");
+      return;
+    }
+    const monthlyDue = residentForm.monthlyDue.trim() ? Number(residentForm.monthlyDue.replace(/,/g, "")) : null;
+    if (monthlyDue !== null && !(monthlyDue > 0)) {
+      setResidentFormError("Monthly due must be greater than zero.");
+      return;
+    }
+    setResidentSaving(true);
+    setResidentFormError(null);
+    try {
+      const unit = residentForm.unit.trim();
+      await apiPatch(`/api/v1/admin/residents/${viewingResident.id}`, {
+        full_name: residentForm.fullName.trim(),
+        email: residentForm.email.trim(),
+        unit_number: unit,
+        phone_number: residentForm.phone.trim() || null,
+        move_in_date: residentForm.moveInDate || null,
+        occupancy_type: residentForm.occupancy,
+        lease_start: residentForm.leaseStart || null,
+        lease_end: residentForm.leaseEnd || null,
+      });
+      // Amount and due day belong to the property, so they are saved as the
+      // property's rate (shared with anyone else in the same unit).
+      const billing: { unit_number: string; monthly_due?: number; due_day?: number } = { unit_number: unit };
+      if (monthlyDue !== null && monthlyDue !== viewingResident.monthlyDue) billing.monthly_due = monthlyDue;
+      if (residentForm.dueDay && Number(residentForm.dueDay) !== viewingResident.dueDay) {
+        billing.due_day = Number(residentForm.dueDay);
+      }
+      if (billing.monthly_due !== undefined || billing.due_day !== undefined) {
+        await apiPut("/api/v1/admin/finance/property-rates", billing);
+      }
+      const name = residentForm.fullName.trim();
+      setResidentEditing(false);
+      toast(`${name}'s details updated.`, "success");
+      const fresh = await loadResidents();
+      const updated = fresh?.find((r) => r.id === viewingResident.id);
+      setViewingResident(
+        updated ?? {
+          ...viewingResident,
+          name,
+          initials: initialsFor(name),
+          email: residentForm.email.trim(),
+          unit,
+          phoneNumber: residentForm.phone.trim() || null,
+          moveInDate: residentForm.moveInDate || null,
+          occupancyType: residentForm.occupancy,
+          leaseStart: residentForm.leaseStart || null,
+          leaseEnd: residentForm.leaseEnd || null,
+        },
+      );
+    } catch (err) {
+      setResidentFormError(err instanceof Error ? err.message : "Could not update the resident.");
+    } finally {
+      setResidentSaving(false);
+    }
+  };
+
+  const saveResidentPassword = async () => {
+    if (!viewingResident) return;
+    if (residentNewPassword.length < 8) {
+      setResidentFormError("Password must be at least 8 characters.");
+      return;
+    }
+    if (residentNewPassword !== residentConfirmPassword) {
+      setResidentFormError("Passwords do not match.");
+      return;
+    }
+    setResidentSaving(true);
+    setResidentFormError(null);
+    try {
+      await apiPost(`/api/v1/admin/residents/${viewingResident.id}/reset-password`, {
+        new_password: residentNewPassword,
+      });
+      setResidentNewPassword("");
+      setResidentConfirmPassword("");
+      toast(`Password changed for ${viewingResident.name}. Their sessions were signed out.`, "success");
+    } catch (err) {
+      setResidentFormError(err instanceof Error ? err.message : "Could not change the password.");
+    } finally {
+      setResidentSaving(false);
     }
   };
 
@@ -484,6 +658,7 @@ export default function DirectoryAndUserManagementPage() {
 
   const [staffMenuOpenId, setStaffMenuOpenId] = useState<number | null>(null);
   const [viewingStaffUser, setViewingStaffUser] = useState<StaffUser | null>(null);
+  const [chattingWith, setChattingWith] = useState<StaffUser | null>(null);
   const [editingStaffUser, setEditingStaffUser] = useState<StaffUser | null>(null);
   const [editFullName, setEditFullName] = useState("");
   const [editEmployeeId, setEditEmployeeId] = useState("");
@@ -726,126 +901,6 @@ export default function DirectoryAndUserManagementPage() {
       setGroupError(err instanceof Error ? err.message : "Failed to remove member");
     }
   };
-
-  // --- FULL PAGE: Resident Detail View ---
-  if (viewingResident) {
-    const resident = viewingResident;
-    return (
-      <AdminShell>
-        <div className={styles.container}>
-          <button type="button" className={styles.backBtn} onClick={() => setViewingResident(null)}>
-            <ArrowLeft size={16} /> Back
-          </button>
-
-          <header className={styles.header}>
-            <h1>Resident Profile</h1>
-            <p>{resident.unit}</p>
-          </header>
-
-          {residentsError ? <p className={styles.subText}>{residentsError}</p> : null}
-
-          <div className={styles.card} style={{ padding: "1.5rem" }}>
-            <div className={styles.previewHeader}>
-              <span className={styles.avatar} style={{ backgroundColor: resident.avatarColor, width: 48, height: 48, fontSize: "1.1rem" }}>
-                {resident.initials}
-              </span>
-              <div className={styles.previewDetails}>
-                <h4>{resident.name}</h4>
-                <span
-                  className={`${styles.badge} ${
-                    resident.status === "Active"
-                      ? styles.badgeGreen
-                      : resident.status === "Pending"
-                      ? styles.badgeOrange
-                      : styles.badgeGray
-                  }`}
-                >
-                  {resident.status}
-                </span>
-              </div>
-            </div>
-
-            <div className={styles.formGrid2} style={{ marginTop: "1.5rem" }}>
-              <div className={styles.previewMetaRow}>
-                <label>Unit</label>
-                <span>{resident.unit}</span>
-              </div>
-              <div className={styles.previewMetaRow}>
-                <label>Email</label>
-                <span>{resident.email}</span>
-              </div>
-              <div className={styles.previewMetaRow}>
-                <label>Phone</label>
-                <span>{resident.phoneNumber || "Not provided"}</span>
-              </div>
-              <div className={styles.previewMetaRow}>
-                <label>Move-in Date</label>
-                <span>{resident.moveInDate || "Not provided"}</span>
-              </div>
-              <div className={styles.previewMetaRow}>
-                <label>Occupancy Type</label>
-                <span>{resident.occupancyType || "Not provided"}</span>
-              </div>
-              <div className={styles.previewMetaRow}>
-                <label>Documents</label>
-                <span>
-                  {residentDocsError
-                    ? residentDocsError
-                    : residentDocs === null
-                    ? "Loading…"
-                    : residentDocs.length === 0
-                    ? "No documents uploaded"
-                    : residentDocs
-                        .map((d) => `${d.doc_type ? DOC_TYPE_LABELS[d.doc_type] : "Document"}: ${d.display_name}`)
-                        .join(", ")}
-                </span>
-              </div>
-            </div>
-
-            <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
-              {resident.status === "Pending" ? (
-                <button
-                  type="button"
-                  className={styles.primaryBtn}
-                  disabled={residentBusyId === resident.id}
-                  onClick={async () => {
-                    await handleResidentStatusChange(resident.id, "Active");
-                    setViewingResident({ ...resident, status: "Active" });
-                  }}
-                >
-                  Approve Account
-                </button>
-              ) : resident.status === "Suspended" ? (
-                <button
-                  type="button"
-                  className={styles.primaryBtn}
-                  disabled={residentBusyId === resident.id}
-                  onClick={async () => {
-                    await handleResidentStatusChange(resident.id, "Active");
-                    setViewingResident({ ...resident, status: "Active" });
-                  }}
-                >
-                  Reactivate Resident
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.secondaryOutlineBtn}
-                  disabled={residentBusyId === resident.id}
-                  onClick={async () => {
-                    await handleResidentStatusChange(resident.id, "Suspended");
-                    setViewingResident({ ...resident, status: "Suspended" });
-                  }}
-                >
-                  Suspend Resident
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </AdminShell>
-    );
-  }
 
   // --- FULL PAGE: Add Resident Form View (Picture 1) ---
   if (isAddingResident) {
@@ -1198,9 +1253,9 @@ export default function DirectoryAndUserManagementPage() {
                         <tr
                           key={item.id}
                           className={styles.clickableRow}
-                          onClick={() => setViewingResident(item)}
+                          onClick={() => openResidentModal(item)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") setViewingResident(item);
+                            if (e.key === "Enter" || e.key === " ") openResidentModal(item);
                           }}
                           role="button"
                           tabIndex={0}
@@ -1265,6 +1320,12 @@ export default function DirectoryAndUserManagementPage() {
                                 </button>
                                 {residentMenuOpenId === item.id ? (
                                   <div className={styles.dropdownMenu}>
+                                    <button type="button" onClick={() => openResidentModal(item)}>
+                                      View / Edit
+                                    </button>
+                                    <button type="button" onClick={() => openResidentModal(item, "password")}>
+                                      Change Password
+                                    </button>
                                     {item.status === "Suspended" ? (
                                       <button
                                         type="button"
@@ -1557,115 +1618,529 @@ export default function DirectoryAndUserManagementPage() {
         </div>
       </div>
 
-      {/* --- MODAL: Staff/Admin/Maintenance Detail View --- */}
-      {viewingStaffUser && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
+      {/* --- MODAL: Resident Profile (view / edit / password / status) --- */}
+      {viewingResident && (
+        <div className={styles.modalOverlay} onClick={() => setViewingResident(null)}>
+          <div
+            className={`${styles.modalContent} ${styles.modalContentWide}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="resident-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className={styles.modalHeader}>
-              <div>
-                <h2>Staff Account</h2>
-                <p>{viewingStaffUser.role}</p>
+              <div className={styles.residentModalIdentity}>
+                <span
+                  className={styles.avatar}
+                  style={{ backgroundColor: viewingResident.avatarColor, width: 48, height: 48, fontSize: "1.1rem" }}
+                >
+                  {viewingResident.initials}
+                </span>
+                <div>
+                  <h2 id="resident-modal-title">{viewingResident.name}</h2>
+                  <p>
+                    Unit {viewingResident.unit} ·{" "}
+                    <span
+                      className={`${styles.badge} ${
+                        viewingResident.status === "Active"
+                          ? styles.badgeGreen
+                          : viewingResident.status === "Pending"
+                          ? styles.badgeOrange
+                          : styles.badgeGray
+                      }`}
+                    >
+                      {viewingResident.status}
+                    </span>
+                  </p>
+                </div>
               </div>
-              <button type="button" className={styles.closeBtn} onClick={() => setViewingStaffUser(null)}>
+              <button
+                type="button"
+                className={styles.closeBtn}
+                aria-label="Close"
+                onClick={() => setViewingResident(null)}
+              >
                 <X size={20} />
               </button>
             </div>
+
+            <nav className={`${styles.tabsNav} ${styles.residentModalTabs}`}>
+              <button
+                type="button"
+                className={`${styles.tabBtn} ${residentModalTab === "details" ? styles.tabActive : ""}`}
+                onClick={() => {
+                  setResidentModalTab("details");
+                  setResidentFormError(null);
+                }}
+              >
+                Profile Details
+              </button>
+              <button
+                type="button"
+                className={`${styles.tabBtn} ${residentModalTab === "password" ? styles.tabActive : ""}`}
+                onClick={() => {
+                  setResidentModalTab("password");
+                  setResidentEditing(false);
+                  setResidentFormError(null);
+                }}
+              >
+                Change Password
+              </button>
+            </nav>
+
             <div className={styles.modalBody}>
-              {staffError ? <p className={styles.subText}>{staffError}</p> : null}
-              <div className={styles.previewHeader}>
+              {residentFormError ? (
+                <div className={`${styles.formBanner} ${styles.formBannerError}`}>
+                  <AlertCircle size={16} /> {residentFormError}
+                </div>
+              ) : null}
+
+              {residentModalTab === "details" && !residentEditing ? (
+                <div className={styles.formGrid2}>
+                  <div className={styles.previewMetaRow}>
+                    <label>Unit</label>
+                    <span>{viewingResident.unit}</span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Email</label>
+                    <span>{viewingResident.email}</span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Phone</label>
+                    <span>{viewingResident.phoneNumber || "Not provided"}</span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Move-in Date</label>
+                    <span>{viewingResident.moveInDate || "Not provided"}</span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Occupancy Type</label>
+                    <span>{viewingResident.occupancyType || "Not provided"}</span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Lease</label>
+                    <span>
+                      {viewingResident.leaseStart || viewingResident.leaseEnd
+                        ? `${formatDate(viewingResident.leaseStart)} → ${formatDate(viewingResident.leaseEnd)}`
+                        : "Not set"}
+                    </span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Monthly Due</label>
+                    <span>
+                      {viewingResident.monthlyDue != null
+                        ? `₱${viewingResident.monthlyDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}${
+                            viewingResident.monthlyDueIsCustom ? "" : " (default)"
+                          }`
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Due Date</label>
+                    <span>
+                      {viewingResident.dueDay != null
+                        ? `Every ${ordinal(viewingResident.dueDay)}${viewingResident.dueDayIsCustom ? "" : " (default)"} · next ${formatDate(viewingResident.nextDueDate)}`
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Submitted ID</label>
+                    <span>
+                      {viewingResident.idNumber
+                        ? `${viewingResident.idType ?? "ID"} · ${viewingResident.idNumber}`
+                        : "None on file"}
+                    </span>
+                  </div>
+                  <div className={styles.previewMetaRow}>
+                    <label>Documents</label>
+                    <span>
+                      {residentDocsError
+                        ? residentDocsError
+                        : residentDocs === null
+                        ? "Loading…"
+                        : residentDocs.length === 0
+                        ? "No documents uploaded"
+                        : residentDocs
+                            .map((d) => `${d.doc_type ? DOC_TYPE_LABELS[d.doc_type] : "Document"}: ${d.display_name}`)
+                            .join(", ")}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              {residentModalTab === "details" && residentEditing ? (
+                <div className={styles.formGrid2}>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-name">Full Name</label>
+                    <input
+                      id="res-edit-name"
+                      type="text"
+                      value={residentForm.fullName}
+                      onChange={(e) => setResidentForm({ ...residentForm, fullName: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-email">Email</label>
+                    <input
+                      id="res-edit-email"
+                      type="email"
+                      value={residentForm.email}
+                      onChange={(e) => setResidentForm({ ...residentForm, email: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-unit">Lot / Unit Number</label>
+                    <input
+                      id="res-edit-unit"
+                      type="text"
+                      value={residentForm.unit}
+                      onChange={(e) => setResidentForm({ ...residentForm, unit: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-phone">Phone Number</label>
+                    <input
+                      id="res-edit-phone"
+                      type="tel"
+                      value={residentForm.phone}
+                      onChange={(e) => setResidentForm({ ...residentForm, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-movein">Move-in Date</label>
+                    <input
+                      id="res-edit-movein"
+                      type="date"
+                      value={residentForm.moveInDate}
+                      onChange={(e) => setResidentForm({ ...residentForm, moveInDate: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-lease-start">Lease Start</label>
+                    <input
+                      id="res-edit-lease-start"
+                      type="date"
+                      value={residentForm.leaseStart}
+                      onChange={(e) => setResidentForm({ ...residentForm, leaseStart: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-lease-end">Lease End</label>
+                    <input
+                      id="res-edit-lease-end"
+                      type="date"
+                      value={residentForm.leaseEnd}
+                      min={residentForm.leaseStart || undefined}
+                      onChange={(e) => setResidentForm({ ...residentForm, leaseEnd: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-due">Monthly Due (₱, for this property)</label>
+                    <input
+                      id="res-edit-due"
+                      inputMode="decimal"
+                      value={residentForm.monthlyDue}
+                      onChange={(e) => setResidentForm({ ...residentForm, monthlyDue: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-edit-due-day">Due Day (for this property)</label>
+                    <select
+                      id="res-edit-due-day"
+                      value={residentForm.dueDay}
+                      onChange={(e) => setResidentForm({ ...residentForm, dueDay: e.target.value })}
+                    >
+                      {Array.from({ length: 28 }, (_, k) => k + 1).map((d) => (
+                        <option key={d} value={d}>
+                          Every {ordinal(d)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Occupancy Type</label>
+                    <div className={styles.occupancySegment}>
+                      {(["Homeowner", "Tenant"] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          className={
+                            residentForm.occupancy === opt
+                              ? `${styles.occupancyBtn} ${styles.occupancyBtnActive}`
+                              : styles.occupancyBtn
+                          }
+                          onClick={() => setResidentForm({ ...residentForm, occupancy: opt })}
+                        >
+                          {opt === "Homeowner" ? "Owner" : "Tenant"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {residentModalTab === "password" ? (
+                <>
+                  <p className={styles.subText} style={{ marginTop: 0 }}>
+                    Set a new password for {viewingResident.email}. Their current sessions will be signed out.
+                  </p>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-new-password">New Password</label>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        id="res-new-password"
+                        type={showResidentPassword ? "text" : "password"}
+                        value={residentNewPassword}
+                        onChange={(e) => setResidentNewPassword(e.target.value)}
+                        placeholder="At least 8 characters"
+                        autoComplete="new-password"
+                        style={{ paddingRight: "2.5rem", width: "100%" }}
+                      />
+                      <button
+                        type="button"
+                        className={styles.inputIconBtn}
+                        onClick={() => setShowResidentPassword((v) => !v)}
+                        aria-label={showResidentPassword ? "Hide password" : "Show password"}
+                      >
+                        {showResidentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="res-confirm-password">Confirm New Password</label>
+                    <input
+                      id="res-confirm-password"
+                      type={showResidentPassword ? "text" : "password"}
+                      value={residentConfirmPassword}
+                      onChange={(e) => setResidentConfirmPassword(e.target.value)}
+                      placeholder="Re-enter the new password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className={`${styles.modalFooter} ${styles.residentModalFooter}`}>
+              <div>
+                {viewingResident.status === "Pending" || viewingResident.status === "Suspended" ? (
+                  <button
+                    type="button"
+                    className={styles.secondaryOutlineBtn}
+                    disabled={residentBusyId === viewingResident.id}
+                    onClick={async () => {
+                      await handleResidentStatusChange(viewingResident.id, "Active");
+                      setViewingResident({ ...viewingResident, status: "Active" });
+                    }}
+                  >
+                    {viewingResident.status === "Pending" ? "Approve Account" : "Reactivate Resident"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.dangerOutlineBtn}
+                    disabled={residentBusyId === viewingResident.id}
+                    onClick={async () => {
+                      if (!window.confirm(`Suspend ${viewingResident.name}? They will not be able to sign in.`)) return;
+                      await handleResidentStatusChange(viewingResident.id, "Suspended");
+                      setViewingResident({ ...viewingResident, status: "Suspended" });
+                    }}
+                  >
+                    Suspend Resident
+                  </button>
+                )}
+              </div>
+              <div>
+                {residentModalTab === "details" && !residentEditing ? (
+                  <button type="button" className={styles.submitBtn} onClick={() => startResidentEdit(viewingResident)}>
+                    Edit Details
+                  </button>
+                ) : null}
+                {residentModalTab === "details" && residentEditing ? (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.cancelBtn}
+                      disabled={residentSaving}
+                      onClick={() => {
+                        setResidentEditing(false);
+                        setResidentFormError(null);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button type="button" className={styles.submitBtn} disabled={residentSaving} onClick={saveResidentDetails}>
+                      {residentSaving ? "Saving..." : "Save Changes"}
+                    </button>
+                  </>
+                ) : null}
+                {residentModalTab === "password" ? (
+                  <button type="button" className={styles.submitBtn} disabled={residentSaving} onClick={saveResidentPassword}>
+                    {residentSaving ? "Saving..." : "Update Password"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: Staff/Admin/Maintenance Detail View --- */}
+      {viewingStaffUser && (
+        <div className={styles.modalOverlay} onClick={() => setViewingStaffUser(null)}>
+          <div
+            className={`${styles.modalContent} ${styles.modalContentWide}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="staff-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`${styles.modalHeader} ${styles.staffModalHero}`}>
+              <div className={styles.residentModalIdentity}>
                 <span
                   className={styles.avatar}
                   style={{
                     backgroundColor: AVATAR_COLORS[viewingStaffUser.user_id % AVATAR_COLORS.length],
-                    width: 48,
-                    height: 48,
+                    width: 52,
+                    height: 52,
                     fontSize: "1.1rem",
                   }}
                 >
                   {initialsFor(viewingStaffUser.full_name ?? viewingStaffUser.email)}
                 </span>
-                <div className={styles.previewDetails}>
-                  <h4>{viewingStaffUser.full_name ?? "—"}</h4>
-                  <span
-                    className={`${styles.badge} ${
-                      viewingStaffUser.status === "Active"
-                        ? styles.badgeGreen
-                        : viewingStaffUser.status === "Pending"
-                        ? styles.badgeOrange
-                        : styles.badgeGray
-                    }`}
-                  >
-                    {viewingStaffUser.status}
-                  </span>
+                <div>
+                  <h2 id="staff-modal-title">
+                    {viewingStaffUser.full_name || viewingStaffUser.email.split("@")[0]}
+                  </h2>
+                  <p>
+                    <span className={styles.roleChip}>{viewingStaffUser.role}</span>
+                    <span
+                      className={`${styles.badge} ${
+                        viewingStaffUser.status === "Active"
+                          ? styles.badgeGreen
+                          : viewingStaffUser.status === "Pending"
+                          ? styles.badgeOrange
+                          : styles.badgeGray
+                      }`}
+                    >
+                      {viewingStaffUser.status}
+                    </span>
+                  </p>
                 </div>
               </div>
-
-              <div className={styles.formGrid2} style={{ marginTop: "1.5rem" }}>
-                <div className={styles.previewMetaRow}>
-                  <label>Role</label>
-                  <span>{viewingStaffUser.role}</span>
-                </div>
-                <div className={styles.previewMetaRow}>
-                  <label>Email</label>
-                  <span>{viewingStaffUser.email}</span>
-                </div>
-                <div className={styles.previewMetaRow}>
-                  <label>Employee ID</label>
-                  <span>{viewingStaffUser.employee_id || "Not provided"}</span>
-                </div>
-                <div className={styles.previewMetaRow}>
-                  <label>Registered</label>
-                  <span>{viewingStaffUser.created_at}</span>
-                </div>
-              </div>
+              <button
+                type="button"
+                className={styles.closeBtn}
+                aria-label="Close"
+                onClick={() => setViewingStaffUser(null)}
+              >
+                <X size={20} />
+              </button>
             </div>
-            <div className={styles.modalFooter} style={{ flexWrap: "wrap", justifyContent: "flex-start", gap: "0.75rem" }}>
-              {viewingStaffUser.status === "Pending" ? (
-                <>
-                  <button
-                    type="button"
-                    className={styles.primaryBtn}
-                    disabled={staffBusyId === viewingStaffUser.user_id}
-                    onClick={() => handleUserDecision(viewingStaffUser.user_id, "approve")}
-                  >
-                    Approve Account
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.secondaryOutlineBtn}
-                    disabled={staffBusyId === viewingStaffUser.user_id}
-                    onClick={() => handleUserDecision(viewingStaffUser.user_id, "reject")}
-                  >
-                    Reject Account
-                  </button>
-                </>
+
+            <div className={styles.modalBody}>
+              {staffError ? (
+                <div className={`${styles.formBanner} ${styles.formBannerError}`}>
+                  <AlertCircle size={16} /> {staffError}
+                </div>
               ) : null}
-              <button
-                type="button"
-                className={styles.secondaryOutlineBtn}
-                onClick={() => openEditStaffUser(viewingStaffUser)}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                className={styles.secondaryOutlineBtn}
-                onClick={() => openResetPassword(viewingStaffUser)}
-              >
-                Reset Password
-              </button>
-              <button
-                type="button"
-                className={styles.secondaryOutlineBtn}
-                disabled={staffBusyId === viewingStaffUser.user_id}
-                onClick={() => handleDeleteStaffUser(viewingStaffUser)}
-              >
-                Delete
-              </button>
+              {!viewingStaffUser.full_name ? (
+                <div className={styles.infoNote}>
+                  <Info size={15} aria-hidden="true" />
+                  <span>No name is on file for this account. Use Edit to add one so it shows up in rosters and chats.</span>
+                </div>
+              ) : null}
+              <dl className={styles.detailGrid}>
+                <div>
+                  <dt>Email</dt>
+                  <dd>{viewingStaffUser.email}</dd>
+                </div>
+                <div>
+                  <dt>Employee ID</dt>
+                  <dd>{viewingStaffUser.employee_id || "Not provided"}</dd>
+                </div>
+                <div>
+                  <dt>Role</dt>
+                  <dd>{viewingStaffUser.role}</dd>
+                </div>
+                <div>
+                  <dt>Registered</dt>
+                  <dd>{formatServerFull(viewingStaffUser.created_at)}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className={`${styles.modalFooter} ${styles.residentModalFooter}`}>
+              <div>
+                <button
+                  type="button"
+                  className={styles.dangerOutlineBtn}
+                  disabled={staffBusyId === viewingStaffUser.user_id}
+                  onClick={() => handleDeleteStaffUser(viewingStaffUser)}
+                >
+                  Delete
+                </button>
+              </div>
+              <div>
+                {viewingStaffUser.status === "Pending" ? (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.cancelBtn}
+                      disabled={staffBusyId === viewingStaffUser.user_id}
+                      onClick={() => handleUserDecision(viewingStaffUser.user_id, "reject")}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.submitBtn}
+                      disabled={staffBusyId === viewingStaffUser.user_id}
+                      onClick={() => handleUserDecision(viewingStaffUser.user_id, "approve")}
+                    >
+                      Approve Account
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  type="button"
+                  className={styles.cancelBtn}
+                  onClick={() => openResetPassword(viewingStaffUser)}
+                >
+                  Reset Password
+                </button>
+                <button
+                  type="button"
+                  className={styles.cancelBtn}
+                  onClick={() => openEditStaffUser(viewingStaffUser)}
+                >
+                  Edit
+                </button>
+                {viewingStaffUser.status === "Active" &&
+                (viewingStaffUser.role === "Staff" || viewingStaffUser.role === "Maintenance") ? (
+                  <button
+                    type="button"
+                    className={styles.submitBtn}
+                    onClick={() => setChattingWith(viewingStaffUser)}
+                  >
+                    <MessageSquare size={15} style={{ verticalAlign: "-3px", marginRight: 6 }} />
+                    Message
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {chattingWith ? (
+        <StaffChatModal
+          staffUserId={chattingWith.user_id}
+          staffName={chattingWith.full_name || chattingWith.email}
+          subtitle={`${chattingWith.role} · ${chattingWith.email}`}
+          onClose={() => setChattingWith(null)}
+        />
+      ) : null}
 
       {/* --- MODAL: Register Staff --- */}
       {showRegisterStaff && (

@@ -57,7 +57,7 @@ function ResetPasswordForm() {
       <>
         <p className={styles.subtitle}>
           This page needs the reset link from your email. Request a new one if
-          your link is more than 30 minutes old.
+          your link is more than 5 minutes old.
         </p>
         <Link href="/forgot-password" className={styles.primaryButton}>
           Request a New Link
@@ -166,7 +166,7 @@ export default function AdminResetPasswordPage() {
           <ResetPasswordForm />
         </Suspense>
 
-        <footer className={styles.cardFooter}>TownSync OS v1.0.4</footer>
+        <footer className={styles.cardFooter}>TownSync OS v1.0.0-beta</footer>
       </section>
     </main>
   );

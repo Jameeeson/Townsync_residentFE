@@ -3,7 +3,7 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiGet, apiPost, apiPatch, ApiError, API_BASE_URL } from "@/lib/api";
+import { apiGet, apiPost, apiPatch, ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { getTicketChat, sendTicketChatMessage, type TicketChatThread } from "@/lib/chat";
 import {
@@ -11,14 +11,14 @@ import {
   Clock,
   Users,
   UserCheck,
-  Bot,
+  ClipboardList,
+  ShieldAlert,
   Filter,
   MoreHorizontal,
   Send,
   ArrowLeft,
   Calendar,
   Phone,
-  Mail,
   CheckCircle2,
   X,
   MapPin,
@@ -34,18 +34,21 @@ import {
   MessageSquare,
   UserRound,
   Scale,
+  History,
 } from "lucide-react";
 
 import styles from "@/components/styles/Maintenance.module.css";
 import AdminShell from "@/components/admin/admin-shell";
 import { parseServerDate } from "@/lib/datetime";
-import { PriorityVotesPanel } from "@/components/admin/priority-votes-panel";
+import AuthImageGallery from "@/components/ui/auth-image-gallery";
+import MaintenanceHistoryView from "@/components/admin/maintenance-history-view";
+import { StaffChatModal } from "@/components/admin/staff-chat";
 
 /* ─── Shared domain data (one source of truth) ─── */
 
 type Priority = "high" | "medium" | "low";
 type StaffStatus = "available" | "on-job" | "on-site" | "break";
-type DetailView = "pending" | "ongoing" | "staff" | "available" | "calendar";
+type DetailView = "pending" | "ongoing" | "staff" | "available" | "calendar" | "history";
 type ModalMode = "dispatch" | "decline" | "success" | "decline-success" | null;
 
 type PendingRequest = {
@@ -55,13 +58,17 @@ type PendingRequest = {
   unit: string;
   category: "Plumbing" | "HVAC" | "Appliance";
   aiLabel: string;
+  /** Risk Triage Engine score (0-10ish) and the reasons behind it; absent for tickets it never scored. */
+  riskScore: number | null;
+  riskReasons: string[];
+  createdAt: string | null;
   priority: Priority;
   reportedAgo: string;
   reportedAt: string;
   description: string;
   preferredDay: string;
   phone: string;
-  imageUrl: string | null;
+  imageUrls: string[];
   subject: string | null;
   priorityLevel: string;
   adminNotes: string | null;
@@ -89,6 +96,7 @@ type OngoingJob = {
   updatedAt: string | null;
   resident: string;
   residentPhone: string | null;
+  imageUrls: string[];
   residentStatus: string | null;
   techEmail: string | null;
   details: string;
@@ -122,6 +130,8 @@ type StaffMember = {
   tasksCompleted?: number;
   avgResolution?: string;
   email?: string | null;
+  /** USER id, used for the staff chat. */
+  userId?: number | null;
 };
 
 // --- Backend adapter types/helpers ---
@@ -141,11 +151,16 @@ type TriageQueueItem = {
   created_at?: string | null;
   preferred_date?: string | null;
   initial_image_url?: string | null;
+  image_urls?: string[];
   subject?: string | null;
   updated_at?: string | null;
   admin_notes?: string | null;
   resident_status?: string | null;
   human_requested?: boolean;
+  risk_score?: number | null;
+  risk_explanation?: { reasons?: string[]; sources?: string[] } | null;
+  /** The engine's reasons in general terms, without source citations. */
+  risk_summary?: string[];
 };
 
 type DispatchBoardItem = {
@@ -160,6 +175,7 @@ type DispatchBoardItem = {
   tasks_completed?: number | null;
   avg_resolution_minutes?: number | null;
   email?: string | null;
+  user_id?: number | null;
 };
 
 type StaffHistoryItem = {
@@ -198,6 +214,8 @@ type OngoingJobItem = {
   resident_phone?: string | null;
   resident_status?: string | null;
   tech_email?: string | null;
+  initial_image_url?: string | null;
+  image_urls?: string[];
 };
 
 const NOT_AVAILABLE = "Not available from backend";
@@ -223,12 +241,6 @@ function initialsFor(name: string): string {
   if (parts.length === 0 || !parts[0]) return "—";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-}
-
-function resolveImageUrl(path: string | null | undefined): string | null {
-  if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 function truncate(text: string): string {
@@ -268,13 +280,16 @@ function adaptTriageItem(item: TriageQueueItem): PendingRequest {
     unit: item.unit_number ?? NOT_AVAILABLE,
     category,
     aiLabel: item.ai_priority ?? item.status,
+    riskScore: typeof item.risk_score === "number" ? item.risk_score : null,
+    riskReasons: item.risk_summary ?? [],
+    createdAt: item.created_at ?? null,
     priority: toPriority(item.priority),
     reportedAgo: relativeTime(item.created_at),
     reportedAt: item.created_at ?? NOT_AVAILABLE,
     description: item.description,
     preferredDay: item.preferred_date ?? "No preference given",
     phone: item.resident_phone ?? NOT_AVAILABLE,
-    imageUrl: resolveImageUrl(item.initial_image_url),
+    imageUrls: item.image_urls ?? (item.initial_image_url ? [item.initial_image_url] : []),
     humanRequested: Boolean(item.human_requested),
   };
 }
@@ -303,6 +318,7 @@ function adaptStaffItem(item: DispatchBoardItem): StaffMember {
     tasksCompleted: item.tasks_completed ?? undefined,
     avgResolution: item.avg_resolution_minutes != null ? formatMinutes(item.avg_resolution_minutes) : undefined,
     email: item.email ?? null,
+    userId: item.user_id ?? null,
   };
 }
 
@@ -321,6 +337,7 @@ function adaptOngoingJob(item: OngoingJobItem): OngoingJob {
     residentPhone: item.resident_phone ?? null,
     residentStatus: item.resident_status ?? null,
     techEmail: item.tech_email ?? null,
+    imageUrls: item.image_urls ?? (item.initial_image_url ? [item.initial_image_url] : []),
     details: item.description,
     category: item.category,
     priority: toPriority(item.priority),
@@ -350,13 +367,16 @@ function toChatTicket(job: OngoingJob): PendingRequest {
     unit: job.location,
     category,
     aiLabel: job.status,
+    riskScore: null,
+    riskReasons: [],
+    createdAt: job.reportedAt ?? null,
     priority: job.priority,
     reportedAgo: relativeTime(job.reportedAt),
     reportedAt: job.reportedAt ?? NOT_AVAILABLE,
     description: job.details,
     preferredDay: "No preference given",
     phone: job.residentPhone ?? NOT_AVAILABLE,
-    imageUrl: null,
+    imageUrls: job.imageUrls,
     subject: job.subject,
     priorityLevel: job.priorityLevel,
     adminNotes: job.adminNotes,
@@ -448,7 +468,7 @@ function MaintenanceCommand() {
   const [dispatchTicketId, setDispatchTicketId] = useState<string | null>(null);
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
   const [dispatchDeadlineDate, setDispatchDeadlineDate] = useState("");
-  const [dispatchDeadlineTime, setDispatchDeadlineTime] = useState("");
+  const [dispatchDeadlineTime, setDispatchDeadlineTime] = useState("12:00");
   const [dispatchDeadlineError, setDispatchDeadlineError] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
@@ -493,7 +513,7 @@ function MaintenanceCommand() {
     setDispatchTicketId(ticketId);
     setSelectedTechId(preferredTechId ?? staff.find((s) => s.isTech)?.id ?? null);
     setDispatchDeadlineDate("");
-    setDispatchDeadlineTime("");
+    setDispatchDeadlineTime("12:00"); // noon by default; the admin can still change it
     setDispatchDeadlineError(null);
     setDeclineReason("");
     setDeclineMessage("");
@@ -594,6 +614,24 @@ function MaintenanceCommand() {
 
   const availableTechs = staff.filter((s) => s.isTech && s.status === "available").length;
 
+  const assignToTech = (techId: string) => {
+    const ticketId = selectedPendingId ?? pendingRequests[0]?.id;
+    if (ticketId) openDispatch(ticketId, techId);
+    else toast("There are no pending requests to assign right now.", "info");
+  };
+
+  const openJobFromStaff = (jobId: string) => {
+    if (!ongoingJobs.some((j) => j.id === jobId)) {
+      toast(`Job #${jobId} is not in the ongoing list anymore.`, "info");
+      return false;
+    }
+    setTechProfileId(null);
+    setTicketChatId(null);
+    setDetailView("ongoing");
+    setViewingJobId(jobId);
+    return true;
+  };
+
   return (
     <AdminShell>
       <div className={styles.container}>
@@ -612,6 +650,19 @@ function MaintenanceCommand() {
           <Link href="/admin/maintenance/learning" className={styles.calendarToggle}>
             <Scale size={15} /> Priority Learning
           </Link>
+          <button
+            type="button"
+            className={`${styles.calendarToggle} ${detailView === "history" ? styles.calendarToggleActive : ""}`}
+            aria-pressed={detailView === "history"}
+            onClick={() => {
+              setTicketChatId(null);
+              setTechProfileId(null);
+              setViewingJobId(null);
+              setDetailView((v) => (v === "history" ? "pending" : "history"));
+            }}
+          >
+            <History size={15} /> Ticket History
+          </button>
           <button
             type="button"
             className={`${styles.calendarToggle} ${detailView === "calendar" ? styles.calendarToggleActive : ""}`}
@@ -666,7 +717,13 @@ function MaintenanceCommand() {
 
         <main className={styles.mainContent}>
           {techProfile ? (
-            <TechProfileView tech={techProfile} onBack={() => setTechProfileId(null)} />
+            <TechProfileView
+              tech={techProfile}
+              onBack={() => setTechProfileId(null)}
+              onOpenJob={openJobFromStaff}
+              onAssign={assignToTech}
+              canAssign={pendingRequests.length > 0}
+            />
           ) : ticketForChat ? (
             <TicketDetailView ticket={ticketForChat} onBack={() => setTicketChatId(null)} />
           ) : viewingJob ? (
@@ -696,6 +753,8 @@ function MaintenanceCommand() {
               onJobTab={setJobTab}
               onOpenJob={(id) => setViewingJobId(id)}
             />
+          ) : detailView === "history" ? (
+            <MaintenanceHistoryView />
           ) : detailView === "calendar" ? (
             <MaintenanceCalendarView jobs={ongoingJobs} onOpenJob={(id) => setViewingJobId(id)} />
           ) : (
@@ -707,10 +766,9 @@ function MaintenanceCommand() {
                 setDetailView(f === "available" ? "available" : "staff");
               }}
               onOpenTech={(id) => setTechProfileId(id)}
-              onAssign={(id) => {
-                const ticketId = selectedPendingId ?? pendingRequests[0]?.id;
-                if (ticketId) openDispatch(ticketId, id);
-              }}
+              canAssign={pendingRequests.length > 0}
+              onAssign={assignToTech}
+              onOpenJob={openJobFromStaff}
             />
           )}
         </main>
@@ -785,6 +843,23 @@ function StatCard({
   );
 }
 
+/** Same tiers the Risk Triage Engine uses: <1.5 Low, <4 Medium, <7 High, otherwise Emergency. */
+function riskTier(score: number): { label: string; tone: string } {
+  if (score >= 7) return { label: "Emergency", tone: styles.riskEmergency };
+  if (score >= 4) return { label: "High", tone: styles.riskHigh };
+  if (score >= 1.5) return { label: "Medium", tone: styles.riskMedium };
+  return { label: "Low", tone: styles.riskLow };
+}
+
+function waitingFor(createdAt: string | null): string {
+  const d = parseServerDate(createdAt);
+  if (!d) return NOT_AVAILABLE;
+  const minutes = Math.max(0, (Date.now() - d.getTime()) / 60000);
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  if (minutes < 60 * 48) return `${Math.round(minutes / 60)} h`;
+  return `${Math.round(minutes / 1440)} days`;
+}
+
 /* ─── Pending Requests (mockup 2) ─── */
 
 function PendingRequestsView({
@@ -802,8 +877,14 @@ function PendingRequestsView({
   onOpenTicket: (id: string) => void;
   onDispatch: (id: string) => void;
 }) {
-  const highCount = requests.filter((r) => r.priority === "high").length;
-  const plumbingCount = requests.filter((r) => r.category === "Plumbing").length;
+  const urgentCount = requests.filter((r) => r.priorityLevel === "Emergency" || r.priorityLevel === "High").length;
+  const humanCount = requests.filter((r) => r.humanRequested).length;
+  const oldest = requests.reduce<PendingRequest | null>((acc, r) => {
+    const t = parseServerDate(r.createdAt)?.getTime();
+    const a = parseServerDate(acc?.createdAt)?.getTime();
+    return t !== undefined && (a === undefined || t < a) ? r : acc;
+  }, null);
+  const selectedRisk = selected.riskScore !== null ? riskTier(selected.riskScore) : null;
   const shortDesc =
     selected.description.length > 140
       ? `${selected.description.slice(0, 140).trim()}…`
@@ -814,16 +895,24 @@ function PendingRequestsView({
       <aside className={styles.pendingAside}>
         <section className={`${styles.card} ${styles.compactCard}`}>
           <div className={styles.aiLabel}>
-            <Bot size={16} /> AI Triage Summary
+            <ClipboardList size={16} /> Queue Summary
           </div>
           <div className={styles.aiStats}>
             <div className={styles.aiStatRow}>
-              <span>Critical/High Priority</span>
-              <span className={styles.badgeRed}>{highCount} Tickets</span>
+              <span>Emergency / High priority</span>
+              <span className={urgentCount ? styles.badgeRed : styles.badgeGreen}>
+                {urgentCount} {urgentCount === 1 ? "ticket" : "tickets"}
+              </span>
             </div>
             <div className={styles.aiStatRow}>
-              <span>Plumbing Issues</span>
-              <strong>{plumbingCount} Tickets</strong>
+              <span>Asked for a person</span>
+              <strong>{humanCount}</strong>
+            </div>
+            <div className={styles.aiStatRow}>
+              <span>Longest waiting</span>
+              <strong title={oldest ? `Ticket ${oldest.id}` : undefined}>
+                {oldest ? `${waitingFor(oldest.createdAt)} (#${oldest.id})` : "—"}
+              </strong>
             </div>
           </div>
         </section>
@@ -840,8 +929,34 @@ function PendingRequestsView({
           <blockquote className={styles.residentQuote}>
             &ldquo;{shortDesc}&rdquo;
           </blockquote>
-          <div className={styles.aiInsightBar}>
-            <Bot size={14} /> AI Insight · {selected.aiLabel}
+          <div className={styles.riskInsight}>
+            <div className={styles.riskInsightHead}>
+              <span>
+                <ShieldAlert size={14} aria-hidden="true" /> Risk Insight
+              </span>
+              {selectedRisk && selected.riskScore !== null ? (
+                <span className={`${styles.riskChip} ${selectedRisk.tone}`}>
+                  {selectedRisk.label} · {selected.riskScore.toFixed(1)}
+                </span>
+              ) : (
+                <span className={`${styles.riskChip} ${styles.riskLow}`}>Not scored</span>
+              )}
+            </div>
+            {selected.riskReasons.length ? (
+              <ul className={styles.riskReasons}>
+                {selected.riskReasons.slice(0, 4).map((reason) => (
+                  <li key={reason}>
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={styles.riskEmpty}>
+                {selected.riskScore === null
+                  ? "This ticket was filed without the risk check, so judge urgency from the description."
+                  : "No specific hazards were flagged."}
+              </p>
+            )}
           </div>
           <div className={styles.detailActions}>
             <button
@@ -876,7 +991,7 @@ function PendingRequestsView({
                 <th>ID / Time</th>
                 <th>Resident &amp; Unit</th>
                 <th>Category</th>
-                <th>Status / AI</th>
+                <th>Priority / Risk</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -909,7 +1024,9 @@ function PendingRequestsView({
                     <span className={priorityClass(req.priority)}>
                       {priorityLabel(req.priority)}
                     </span>
-                    <div className={styles.aiTag}>AI: {req.aiLabel}</div>
+                    <div className={styles.aiTag}>
+                      {req.riskScore !== null ? `Risk ${req.riskScore.toFixed(1)} · ${riskTier(req.riskScore).label}` : "Risk not scored"}
+                    </div>
                     {req.humanRequested ? (
                       <span className={styles.humanRequestedTag}>
                         <UserRound size={11} aria-hidden="true" /> Requested a person
@@ -920,6 +1037,7 @@ function PendingRequestsView({
                     <button
                       type="button"
                       className={styles.dispatchPill}
+                      aria-label={`Dispatch ticket ${req.id}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         onDispatch(req.id);
@@ -1387,13 +1505,45 @@ function StaffRosterView({
   onFilterChange,
   onOpenTech,
   onAssign,
+  onOpenJob,
+  canAssign,
 }: {
   staff: StaffMember[];
   filter: "all" | "available";
   onFilterChange: (f: "all" | "available") => void;
   onOpenTech: (id: string) => void;
   onAssign: (id: string) => void;
+  /** Opens a job in the Ongoing Repairs detail; false if the job isn't in the loaded list. */
+  onOpenJob: (jobId: string) => boolean;
+  /** Whether there is a pending request to dispatch. */
+  canAssign: boolean;
 }) {
+  // The menu is positioned against the viewport: the table wrapper scrolls,
+  // so an absolutely positioned menu would be clipped on the last rows.
+  const [menu, setMenu] = useState<{ id: string; top: number; right: number } | null>(null);
+  const menuFor = menu?.id ?? null;
+  const setMenuFor = (id: string | null) => {
+    if (id === null) setMenu(null);
+  };
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [menu]);
+
   const onDuty = staff.length;
   const available = staff.filter((s) => s.status === "available").length;
   const onJob = staff.filter((s) => s.status === "on-job" || s.status === "on-site").length;
@@ -1486,6 +1636,11 @@ function StaffRosterView({
                     <span className={statusDotClass(person.status)}>
                       {statusLabel(person.status)}
                     </span>
+                    {person.isTech && person.activeTaskCount > 0 ? (
+                      <div className={styles.cellSub}>
+                        {person.activeTaskCount} active {person.activeTaskCount === 1 ? "job" : "jobs"}
+                      </div>
+                    ) : null}
                   </td>
                   <td>{person.shift}</td>
                   <td>{person.location}</td>
@@ -1502,16 +1657,77 @@ function StaffRosterView({
                         Assign
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        className={styles.iconBtn}
-                        aria-label="More"
-                        disabled
-                        title="No additional actions available for this staff member yet."
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreHorizontal size={16} />
-                      </button>
+                      <div className={styles.rowMenuWrap} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          aria-label={`More actions for ${person.name}`}
+                          aria-haspopup="menu"
+                          aria-expanded={menuFor === person.id}
+                          onClick={(e) => {
+                            if (menuFor === person.id) {
+                              setMenu(null);
+                              return;
+                            }
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const menuHeight = 190;
+                            const below = rect.bottom + 6;
+                            setMenu({
+                              id: person.id,
+                              top: below + menuHeight > window.innerHeight ? Math.max(8, rect.top - menuHeight - 6) : below,
+                              right: window.innerWidth - rect.right,
+                            });
+                          }}
+                        >
+                          <MoreHorizontal size={16} />
+                        </button>
+                        {menuFor === person.id ? (
+                          <div className={styles.rowMenu} role="menu" style={{ top: menu?.top, right: menu?.right }}>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setMenuFor(null);
+                                onOpenTech(person.id);
+                              }}
+                            >
+                              View profile &amp; job history
+                            </button>
+                            {person.activeTask ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setMenuFor(null);
+                                  onOpenJob(String(person.activeTask));
+                                }}
+                              >
+                                Open current job (#{person.activeTask})
+                              </button>
+                            ) : null}
+                            {person.isTech ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                disabled={!canAssign}
+                                title={canAssign ? undefined : "There are no pending requests to assign."}
+                                onClick={() => {
+                                  setMenuFor(null);
+                                  onAssign(person.id);
+                                }}
+                              >
+                                Assign another job
+                                {person.activeTaskCount > 0 ? ` (has ${person.activeTaskCount})` : ""}
+                              </button>
+                            ) : null}
+                            {person.email ? (
+                              <a role="menuitem" href={`mailto:${person.email}`} onClick={() => setMenuFor(null)}>
+                                Email {person.email}
+                              </a>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -1778,7 +1994,6 @@ function TicketEditor({
   const [desc, setDesc] = useState(description);
   const [priority, setPriority] = useState(priorityLevel);
   const [priorityReason, setPriorityReason] = useState("");
-  const [votesKey, setVotesKey] = useState(0);
   const [notes, setNotes] = useState(adminNotes ?? "");
   const [due, setDue] = useState(toLocalInput(deadline));
   const [saving, setSaving] = useState(false);
@@ -1828,7 +2043,6 @@ function TicketEditor({
       setMessage({ ok: true, text: "Ticket updated." });
       toast(`Ticket #${requestId} updated.`, "success");
       setPriorityReason("");
-      setVotesKey((k) => k + 1);
       onSaved();
     } catch (e) {
       const text = e instanceof ApiError ? e.message : "Could not update the ticket.";
@@ -1930,7 +2144,6 @@ function TicketEditor({
           <span className={message.ok ? styles.helpText : styles.errorText}>{message.text}</span>
         ) : null}
       </div>
-      <PriorityVotesPanel requestId={requestId} refreshKey={votesKey} />
     </>
   );
 }
@@ -2276,18 +2489,7 @@ function DispatchFlowModal({
               )}
             </div>
 
-            {ticket.imageUrl ? (
-              <div className={styles.attachments}>
-                <span>Attachments (1)</span>
-                <a href={ticket.imageUrl} target="_blank" rel="noopener noreferrer">
-                  <img src={ticket.imageUrl} alt="Resident-submitted photo of the issue" className={styles.attachThumb} />
-                </a>
-              </div>
-            ) : (
-              <div className={styles.attachments}>
-                <span>No photo attached</span>
-              </div>
-            )}
+            <AuthImageGallery paths={ticket.imageUrls} />
           </div>
 
           <div className={styles.dispatchRight}>
@@ -2415,9 +2617,22 @@ function DispatchFlowModal({
 
 /* ─── Tech profile (mockup 9) ─── */
 
-function TechProfileView({ tech, onBack }: { tech: StaffMember; onBack: () => void }) {
+function TechProfileView({
+  tech,
+  onBack,
+  onOpenJob,
+  onAssign,
+  canAssign,
+}: {
+  tech: StaffMember;
+  onBack: () => void;
+  onOpenJob: (jobId: string) => boolean;
+  onAssign: (techId: string) => void;
+  canAssign: boolean;
+}) {
   const isAvailable = tech.status === "available";
   const [history, setHistory] = useState<StaffHistoryItem[] | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -2456,19 +2671,17 @@ function TechProfileView({ tech, onBack }: { tech: StaffMember; onBack: () => vo
               <MapPin size={14} /> {tech.district ?? tech.location}
             </p>
           </div>
-          {tech.email ? (
-            <a
-              href={`mailto:${tech.email}`}
+          <div className={styles.contactGroup}>
+            <button
+              type="button"
               className={styles.contactTech}
-              style={{ textDecoration: "none" }}
+              disabled={!tech.userId}
+              title={tech.userId ? `Chat with ${tech.name}` : "This account can't receive messages."}
+              onClick={() => setChatOpen(true)}
             >
-              <Mail size={16} /> Contact
-            </a>
-          ) : (
-            <button type="button" className={styles.contactTech} disabled title="No email on file for this technician.">
-              <Mail size={16} /> Contact
+              <MessageSquare size={16} /> Message
             </button>
-          )}
+          </div>
         </div>
       </header>
 
@@ -2550,17 +2763,36 @@ function TechProfileView({ tech, onBack }: { tech: StaffMember; onBack: () => vo
                 <p>{statusLabel(tech.status)}</p>
               </div>
             </div>
+            {tech.activeTask ? (
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={() => onOpenJob(String(tech.activeTask))}
+              >
+                View Live Ticket
+              </button>
+            ) : null}
             <button
               type="button"
-              className={styles.primaryBtn}
-              disabled
-              title="No live ticket view or task-assignment shortcut is wired up here yet — use the Pending Requests tab to dispatch."
+              className={tech.activeTask ? styles.secondaryBtn : styles.primaryBtn}
+              style={tech.activeTask ? { marginTop: "0.5rem", width: "100%" } : undefined}
+              disabled={!canAssign}
+              title={canAssign ? undefined : "There are no pending requests to assign."}
+              onClick={() => onAssign(tech.id)}
             >
-              {tech.activeTask ? "View Live Ticket" : "Assign New Task"}
+              {tech.activeTask ? "Assign Another Task" : "Assign New Task"}
             </button>
           </div>
         </div>
       </div>
+      {chatOpen && tech.userId ? (
+        <StaffChatModal
+          staffUserId={tech.userId}
+          staffName={tech.name}
+          subtitle={`${tech.specialty} technician · replies arrive in Staff Messages`}
+          onClose={() => setChatOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -21,7 +21,7 @@ const CATEGORIES = [
   {
     id: "financials",
     title: "Financials",
-    description: "Revenue tracking, expense audits, and monthly balance sheets.",
+    description: "Billed vs. collected dues, outstanding balances, and payment history.",
     icon: Landmark,
     color: "#1f4a9e",
   },
@@ -35,7 +35,7 @@ const CATEGORIES = [
   {
     id: "maintenance_efficiency",
     title: "Maintenance Efficiency",
-    description: "Repair turnaround time, contractor ratings, and cost per unit.",
+    description: "Time to dispatch, repair turnaround, and technician workload.",
     icon: Zap,
     color: "#b45309",
   },
@@ -47,7 +47,10 @@ type ReportHistoryEntry = {
   generated_at: string;
   format: string;
   status: string;
+  date_range?: string | null;
 };
+
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.title]));
 
 type ConfigureReportViewProps = {
   onBack: () => void;
@@ -97,6 +100,11 @@ export default function ConfigureReportView({ onBack }: ConfigureReportViewProps
       setGenerateError(true);
       return;
     }
+    if (endDate < startDate) {
+      setGenerateFeedback("The end date must be on or after the start date.");
+      setGenerateError(true);
+      return;
+    }
     setGenerating(true);
     setGenerateFeedback(null);
     setGenerateError(false);
@@ -108,7 +116,7 @@ export default function ConfigureReportView({ onBack }: ConfigureReportViewProps
         export_format: format,
       });
       setGenerateFeedback("Report generation started. It will appear in Recent Reports shortly.");
-      toast(`${selectedCategory} report generation started.`, "success");
+      toast(`${CATEGORY_LABELS[selectedCategory] ?? selectedCategory} report generation started.`, "success");
       setGenerateError(false);
       loadHistory();
     } catch (err) {
@@ -132,7 +140,7 @@ export default function ConfigureReportView({ onBack }: ConfigureReportViewProps
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast(`${report.category} report downloaded.`, "success");
+      toast(`${CATEGORY_LABELS[report.category] ?? report.category} report downloaded.`, "success");
     } catch (err) {
       toastError(err, "Could not download the report file.");
       setHistoryError(err instanceof Error ? err.message : "Failed to download report file");
@@ -261,6 +269,9 @@ export default function ConfigureReportView({ onBack }: ConfigureReportViewProps
             <History size={18} />
             <h2>Recent Reports</h2>
           </div>
+          <span style={{ fontSize: "0.78rem", color: "#5b6b82" }}>
+            Only the 5 most recent reports are kept; older ones are deleted automatically.
+          </span>
         </div>
 
         {historyError ? <p style={{ color: "#b91c1c", fontSize: "0.85rem" }}>{historyError}</p> : null}
@@ -286,7 +297,12 @@ export default function ConfigureReportView({ onBack }: ConfigureReportViewProps
               ) : (
                 history.map((report) => (
                   <tr key={report.id}>
-                    <td className={styles.fileName}>{report.category}</td>
+                    <td className={styles.fileName}>
+                      {CATEGORY_LABELS[report.category] ?? report.category}
+                      {report.date_range ? (
+                        <div style={{ fontSize: "0.75rem", fontWeight: 400, color: "#5b6b82" }}>{report.date_range}</div>
+                      ) : null}
+                    </td>
                     <td>
                       <div className={styles.dateTime}>
                         <span>{report.generated_at}</span>
@@ -294,7 +310,16 @@ export default function ConfigureReportView({ onBack }: ConfigureReportViewProps
                     </td>
                     <td>{report.format}</td>
                     <td>
-                      <span className={styles.statusBadge}>
+                      <span
+                        className={styles.statusBadge}
+                        style={
+                          report.status === "Failed"
+                            ? { background: "#fef2f2", color: "#b91c1c" }
+                            : report.status === "Pending"
+                            ? { background: "#fffbeb", color: "#b45309" }
+                            : undefined
+                        }
+                      >
                         {report.status === "Completed" ? <CheckCircle2 size={12} /> : null}
                         {report.status === "Pending" ? "Generating…" : report.status}
                       </span>

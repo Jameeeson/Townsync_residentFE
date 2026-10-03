@@ -14,6 +14,7 @@ import {
   HelpCircle,
   LogOut,
   Building2,
+  MessageSquare,
   X
 } from "lucide-react";
 import TopNavBar from "./top-nav-bar";
@@ -40,7 +41,10 @@ const navItems = [
   { label: "Maintenance", href: "/admin/maintenance", icon: Wrench },
   { label: "Users", href: "/admin/residents", icon: UserSquare2 },
   { label: "Finance", href: "/admin/finance", icon: Banknote },
+  { label: "Staff Messages", href: "/admin/messages", icon: MessageSquare },
 ];
+
+const UNREAD_POLL_MS = 30000;
 
 export default function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -48,7 +52,26 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [staffUnread, setStaffUnread] = useState(0);
   const authChecked = useAuthGuard();
+
+  // Unread staff messages, shown as a badge on the sidebar link.
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    const load = () =>
+      apiGet<{ unread: number }>("/api/v1/admin/staff-messages/unread-count")
+        .then((r) => {
+          if (!cancelled) setStaffUnread(r.unread);
+        })
+        .catch(() => undefined);
+    void load();
+    const timer = window.setInterval(load, UNREAD_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [currentUser, pathname]);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -113,6 +136,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 {isActive && <div className={styles.activeBar} />}
                 <Icon size={20} className={styles.navIcon} />
                 <span>{item.label}</span>
+                {item.href === "/admin/messages" && staffUnread > 0 ? (
+                  <span className={styles.navBadge} aria-label={`${staffUnread} unread`}>
+                    {staffUnread > 99 ? "99+" : staffUnread}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

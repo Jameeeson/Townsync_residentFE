@@ -119,7 +119,7 @@ export default function LoginScreen() {
         </div>
 
         <footer className={styles.cardFooter}>
-          TownSync OS v1.0.4
+          TownSync OS v1.0.0-beta
         </footer>
       </section>
     </main>
