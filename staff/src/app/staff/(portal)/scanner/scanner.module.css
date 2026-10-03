@@ -506,3 +506,37 @@
   opacity: 0.6;
   cursor: default;
 }
+
+@media (max-width: 640px) {
+  .header h1 {
+    font-size: 1.45rem;
+  }
+
+  /* Camera status: icon and torch share the top row, the message gets the
+     full width below instead of a 120px column between them. */
+  .scanStrip {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "icon . torch"
+      "copy copy copy";
+    gap: 0.6rem;
+    align-items: center;
+  }
+
+  .scanStripIcon {
+    grid-area: icon;
+  }
+
+  .scanStripCopy {
+    grid-area: copy;
+  }
+
+  .torch {
+    grid-area: torch;
+  }
+
+  .actionCard {
+    padding: 0.9rem;
+  }
+}

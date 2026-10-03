@@ -156,3 +156,9 @@
   color: var(--muted);
   cursor: not-allowed;
 }
+
+@media (max-width: 640px) {
+  .header h1 {
+    font-size: 1.45rem;
+  }
+}

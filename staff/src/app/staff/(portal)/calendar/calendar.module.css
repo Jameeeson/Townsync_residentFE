@@ -261,3 +261,35 @@
     font-size: 0.6rem;
   }
 }
+
+/* Phones: equal-width day columns (long job names were widening a column),
+   jobs shown as coloured bars with a clipped label. */
+@media (max-width: 640px) {
+  .hero h1 {
+    font-size: 1.45rem;
+  }
+
+  .grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .cell {
+    min-height: 56px;
+    padding: 3px;
+    gap: 2px;
+    border-radius: 7px;
+    min-width: 0;
+  }
+
+  .dayNum {
+    font-size: 0.66rem;
+  }
+
+  .chip {
+    min-height: 18px;
+    padding: 2px 3px;
+    border-radius: 4px;
+    font-size: 0.55rem;
+  }
+}

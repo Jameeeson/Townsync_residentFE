@@ -293,3 +293,9 @@
   font-weight: 600;
   color: var(--color-primary-600, #2563eb);
 }
+
+@media (max-width: 640px) {
+  .header h1 {
+    font-size: 1.45rem;
+  }
+}

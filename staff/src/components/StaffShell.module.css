@@ -386,3 +386,37 @@
   background: #ef4444;
   box-shadow: 0 0 0 2px #ffffff;
 }
+
+/* Phones: a 320px panel anchored to the bell's right edge hangs off the left
+   of the screen, so dock it under the top bar across the full width instead. */
+@media (max-width: 640px) {
+  .topbar {
+    height: 56px;
+    padding: 0 0.875rem;
+  }
+
+  .topActions {
+    gap: 0.5rem;
+  }
+
+  .iconBtn,
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+  }
+
+  .notifPanel {
+    position: fixed;
+    top: calc(56px + 0.4rem);
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+    max-height: min(26rem, calc(100dvh - 9rem));
+    overflow-y: auto;
+  }
+
+  .content {
+    padding: 1rem 0.875rem 5.5rem;
+  }
+}

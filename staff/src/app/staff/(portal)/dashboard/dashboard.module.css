@@ -565,8 +565,79 @@
 }
 
 @media (max-width: 640px) {
+  .page {
+    gap: 1rem;
+  }
+
+  .hero h1 {
+    font-size: 1.45rem;
+  }
+
+  .lede {
+    font-size: 0.9rem;
+  }
+
+  /* Three compact tiles in one row instead of three full-width cards. */
   .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .stat {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    gap: 0.35rem;
+    align-content: start;
+    padding: 0.75rem 0.7rem;
+  }
+
+  .statIcon {
+    grid-row: auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .statIcon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .statLabel {
+    font-size: 0.7rem;
+    line-height: 1.25;
+  }
+
+  .statText strong {
+    font-size: 1.3rem;
+  }
+
+  .statHint {
+    display: none;
+  }
+
+  .panelHead {
+    padding: 0.85rem 0.85rem 0.75rem;
+  }
+
+  .tab {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .taskRow {
+    gap: 0.6rem 0.75rem;
+    padding: 0.85rem 0.5rem;
+  }
+
+  .taskIcon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .taskTitleRow h3 {
+    font-size: 0.92rem;
   }
 
   .heroActions,
