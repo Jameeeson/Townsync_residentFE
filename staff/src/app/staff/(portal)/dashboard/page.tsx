@@ -54,6 +54,8 @@ type Task = {
   meta: string;
   icon: "wrench" | "snow" | "shield";
   status: TaskStatus;
+  description?: string;
+  imageUrls?: string[];
 };
 
 function toUiStatus(status: MaintenanceTask["status"]): TaskStatus {
@@ -110,6 +112,8 @@ function toUiTask(t: MaintenanceTask): Task {
     meta: t.resident_name ? `Resident: ${t.resident_name}` : t.description,
     icon: iconForCategory(t.category),
     status: toUiStatus(t.status),
+    description: t.description,
+    imageUrls: t.image_urls ?? (t.initial_image_url ? [t.initial_image_url] : []),
   };
 }
 
@@ -117,6 +121,10 @@ export default function StaffDashboardPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { session, canUseScanner, isMaintenance } = useStaffSession();
+  // Security (Staff) accounts have no maintenance tasks; their dashboard is the
+  // gate and visitor view only. canUseScanner is true once the role is known
+  // to be non-Maintenance, so nothing flashes in while the session loads.
+  const isSecurity = canUseScanner;
   const [filter, setFilter] = useState<Filter>("all");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [summary, setSummary] = useState<StaffDashboard | null>(null);
@@ -363,20 +371,26 @@ export default function StaffDashboardPage() {
               )}
             </p>
           </div>
-          <div className={`${styles.stats} ${isMaintenance ? styles.statsTwo : ""}`}>
-            <button
-              type="button"
-              className={styles.stat}
-              onClick={() => openStat("tasks")}
-              aria-haspopup="dialog"
-            >
-              <IconClipboard size={20} className={styles.statIcon} />
-              <span>Active Tasks</span>
-              <strong>{loading ? "…" : `${pendingCount} open`}</strong>
-              <small className={styles.statHint}>
-                View breakdown <IconArrowRight size={12} />
-              </small>
-            </button>
+          <div
+            className={`${styles.stats} ${isMaintenance ? styles.statsTwo : ""} ${
+              isSecurity ? styles.statsOne : ""
+            }`}
+          >
+            {isSecurity ? null : (
+              <button
+                type="button"
+                className={styles.stat}
+                onClick={() => openStat("tasks")}
+                aria-haspopup="dialog"
+              >
+                <IconClipboard size={20} className={styles.statIcon} />
+                <span>Active Tasks</span>
+                <strong>{loading ? "…" : `${pendingCount} open`}</strong>
+                <small className={styles.statHint}>
+                  View breakdown <IconArrowRight size={12} />
+                </small>
+              </button>
+            )}
             {/* Visitor traffic is a security-desk concern; Maintenance techs
                 have no gate duties, so the tile is noise for them. */}
             {isMaintenance ? null : (
@@ -394,133 +408,137 @@ export default function StaffDashboardPage() {
                 </small>
               </button>
             )}
-            <button
-              type="button"
-              className={styles.statWide}
-              onClick={() => openStat("assigned")}
-              aria-haspopup="dialog"
-            >
-              <div>
-                <span>Shift Overview</span>
-                <strong>Assigned Tasks</strong>
-                <small className={styles.statHint}>
-                View breakdown <IconArrowRight size={12} />
-              </small>
-              </div>
-              <em>{tasks.length}</em>
-            </button>
+            {isSecurity ? null : (
+              <button
+                type="button"
+                className={styles.statWide}
+                onClick={() => openStat("assigned")}
+                aria-haspopup="dialog"
+              >
+                <div>
+                  <span>Shift Overview</span>
+                  <strong>Assigned Tasks</strong>
+                  <small className={styles.statHint}>
+                  View breakdown <IconArrowRight size={12} />
+                </small>
+                </div>
+                <em>{tasks.length}</em>
+              </button>
+            )}
           </div>
         </section>
 
-        <div className={styles.grid}>
-          <section className={styles.mainCol}>
-            <div className={styles.toolbar}>
-              <div className={styles.filters} role="group" aria-label="Task filters">
-                {(
-                  [
-                    ["all", "All"],
-                    ["pending", "Pending"],
-                    ["progress", "In Progress"],
-                    ["done", "Done"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={filter === id}
-                    className={`${styles.filter} ${filter === id ? styles.filterActive : ""}`}
-                    onClick={() => setFilter(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
+        <div className={`${styles.grid} ${isSecurity ? styles.gridSecurity : ""}`}>
+          {isSecurity ? null : (
+            <section className={styles.mainCol}>
+              <div className={styles.toolbar}>
+                <div className={styles.filters} role="group" aria-label="Task filters">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["pending", "Pending"],
+                      ["progress", "In Progress"],
+                      ["done", "Done"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={filter === id}
+                      className={`${styles.filter} ${filter === id ? styles.filterActive : ""}`}
+                      onClick={() => setFilter(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className={styles.manageHint}>Manage your operational duties for today.</p>
               </div>
-              <p className={styles.manageHint}>Manage your operational duties for today.</p>
-            </div>
 
-            {tasksError ? (
-              <p className={styles.empty} role="status">
-                {tasksError}
-              </p>
-            ) : filtered.length === 0 ? (
-              <p className={styles.empty} role="status">
-                No tasks in this view.
-              </p>
-            ) : (
-              <div className={styles.taskGrid}>
-                {filtered.map((task) => (
-                  <article key={task.id} className={styles.taskCard}>
-                    <div className={styles.taskTop}>
-                      <span
-                        className={`${styles.priority} ${
-                          task.priority === "high"
-                            ? styles.priorityHigh
+              {tasksError ? (
+                <p className={styles.empty} role="status">
+                  {tasksError}
+                </p>
+              ) : filtered.length === 0 ? (
+                <p className={styles.empty} role="status">
+                  No tasks in this view.
+                </p>
+              ) : (
+                <div className={styles.taskGrid}>
+                  {filtered.map((task) => (
+                    <article key={task.id} className={styles.taskCard}>
+                      <div className={styles.taskTop}>
+                        <span
+                          className={`${styles.priority} ${
+                            task.priority === "high"
+                              ? styles.priorityHigh
+                              : task.priority === "medium"
+                                ? styles.priorityMed
+                                : styles.priorityLow
+                          }`}
+                        >
+                          {task.priority === "high"
+                            ? "High Priority"
                             : task.priority === "medium"
-                              ? styles.priorityMed
-                              : styles.priorityLow
-                        }`}
-                      >
-                        {task.priority === "high"
-                          ? "High Priority"
-                          : task.priority === "medium"
-                            ? "Medium Priority"
-                            : "Low Priority"}
-                      </span>
-                      <span className={styles.taskGlyph}>
-                        {task.icon === "wrench" ? (
-                          <IconWrench size={18} />
-                        ) : task.icon === "snow" ? (
-                          <IconSnowflake size={18} />
+                              ? "Medium Priority"
+                              : "Low Priority"}
+                        </span>
+                        <span className={styles.taskGlyph}>
+                          {task.icon === "wrench" ? (
+                            <IconWrench size={18} />
+                          ) : task.icon === "snow" ? (
+                            <IconSnowflake size={18} />
+                          ) : (
+                            <IconShield size={18} />
+                          )}
+                        </span>
+                      </div>
+                      <h3>{task.title}</h3>
+                      <div className={styles.taskMeta}>
+                        <span>
+                          <IconMapPin size={14} /> {task.location}
+                        </span>
+                        <span>
+                          <IconClock size={14} /> {task.meta}
+                        </span>
+                      </div>
+                      <div className={styles.taskActions}>
+                        {task.status === "done" ? (
+                          <button type="button" className={styles.btnPrimary} disabled>
+                            Completed
+                          </button>
                         ) : (
-                          <IconShield size={18} />
+                          <button
+                            type="button"
+                            className={styles.btnPrimary}
+                            disabled={busyTaskId === task.id}
+                            onClick={() =>
+                              task.status === "pending"
+                                ? startTask(task.id)
+                                : completeTask(task.id)
+                            }
+                          >
+                            {busyTaskId === task.id
+                              ? "Saving…"
+                              : task.status === "pending"
+                                ? "Start"
+                                : "Complete"}
+                          </button>
                         )}
-                      </span>
-                    </div>
-                    <h3>{task.title}</h3>
-                    <div className={styles.taskMeta}>
-                      <span>
-                        <IconMapPin size={14} /> {task.location}
-                      </span>
-                      <span>
-                        <IconClock size={14} /> {task.meta}
-                      </span>
-                    </div>
-                    <div className={styles.taskActions}>
-                      {task.status === "done" ? (
-                        <button type="button" className={styles.btnPrimary} disabled>
-                          Completed
-                        </button>
-                      ) : (
                         <button
                           type="button"
-                          className={styles.btnPrimary}
-                          disabled={busyTaskId === task.id}
-                          onClick={() =>
-                            task.status === "pending"
-                              ? startTask(task.id)
-                              : completeTask(task.id)
-                          }
+                          className={styles.btnGhost}
+                          onClick={() => setSelectedId(task.id)}
                         >
-                          {busyTaskId === task.id
-                            ? "Saving…"
-                            : task.status === "pending"
-                              ? "Start"
-                              : "Complete"}
+                          Details
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        className={styles.btnGhost}
-                        onClick={() => setSelectedId(task.id)}
-                      >
-                        Details
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
           <aside className={styles.sideCol}>
             <div className={styles.actions}>
               {canUseScanner ? (
@@ -528,13 +546,15 @@ export default function StaffDashboardPage() {
                   <IconScan size={20} /> Gate Scanner
                 </Link>
               ) : null}
-              <button
-                type="button"
-                className={styles.actionSecondary}
-                onClick={() => setMaintOpen(true)}
-              >
-                <IconDoc size={20} /> New Maintenance Log
-              </button>
+              {isMaintenance ? (
+                <button
+                  type="button"
+                  className={styles.actionSecondary}
+                  onClick={() => setMaintOpen(true)}
+                >
+                  <IconDoc size={20} /> New Maintenance Log
+                </button>
+              ) : null}
             </div>
 
             <section className={styles.activity}>

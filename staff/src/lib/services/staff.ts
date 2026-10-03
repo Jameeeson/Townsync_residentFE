@@ -89,6 +89,7 @@ export type MaintenanceTask = {
   unit_number: string | null;
   resident_name: string | null;
   initial_image_url: string | null;
+  image_urls?: string[];
   assigned_at: string | null;
   deadline: string | null;
 };
@@ -320,4 +321,36 @@ export function submitStaffSupportMessage(payload: {
   message: string;
 }) {
   return api.post<{ message: string; id: number }>("/api/v1/support/", payload);
+}
+
+// ----- Messages with the admin team -----
+
+export type AdminChatMessage = {
+  id: number;
+  body: string;
+  sender_side: "admin" | "staff";
+  sender_name: string;
+  created_at: string;
+};
+
+export type AdminChatThread = {
+  staff_user_id: number;
+  staff_name: string;
+  staff_email: string;
+  staff_type: string | null;
+  messages: AdminChatMessage[];
+  unread: number;
+};
+
+/** The caller's conversation with the admin team; `afterId` returns only newer messages. */
+export function getAdminThread(afterId = 0) {
+  return api.get<AdminChatThread>(`/api/v1/staff/messages/?after_id=${afterId}`);
+}
+
+export function sendAdminMessage(body: string) {
+  return api.post<AdminChatMessage>("/api/v1/staff/messages/", { body });
+}
+
+export function getAdminUnreadCount() {
+  return api.get<{ unread: number }>("/api/v1/staff/messages/unread-count");
 }

@@ -6,13 +6,18 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   IconBell,
   IconCalendar,
+  IconChatBubble,
   IconClipboard,
   IconGrid,
   IconScan,
   IconSettings,
 } from "@/components/icons";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
-import { getStaffNotifications, type StaffNotificationItem } from "@/lib/services/staff";
+import {
+  getAdminUnreadCount,
+  getStaffNotifications,
+  type StaffNotificationItem,
+} from "@/lib/services/staff";
 import styles from "./StaffShell.module.css";
 
 const NAV = [
@@ -24,10 +29,12 @@ const NAV = [
   { href: "/staff/scanner", label: "Scanner", icon: IconScan, scannerOnly: true },
   // Logs are a Security/Staff feature; Maintenance accounts don't get it.
   { href: "/staff/logs", label: "Logs", icon: IconClipboard, logsOnly: true },
+  { href: "/staff/messages", label: "Messages", icon: IconChatBubble },
   { href: "/staff/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
 const NOTIFICATION_POLL_MS = 60_000;
+const MESSAGE_POLL_MS = 30_000;
 
 export function StaffShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -39,6 +46,25 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
   const [seenCount, setSeenCount] = useState(0);
   const panelId = useId();
   const notifRef = useRef<HTMLDivElement>(null);
+  const [messageUnread, setMessageUnread] = useState(0);
+
+  // Unread replies from the admin team, shown on the Messages nav item.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    const load = () =>
+      getAdminUnreadCount()
+        .then((r) => {
+          if (!cancelled) setMessageUnread(r.unread);
+        })
+        .catch(() => undefined);
+    void load();
+    const timer = setInterval(load, MESSAGE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [session, pathname]);
 
   const loadNotifications = useCallback(() => {
     if (!session) return;
@@ -116,6 +142,11 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
               >
                 <Icon size={20} />
                 <span>{label}</span>
+                {href === "/staff/messages" && messageUnread > 0 && !active ? (
+                  <span className={styles.navBadge} aria-label={`${messageUnread} unread`}>
+                    {messageUnread > 99 ? "99+" : messageUnread}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -126,7 +157,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
             <span className={styles.onlineDot} />
             {error ? "Connection issue" : roleLabel || "Shift active"}
           </div>
-          <p className={styles.version}>v2.4.1 · SG-PROD-01</p>
+          <p className={styles.version}>v1.0.0-beta · Beta</p>
         </div>
       </aside>
 
@@ -192,7 +223,11 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
 
         <div className={styles.content}>{children}</div>
 
-        <nav className={styles.bottomNav} aria-label="Mobile">
+        <nav
+          className={styles.bottomNav}
+          aria-label="Mobile"
+          style={{ gridTemplateColumns: `repeat(${nav.length}, 1fr)` }}
+        >
           {nav.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
@@ -202,7 +237,12 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
                 className={`${styles.bottomItem} ${active ? styles.bottomItemActive : ""}`}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon size={22} />
+                <span className={styles.bottomIcon}>
+                  <Icon size={22} />
+                  {href === "/staff/messages" && messageUnread > 0 && !active ? (
+                    <span className={styles.bottomBadge} aria-label={`${messageUnread} unread`} />
+                  ) : null}
+                </span>
                 <span>{label}</span>
               </Link>
             );

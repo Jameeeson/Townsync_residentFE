@@ -163,3 +163,26 @@ export const api = {
   patchForm: <T>(path: string, form: FormData, opts?: Omit<RequestOptions, "method" | "form">) =>
     request<T>(path, { ...opts, method: "PATCH", form }),
 };
+
+/**
+ * Fetches an authenticated file (e.g. a resident's maintenance photo) as a Blob.
+ * <img src> can't send the Bearer header, so browsers that block third-party
+ * cookies would otherwise never load the image.
+ */
+export async function fetchBlob(path: string): Promise<Blob> {
+  const headers: Record<string, string> = { "X-Portal": PORTAL };
+  const token = getAccessToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      headers,
+      credentials: "include",
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch {
+    throw new ApiError(0, "Could not reach the server.");
+  }
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res));
+  return res.blob();
+}

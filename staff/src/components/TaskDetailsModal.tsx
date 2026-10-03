@@ -12,6 +12,7 @@ import {
 } from "@/components/icons";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { ChatModal } from "./ChatModal";
+import { TaskPhotos } from "./TaskPhotos";
 import styles from "./TaskDetailsModal.module.css";
 
 export type TaskDetails = {
@@ -22,6 +23,8 @@ export type TaskDetails = {
   meta: string;
   icon: "wrench" | "snow" | "shield";
   status: "pending" | "progress" | "done";
+  description?: string;
+  imageUrls?: string[];
 };
 
 type Props = {
@@ -118,6 +121,15 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
               </dd>
             </div>
           </dl>
+
+          {task.description ? (
+            <section className={styles.section}>
+              <h3>Resident&apos;s description</h3>
+              <p className={styles.description}>{task.description}</p>
+            </section>
+          ) : null}
+
+          <TaskPhotos paths={task.imageUrls ?? []} />
         </div>
 
         <div className={styles.actions}>

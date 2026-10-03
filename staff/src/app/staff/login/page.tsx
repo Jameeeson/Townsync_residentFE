@@ -172,7 +172,7 @@ export default function StaffLoginPage() {
 
           <footer className={styles.footer}>
             <p>© 2026 TownSync Property Management. All rights reserved.</p>
-            <p>System v4.2.1-stable · Node: SG-PROD-01</p>
+            <p>System v1.0.0-beta · Beta release</p>
             <div className={styles.footerLinks}>
               <button
                 type="button"

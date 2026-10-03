@@ -56,7 +56,7 @@ function ResetForm() {
         <h2 className={styles.title}>Link not valid</h2>
         <p className={styles.subtitle}>
           This page needs the reset link from your email. Request a new one if the
-          link is older than 30 minutes.
+          link is older than 5 minutes.
         </p>
         <Link href="/staff/forgot-password" className={styles.submit}>
           <span>Request a New Link</span>

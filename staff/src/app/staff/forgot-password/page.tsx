@@ -47,7 +47,7 @@ export default function StaffForgotPasswordPage() {
             for on-site staff
           </h1>
           <p className={styles.visualCopy}>
-            Reset links are sent to your registered work email and expire after 30
+            Reset links are sent to your registered work email and expire after 5
             minutes.
           </p>
         </div>
@@ -69,7 +69,7 @@ export default function StaffForgotPasswordPage() {
               {/* Deliberately not confirming whether the address exists. */}
               <p className={styles.subtitle}>
                 If a staff account exists for that address, a reset link is on its
-                way. The link expires in 30 minutes.
+                way. The link expires in 5 minutes.
               </p>
               <Link href="/staff/login" className={styles.submit}>
                 <span>Back to Sign In</span>

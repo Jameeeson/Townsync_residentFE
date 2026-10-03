@@ -22,7 +22,8 @@ type CalTask = {
   meta: string;
   icon: "wrench" | "snow" | "shield";
   status: UiStatus;
-  deadline: string | null;
+  deadline: string | null;  description?: string;
+  imageUrls?: string[];
 };
 
 function toUiStatus(status: MaintenanceTask["status"]): UiStatus {
@@ -53,6 +54,8 @@ function toCalTask(t: MaintenanceTask): CalTask {
     meta: t.resident_name ? `Resident: ${t.resident_name}` : t.description,
     icon: iconForCategory(t.category),
     status: toUiStatus(t.status),
+    description: t.description,
+    imageUrls: t.image_urls ?? (t.initial_image_url ? [t.initial_image_url] : []),
     deadline: t.deadline,
   };
 }

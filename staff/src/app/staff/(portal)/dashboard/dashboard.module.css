@@ -51,6 +51,11 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
 }
 
+/* Security accounts only get the Visitors tile. */
+.statsOne {
+  grid-template-columns: minmax(0, 420px);
+}
+
 .stat,
 .statWide {
   /* Both tiles are buttons that open a breakdown of the number they show. */
@@ -165,6 +170,21 @@
   grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
   gap: 1rem;
   align-items: start;
+}
+
+/* Security accounts have no task column: actions and activity sit side by side. */
+.gridSecurity {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.gridSecurity .sideCol {
+  grid-template-columns: minmax(240px, 0.75fr) minmax(0, 1.5fr);
+}
+
+@media (max-width: 960px) {
+  .gridSecurity .sideCol {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .mainCol,
@@ -509,5 +529,11 @@
 @media (min-width: 1100px) {
   .taskGrid {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .statsOne {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
