@@ -1,0 +1,159 @@
+.picker {
+  display: grid;
+  gap: 12px;
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 16px;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.drop:hover,
+.dropActive {
+  border-color: #60a5fa;
+  background: #eff6ff;
+}
+
+.drop strong {
+  font-size: 0.875rem;
+  color: #1e293b;
+}
+
+.drop span {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.drop input {
+  display: none;
+}
+
+.limits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.limits em {
+  font-style: normal;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.8rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.file {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.file strong {
+  font-size: 0.82rem;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file span {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.controls select {
+  min-height: 34px;
+  max-width: 140px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.8rem;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: #f1f5f9;
+}
+
+.iconBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .controls select {
+    flex: 1;
+    max-width: none;
+    font-size: 16px;
+    min-height: 40px;
+  }
+
+  .iconBtn {
+    width: 40px;
+    height: 40px;
+  }
+}

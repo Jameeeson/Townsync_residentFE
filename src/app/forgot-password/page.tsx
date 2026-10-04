@@ -71,7 +71,7 @@ export default function AdminForgotPasswordPage() {
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    placeholder="admin@townsync.local"
+                    placeholder="admin@email.com"
                     autoComplete="username"
                     required
                   />

@@ -1204,3 +1204,24 @@
   color: #475569;
   cursor: not-allowed;
 }
+
+.docLink {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-blue, #1d4ed8);
+  font: inherit;
+  text-align: right;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.docLink:hover {
+  text-decoration: underline;
+}
+
+.docLink small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}

@@ -7,7 +7,6 @@ import {
   User,
   Building2,
   FileText,
-  UploadCloud,
   UserPlus,
   Info,
   Contact2,
@@ -17,12 +16,11 @@ import {
 import { apiPost } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import {
-  ACCEPTED_DOC_TYPES,
-  DOC_TYPE_LABELS,
-  uploadResidentDocument,
-  validateDocFile,
-  type ResidentDocType,
+  uploadPendingDocuments,
+  uploadSummary,
+  type PendingDocument,
 } from "@/lib/resident-documents";
+import ResidentDocumentPicker from "@/components/admin/resident-document-picker";
 import styles from "@/components/styles/addresident.module.css";
 
 type AddResidentViewProps = {
@@ -40,8 +38,7 @@ export default function AddResidentView({ onBack }: AddResidentViewProps) {
     unit: "",
     occupancyType: "Tenant" as "Owner" | "Tenant",
   });
-  const [docFile, setDocFile] = useState<File | null>(null);
-  const [docType, setDocType] = useState<ResidentDocType>("Lease");
+  const [docs, setDocs] = useState<PendingDocument[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -59,13 +56,6 @@ export default function AddResidentView({ onBack }: AddResidentViewProps) {
     }
     const [firstName, ...rest] = trimmedName.split(/\s+/);
     const lastName = rest.join(" ");
-    if (docFile) {
-      const fileError = validateDocFile(docFile);
-      if (fileError) {
-        setError(fileError);
-        return;
-      }
-    }
     setSubmitting(true);
     setError(null);
     try {
@@ -82,17 +72,8 @@ export default function AddResidentView({ onBack }: AddResidentViewProps) {
           is_draft: isDraft,
         },
       );
-      let uploadNote = "";
-      if (docFile) {
-        try {
-          await uploadResidentDocument(res.user_id, docType, docFile);
-          uploadNote = " Document uploaded.";
-        } catch (uploadErr) {
-          uploadNote = ` Resident created, but the document upload failed: ${
-            uploadErr instanceof Error ? uploadErr.message : "unknown error"
-          }`;
-        }
-      }
+      const sent = await uploadPendingDocuments(res.user_id, docs);
+      const uploadNote = uploadSummary(docs.length, sent.uploaded, sent.failures);
       setResult(
         (isDraft
           ? `Saved as draft (Pending). Temporary password: ${res.temporary_password}`
@@ -228,30 +209,7 @@ export default function AddResidentView({ onBack }: AddResidentViewProps) {
               </div>
               <span className={styles.metaRequirement}>Required: Lease or Ownership Deed</span>
             </div>
-            <div className={styles.formGroup}>
-              <label htmlFor="docType">Document Type</label>
-              <select id="docType" value={docType} onChange={(e) => setDocType(e.target.value as ResidentDocType)}>
-                {(Object.keys(DOC_TYPE_LABELS) as ResidentDocType[]).map((t) => (
-                  <option key={t} value={t}>
-                    {DOC_TYPE_LABELS[t]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <label className={styles.dropzone} htmlFor="docFile" style={{ cursor: "pointer" }}>
-              <div className={styles.uploadIcon}>
-                <UploadCloud size={24} color="#1d4ed8" />
-              </div>
-              <p>{docFile ? docFile.name : "Click to choose a file"}</p>
-              <span>PDF, PNG, or JPG (max. 10MB). Uploaded right after the account is created.</span>
-              <input
-                id="docFile"
-                type="file"
-                accept={ACCEPTED_DOC_TYPES}
-                style={{ display: "none" }}
-                onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
+            <ResidentDocumentPicker docs={docs} onChange={setDocs} disabled={submitting} />
           </section>
         </div>
 

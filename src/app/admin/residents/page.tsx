@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   X,
   Info,
-  UploadCloud,
   FileText,
   CheckCircle2,
   AlertCircle,
@@ -25,13 +24,16 @@ import {
 } from "lucide-react";
 
 import {
-  ACCEPTED_DOC_TYPES,
   DOC_TYPE_LABELS,
-  uploadResidentDocument,
-  validateDocFile,
-  type ResidentDocType,
+  fetchResidentDocument,
+  formatBytes,
+  uploadPendingDocuments,
+  uploadSummary,
+  type PendingDocument,
   type ResidentDocument,
 } from "../../../lib/resident-documents";
+import DocumentViewer, { type ViewerSource } from "../../../components/admin/document-viewer";
+import ResidentDocumentPicker from "../../../components/admin/resident-document-picker";
 import AdminShell from "../../../components/admin/admin-shell";
 import { StaffChatModal } from "../../../components/admin/staff-chat";
 import { formatServerFull } from "../../../lib/datetime";
@@ -51,8 +53,6 @@ type ResidentApiRecord = {
   phone_number: string | null;
   move_in_date: string | null;
   occupancy_type: string | null;
-  id_type?: string | null;
-  id_number?: string | null;
   lease_start?: string | null;
   lease_end?: string | null;
   monthly_due?: number | null;
@@ -73,8 +73,6 @@ type Resident = {
   phoneNumber: string | null;
   moveInDate: string | null;
   occupancyType: string | null;
-  idType: string | null;
-  idNumber: string | null;
   leaseStart: string | null;
   leaseEnd: string | null;
   monthlyDue: number | null;
@@ -138,8 +136,7 @@ export default function DirectoryAndUserManagementPage() {
   const [onboardMoveInDate, setOnboardMoveInDate] = useState("");
   const [onboardUnitNumber, setOnboardUnitNumber] = useState("");
   const [onboardOccupancy, setOnboardOccupancy] = useState<"Homeowner" | "Tenant">("Homeowner");
-  const [onboardDocFile, setOnboardDocFile] = useState<File | null>(null);
-  const [onboardDocType, setOnboardDocType] = useState<ResidentDocType>("Lease");
+  const [onboardDocs, setOnboardDocs] = useState<PendingDocument[]>([]);
   const [onboardSubmitting, setOnboardSubmitting] = useState(false);
   const [onboardError, setOnboardError] = useState<string | null>(null);
   const [onboardResult, setOnboardResult] = useState<string | null>(null);
@@ -151,8 +148,7 @@ export default function DirectoryAndUserManagementPage() {
     setOnboardMoveInDate("");
     setOnboardUnitNumber("");
     setOnboardOccupancy("Homeowner");
-    setOnboardDocFile(null);
-    setOnboardDocType("Lease");
+    setOnboardDocs([]);
     setOnboardError(null);
     setOnboardResult(null);
   };
@@ -165,13 +161,6 @@ export default function DirectoryAndUserManagementPage() {
     }
     const [firstName, ...rest] = trimmedName.split(/\s+/);
     const lastName = rest.join(" ");
-    if (onboardDocFile) {
-      const fileError = validateDocFile(onboardDocFile);
-      if (fileError) {
-        setOnboardError(fileError);
-        return;
-      }
-    }
     setOnboardSubmitting(true);
     setOnboardError(null);
     try {
@@ -188,17 +177,8 @@ export default function DirectoryAndUserManagementPage() {
           is_draft: isDraft,
         },
       );
-      let uploadNote = "";
-      if (onboardDocFile) {
-        try {
-          await uploadResidentDocument(res.user_id, onboardDocType, onboardDocFile);
-          uploadNote = " Document uploaded.";
-        } catch (uploadErr) {
-          uploadNote = ` Resident created, but the document upload failed: ${
-            uploadErr instanceof Error ? uploadErr.message : "unknown error"
-          }`;
-        }
-      }
+      const sent = await uploadPendingDocuments(res.user_id, onboardDocs);
+      const uploadNote = uploadSummary(onboardDocs.length, sent.uploaded, sent.failures);
       setOnboardResult(
         (isDraft
           ? `Saved as draft (Pending). Temporary password: ${res.temporary_password}`
@@ -289,6 +269,7 @@ export default function DirectoryAndUserManagementPage() {
     docs: ResidentDocument[] | null;
     error: string | null;
   } | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<ViewerSource | null>(null);
   const viewingResidentId = viewingResident?.id ?? null;
   const currentDocs = docsState && docsState.residentId === viewingResidentId ? docsState : null;
   const residentDocs = currentDocs?.docs ?? null;
@@ -329,8 +310,6 @@ export default function DirectoryAndUserManagementPage() {
           phoneNumber: item.phone_number,
           moveInDate: item.move_in_date,
           occupancyType: item.occupancy_type,
-          idType: item.id_type ?? null,
-          idNumber: item.id_number ?? null,
           leaseStart: item.lease_start ?? null,
           leaseEnd: item.lease_end ?? null,
           monthlyDue: item.monthly_due ?? null,
@@ -1055,36 +1034,7 @@ export default function DirectoryAndUserManagementPage() {
                   <h3 className={styles.cardSectionTitle} style={{ margin: 0 }}>📄 Documents</h3>
                   <span style={{ fontSize: "0.75rem", color: "#5b6b82" }}>Required: Lease or Ownership Deed</span>
                 </div>
-                <div className={styles.formGroup}>
-                  <label>Document Type</label>
-                  <select
-                    value={onboardDocType}
-                    onChange={(e) => setOnboardDocType(e.target.value as ResidentDocType)}
-                  >
-                    {(Object.keys(DOC_TYPE_LABELS) as ResidentDocType[]).map((t) => (
-                      <option key={t} value={t}>
-                        {DOC_TYPE_LABELS[t]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <label className={styles.dropzone} style={{ cursor: "pointer" }}>
-                  <div className={styles.dropzoneIcon}>
-                    <UploadCloud size={24} />
-                  </div>
-                  <div className={styles.dropzoneText}>
-                    {onboardDocFile ? onboardDocFile.name : "Click to choose a file"}
-                  </div>
-                  <div className={styles.dropzoneSub}>
-                    PDF, PNG, or JPG (max. 10MB). Uploaded right after the account is created.
-                  </div>
-                  <input
-                    type="file"
-                    accept={ACCEPTED_DOC_TYPES}
-                    style={{ display: "none" }}
-                    onChange={(e) => setOnboardDocFile(e.target.files?.[0] ?? null)}
-                  />
-                </label>
+                <ResidentDocumentPicker docs={onboardDocs} onChange={setOnboardDocs} disabled={onboardSubmitting} />
               </div>
             </div>
 
@@ -1161,6 +1111,7 @@ export default function DirectoryAndUserManagementPage() {
 
   return (
     <AdminShell>
+      {viewingDoc ? <DocumentViewer source={viewingDoc} onClose={() => setViewingDoc(null)} /> : null}
       <div className={styles.container}>
         {/* Header Section */}
         <header className={styles.header}>
@@ -1807,25 +1758,31 @@ export default function DirectoryAndUserManagementPage() {
                     </span>
                   </div>
                   <div className={styles.previewMetaRow}>
-                    <label>Submitted ID</label>
-                    <span>
-                      {viewingResident.idNumber
-                        ? `${viewingResident.idType ?? "ID"} · ${viewingResident.idNumber}`
-                        : "None on file"}
-                    </span>
-                  </div>
-                  <div className={styles.previewMetaRow}>
                     <label>Documents</label>
-                    <span>
+                    <span style={{ display: "grid", gap: 6, justifyItems: "end", minWidth: 0 }}>
                       {residentDocsError
                         ? residentDocsError
                         : residentDocs === null
                         ? "Loading…"
                         : residentDocs.length === 0
                         ? "No documents uploaded"
-                        : residentDocs
-                            .map((d) => `${d.doc_type ? DOC_TYPE_LABELS[d.doc_type] : "Document"}: ${d.display_name}`)
-                            .join(", ")}
+                        : residentDocs.map((d) => (
+                            <button
+                              key={d.filename}
+                              type="button"
+                              className={styles.docLink}
+                              onClick={() =>
+                                viewingResidentId !== null &&
+                                setViewingDoc({
+                                  name: d.display_name,
+                                  load: () => fetchResidentDocument(viewingResidentId, d.filename),
+                                })
+                              }
+                            >
+                              {d.doc_type ? DOC_TYPE_LABELS[d.doc_type] : "Document"}: {d.display_name}{" "}
+                              <small>({formatBytes(d.size_bytes)}) · View</small>
+                            </button>
+                          ))}
                     </span>
                   </div>
                 </div>
@@ -2267,7 +2224,7 @@ export default function DirectoryAndUserManagementPage() {
                 <label>Work Email</label>
                 <input
                   type="email"
-                  placeholder="m.santos@townsync.local"
+                  placeholder="user@email.com"
                   value={registerEmail}
                   onChange={(e) => setRegisterEmail(e.target.value)}
                 />
