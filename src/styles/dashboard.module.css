@@ -218,6 +218,25 @@
   gap: var(--space-3);
 }
 
+.announcementArea {
+  display: contents;
+}
+
+@media (max-width: 640px) {
+  .announcementPanel {
+    position: fixed;
+    top: 64px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-height: calc(100dvh - 80px);
+  }
+
+  .announcementPanelBody {
+    max-height: calc(100dvh - 190px);
+  }
+}
+
 .announcementButton {
   display: inline-flex;
   align-items: center;

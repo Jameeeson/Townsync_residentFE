@@ -58,13 +58,38 @@ export function ResidentHeader() {
     };
   }, []);
 
-  const reveal = () => setOpen(true);
+  // Hover only means "peek" for a real mouse. Touch screens fire emulated mouse events on tap,
+  // which would open the panel when the profile (or anything nearby) is tapped.
+  const reveal = (event: React.PointerEvent) => {
+    if (event.pointerType === "mouse") setOpen(true);
+  };
 
-  const hide = () => {
-    if (!pinned) {
+  const hide = (event: React.PointerEvent) => {
+    if (event.pointerType === "mouse" && !pinned) {
       setOpen(false);
     }
   };
+
+  const close = () => {
+    setPinned(false);
+    setOpen(false);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target as Element | null)?.closest("[data-announcements]")) close();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   const togglePinned = () => {
     setPinned((current) => {
@@ -78,12 +103,12 @@ export function ResidentHeader() {
     <header className={styles.topBar}>
       <div>
       </div>
-      <div className={styles.topBarActions} onMouseEnter={reveal} onMouseLeave={hide}>
+      <div className={styles.topBarActions}>
+        <div className={styles.announcementArea} data-announcements onPointerEnter={reveal} onPointerLeave={hide}>
         <button
           type="button"
           className={styles.announcementButton}
           onClick={togglePinned}
-          onFocus={reveal}
           aria-label={open ? "Close announcements" : "Open announcements"}
           aria-expanded={open}
         >
@@ -92,13 +117,6 @@ export function ResidentHeader() {
           <ChevronDown size={14} className={open ? styles.chevronOpen : styles.chevron} aria-hidden="true" />
         </button>
 
-        <Link
-          href="/resident/settings"
-          className={styles.profileButton}
-          aria-label="Open account settings"
-        >
-          <span className={styles.profileAvatar}>{initials}</span>
-        </Link>
 
         <aside className={`${styles.announcementPanel} ${open ? styles.announcementPanelOpen : ""}`} aria-live="polite">
           <div className={styles.announcementPanelHeader}>
@@ -139,6 +157,15 @@ export function ResidentHeader() {
             )}
           </div>
         </aside>
+        </div>
+
+        <Link
+          href="/resident/settings"
+          className={styles.profileButton}
+          aria-label="Open account settings"
+        >
+          <span className={styles.profileAvatar}>{initials}</span>
+        </Link>
       </div>
     </header>
   );
