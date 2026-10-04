@@ -914,3 +914,89 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Phones: the shell already pads the page, so the container drops its own;
+   titles and figures step down so a screen holds more than one card. */
+@media (max-width: 640px) {
+  .container {
+    padding: 0;
+  }
+
+  .pageHeader {
+    margin-bottom: 1.25rem;
+  }
+
+  .title {
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+
+  .subtitle {
+    font-size: 0.875rem;
+  }
+
+  .headerActions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .metricsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .metricCard {
+    padding: 0.85rem;
+  }
+
+  .cardTitle,
+  .cardTitleAlert {
+    font-size: 0.78rem;
+  }
+
+  .cardValue,
+  .cardValueAlert {
+    font-size: 1.4rem;
+    margin: 0.35rem 0;
+    overflow-wrap: anywhere;
+  }
+
+  .tableHeader {
+    padding: 0.9rem;
+  }
+
+  .table {
+    padding: 0 0.9rem;
+  }
+
+  .modalOverlay {
+    padding: 0.5rem;
+  }
+
+  .modalHeader h2 {
+    font-size: 1.15rem;
+  }
+
+  /* Three short choices fit one row; a lone "Print" tile on its own row
+     read as a different kind of option. */
+  .statusToggleGrid,
+  .deliveryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .deliveryOption,
+  .statusOption {
+    padding: 0.65rem 0.4rem;
+    font-size: 0.8rem;
+  }
+
+  .summaryDocPreview {
+    display: none;
+  }
+
+  .summaryCard {
+    padding: 0.9rem;
+  }
+}

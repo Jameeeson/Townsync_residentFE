@@ -340,7 +340,26 @@
 
 @media (max-width: 640px) {
   .contentInner {
-    padding: 1rem;
+    padding: 0.875rem 0.875rem 1.5rem;
+  }
+
+  .sidebarHeader {
+    padding: 1rem 1rem 1rem 1.25rem;
+  }
+
+  .mobileClose {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
+  }
+
+  .statCard strong {
+    font-size: 1.6rem;
+  }
+
+  .panel h3,
+  .panelAccent h3 {
+    font-size: 1.15rem;
   }
 
   .statCard,

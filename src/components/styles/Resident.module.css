@@ -1000,13 +1000,44 @@
 }
 
 @media (max-width: 640px) {
+  .container {
+    padding: 0 0 1.5rem;
+  }
+
+  .header {
+    margin-bottom: 1rem;
+  }
+
   .header h1 {
     font-size: 1.35rem;
   }
 
+  .header p {
+    font-size: 0.85rem;
+  }
+
   .card,
   .formCard {
-    padding: 1.1rem;
+    padding: 0.9rem;
+  }
+
+  /* Tabs stay on one line and swipe sideways instead of wrapping each
+     label onto three lines. */
+  .tabsNav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tabsNav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabBtn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0.75rem 0.65rem;
+    font-size: 0.82rem;
   }
 }
 /* Resident profile modal */
@@ -1148,4 +1179,28 @@
   .detailGrid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Destructive confirm (e.g. "Reject & send email"): filled red so it reads as the committing step. */
+.dangerBtn {
+  background: #b91c1c;
+  border: 1px solid #b91c1c;
+  color: #ffffff;
+  padding: 0.65rem 1.1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dangerBtn:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.dangerBtn:disabled {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #475569;
+  cursor: not-allowed;
 }

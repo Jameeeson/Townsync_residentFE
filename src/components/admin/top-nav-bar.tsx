@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, Megaphone, Menu, Search, X } from "lucide-react";
 import { apiGet } from "../../lib/api";
 import styles from "./top-nav-bar.module.css";
 
@@ -49,6 +49,8 @@ export default function TopNavBar({ onMenuOpen, onCreateAlert, userName }: TopNa
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  // Phones show search behind an icon so the header stays one row.
+  const [mobileSearch, setMobileSearch] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -116,7 +118,7 @@ export default function TopNavBar({ onMenuOpen, onCreateAlert, userName }: TopNa
         <span className={styles.logo}>TownSync</span>
       </div>
 
-      <div className={styles.searchWrap} ref={searchRef}>
+      <div className={`${styles.searchWrap} ${mobileSearch ? styles.searchWrapOpen : ""}`} ref={searchRef}>
         <Search size={18} className={styles.searchIcon} aria-hidden="true" />
         <input
           type="search"
@@ -130,6 +132,7 @@ export default function TopNavBar({ onMenuOpen, onCreateAlert, userName }: TopNa
             setSearchOpen(true);
           }}
           onFocus={() => setSearchOpen(true)}
+          autoFocus={mobileSearch}
         />
         {showResults ? (
           <div className={styles.popover} role="listbox" aria-label="Search results">
@@ -154,8 +157,23 @@ export default function TopNavBar({ onMenuOpen, onCreateAlert, userName }: TopNa
       </div>
 
       <div className={styles.actions}>
-        <button type="button" className={styles.createAlertButton} onClick={onCreateAlert}>
-          Create Alert
+        <button
+          type="button"
+          className={`${styles.iconButton} ${styles.searchToggle}`}
+          aria-label={mobileSearch ? "Close search" : "Search"}
+          aria-expanded={mobileSearch}
+          onClick={() => setMobileSearch((open) => !open)}
+        >
+          {mobileSearch ? <X size={20} /> : <Search size={20} />}
+        </button>
+        <button
+          type="button"
+          className={styles.createAlertButton}
+          onClick={onCreateAlert}
+          aria-label="Create Alert"
+        >
+          <Megaphone size={18} aria-hidden="true" className={styles.createAlertIcon} />
+          <span className={styles.createAlertLabel}>Create Alert</span>
         </button>
         <span className={styles.divider} aria-hidden="true" />
         <div className={styles.bellWrap} ref={bellRef}>

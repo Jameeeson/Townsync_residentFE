@@ -565,26 +565,72 @@ export default function DirectoryAndUserManagementPage() {
     loadStaffUsers();
   }, [activeTab, staffSearch]);
 
-  const handleUserDecision = async (userId: number, action: "approve" | "reject") => {
+  const handleUserDecision = async (userId: number, action: "approve") => {
     setStaffBusyId(userId);
     setStaffError(null);
     try {
       await apiPost(`/api/v1/admin/approvals/${userId}/${action}`);
-      toast(
-        action === "approve" ? "Account approved." : "Account rejected.",
-        action === "approve" ? "success" : "info",
-      );
+      toast("Account approved.", "success");
       loadStaffUsers();
-      setViewingStaffUser((prev) =>
-        prev && prev.user_id === userId
-          ? { ...prev, status: action === "approve" ? "Active" : "Rejected" }
-          : prev,
-      );
+      setViewingStaffUser((prev) => (prev && prev.user_id === userId ? { ...prev, status: "Active" } : prev));
     } catch (err) {
       toastError(err, `Could not ${action} this account.`);
       setStaffError(err instanceof Error ? err.message : `Failed to ${action} user`);
     } finally {
       setStaffBusyId(null);
+    }
+  };
+
+  // Rejecting a pending application (resident or staff/maintenance) asks for a reason, which is
+  // emailed to the address the applicant registered with.
+  const [rejectTarget, setRejectTarget] = useState<{
+    kind: "resident" | "staff";
+    id: number;
+    name: string;
+    email: string;
+  } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+
+  const openRejection = (target: NonNullable<typeof rejectTarget>) => {
+    setRejectTarget(target);
+    setRejectReason("");
+    setRejectError(null);
+  };
+
+  const closeRejection = () => {
+    if (rejectSubmitting) return;
+    setRejectTarget(null);
+  };
+
+  const submitRejection = async () => {
+    if (!rejectTarget) return;
+    const reason = rejectReason.trim();
+    if (reason.length < 3) {
+      setRejectError("Tell the applicant why their application is being rejected.");
+      return;
+    }
+    setRejectSubmitting(true);
+    setRejectError(null);
+    try {
+      if (rejectTarget.kind === "resident") {
+        await apiPost(`/api/v1/admin/residents/${rejectTarget.id}/reject`, { reason });
+        loadResidents();
+        setViewingResident((prev) => (prev && prev.id === rejectTarget.id ? { ...prev, status: "Rejected" } : prev));
+      } else {
+        await apiPost(`/api/v1/admin/approvals/${rejectTarget.id}/reject`, { reason });
+        loadStaffUsers();
+        setViewingStaffUser((prev) =>
+          prev && prev.user_id === rejectTarget.id ? { ...prev, status: "Rejected" } : prev,
+        );
+      }
+      toast("Application rejected. The reason was emailed to the applicant.", "success");
+      setRejectTarget(null);
+    } catch (err) {
+      setRejectError(err instanceof Error ? err.message : "Could not reject this application.");
+    } finally {
+      setRejectSubmitting(false);
     }
   };
 
@@ -1305,6 +1351,16 @@ export default function DirectoryAndUserManagementPage() {
                                 >
                                   Approve
                                 </button>
+                                <button
+                                  type="button"
+                                  className={styles.dangerOutlineBtn}
+                                  disabled={residentBusyId === item.id}
+                                  onClick={() =>
+                                    openRejection({ kind: "resident", id: item.id, name: item.name, email: item.email })
+                                  }
+                                >
+                                  Reject
+                                </button>
                               </div>
                             ) : (
                               <>
@@ -1449,7 +1505,14 @@ export default function DirectoryAndUserManagementPage() {
                                   type="button"
                                   className={styles.secondaryOutlineBtn}
                                   disabled={staffBusyId === user.user_id}
-                                  onClick={() => handleUserDecision(user.user_id, "reject")}
+                                  onClick={() =>
+                                    openRejection({
+                                      kind: "staff",
+                                      id: user.user_id,
+                                      name: user.full_name ?? user.email,
+                                      email: user.email,
+                                    })
+                                  }
                                 >
                                   Reject
                                 </button>
@@ -1935,7 +1998,25 @@ export default function DirectoryAndUserManagementPage() {
                   >
                     {viewingResident.status === "Pending" ? "Approve Account" : "Reactivate Resident"}
                   </button>
-                ) : (
+                ) : null}
+                {viewingResident.status === "Pending" ? (
+                  <button
+                    type="button"
+                    className={styles.dangerOutlineBtn}
+                    disabled={residentBusyId === viewingResident.id}
+                    onClick={() =>
+                      openRejection({
+                        kind: "resident",
+                        id: viewingResident.id,
+                        name: viewingResident.name,
+                        email: viewingResident.email,
+                      })
+                    }
+                  >
+                    Reject
+                  </button>
+                ) : null}
+                {viewingResident.status === "Active" ? (
                   <button
                     type="button"
                     className={styles.dangerOutlineBtn}
@@ -1948,7 +2029,7 @@ export default function DirectoryAndUserManagementPage() {
                   >
                     Suspend Resident
                   </button>
-                )}
+                ) : null}
               </div>
               <div>
                 {residentModalTab === "details" && !residentEditing ? (
@@ -2088,7 +2169,14 @@ export default function DirectoryAndUserManagementPage() {
                       type="button"
                       className={styles.cancelBtn}
                       disabled={staffBusyId === viewingStaffUser.user_id}
-                      onClick={() => handleUserDecision(viewingStaffUser.user_id, "reject")}
+                      onClick={() =>
+                        openRejection({
+                          kind: "staff",
+                          id: viewingStaffUser.user_id,
+                          name: viewingStaffUser.full_name ?? viewingStaffUser.email,
+                          email: viewingStaffUser.email,
+                        })
+                      }
                     >
                       Reject
                     </button>
@@ -2296,6 +2384,65 @@ export default function DirectoryAndUserManagementPage() {
                 onClick={submitEditStaffUser}
               >
                 {editSubmitting ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: Reject an application (reason is emailed to the applicant) --- */}
+      {rejectTarget && (
+        <div className={styles.modalOverlay} onClick={closeRejection} role="presentation">
+          <div
+            className={styles.modalContent}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <h2 id="reject-title">Reject application</h2>
+                <p>{rejectTarget.name}</p>
+              </div>
+              <button type="button" className={styles.closeBtn} aria-label="Close" onClick={closeRejection}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              {rejectError ? (
+                <p className={styles.subText} role="alert" style={{ color: "#b91c1c" }}>
+                  {rejectError}
+                </p>
+              ) : null}
+              <div className={styles.formGroup}>
+                <label htmlFor="reject-reason">Why is this application being rejected?</label>
+                <textarea
+                  id="reject-reason"
+                  rows={5}
+                  maxLength={500}
+                  autoFocus
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="e.g. The unit number does not match our records. Please apply again with the correct Block and Lot."
+                />
+                <span className={styles.subText}>{rejectReason.length}/500</span>
+              </div>
+              <p className={styles.infoNote}>
+                This message is emailed to <strong>{rejectTarget.email}</strong>, the address they registered with.
+              </p>
+            </div>
+            <div className={styles.modalFooter}>
+              <button type="button" className={styles.cancelBtn} disabled={rejectSubmitting} onClick={closeRejection}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.dangerBtn}
+                disabled={rejectSubmitting || rejectReason.trim().length < 3}
+                onClick={submitRejection}
+              >
+                {rejectSubmitting ? "Rejecting…" : "Reject & send email"}
               </button>
             </div>
           </div>

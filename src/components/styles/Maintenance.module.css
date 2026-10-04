@@ -2051,13 +2051,26 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
+  /* Secondary actions share a row; the primary action (last) spans it, so
+     the dialog keeps its height for the form instead of three stacked bars. */
   .modalFooter {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem 0.9rem calc(0.75rem + env(safe-area-inset-bottom));
   }
 
   .modalFooter button {
     width: 100%;
     justify-content: center;
+  }
+
+  .modalFooter > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .dispatchGrid {
+    overflow-x: hidden;
   }
 }
 
@@ -2602,4 +2615,51 @@
 
 .contactTechGhost:hover {
   background: #f8fafc;
+}
+
+/* Phones: smaller display type, two stats per row, tighter cards. */
+@media (max-width: 640px) {
+  .header {
+    margin-bottom: 1rem;
+  }
+
+  .titleArea h1 {
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+
+  .titleArea p {
+    font-size: 0.875rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .statCard {
+    padding: 0.85rem;
+  }
+
+  .statHeader {
+    font-size: 0.68rem;
+    gap: 0.35rem;
+  }
+
+  .statBody h2 {
+    font-size: 1.6rem;
+  }
+
+  .statValLarge {
+    font-size: 1.4rem;
+  }
+
+  .miniStat strong {
+    font-size: 1.3rem;
+  }
+
+  .residentQuote,
+  .aiInsight {
+    overflow-wrap: anywhere;
+  }
 }

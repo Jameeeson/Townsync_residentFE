@@ -1021,3 +1021,55 @@
 .statusChip[data-tone="expired"][aria-selected="true"] {
   background: #475569;
 }
+
+/* Phones: status chips stay on one swipeable line; figures and headings step down. */
+@media (max-width: 640px) {
+  .header {
+    margin-bottom: 1.1rem;
+  }
+
+  .titleArea p {
+    font-size: 0.875rem;
+  }
+
+  .detailHeader h1 {
+    font-size: 1.3rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .statCard h2 {
+    font-size: 1.5rem;
+  }
+
+  .statCard > p {
+    font-size: 0.8rem;
+  }
+
+  .statusChips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 0 0.9rem 0.9rem;
+  }
+
+  .statusChips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .statusChip {
+    flex-shrink: 0;
+  }
+
+  .filterPanel {
+    padding: 0.75rem 0.9rem;
+  }
+
+  .pager {
+    justify-content: space-between;
+    padding: 0.75rem 0.9rem;
+  }
+}

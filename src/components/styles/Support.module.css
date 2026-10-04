@@ -148,3 +148,17 @@
     max-width: none;
   }
 }
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0;
+  }
+
+  .header h1 {
+    font-size: 1.5rem;
+  }
+
+  .header p {
+    font-size: 0.875rem;
+  }
+}

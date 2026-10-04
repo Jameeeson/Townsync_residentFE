@@ -326,6 +326,23 @@
 }
 
 @media (max-width: 640px) {
+  .header {
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .titleArea h1 {
+    font-size: 1.35rem;
+  }
+
+  .titleArea p {
+    font-size: 0.85rem;
+  }
+
+  .configCard {
+    padding: 1rem;
+  }
+
   .actionArea {
     justify-content: stretch;
   }

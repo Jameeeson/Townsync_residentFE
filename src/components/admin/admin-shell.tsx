@@ -23,6 +23,7 @@ import { apiGet } from "../../lib/api";
 import { ADMIN_ROLE } from "../../lib/auth";
 import { logoutRequest } from "../../lib/api";
 import { useAuthGuard } from "../../lib/use-auth-guard";
+import { useStackedTableLabels } from "../../lib/use-stacked-tables";
 import styles from "./admin-shell.module.css";
 
 type CurrentUser = {
@@ -54,6 +55,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [staffUnread, setStaffUnread] = useState(0);
   const authChecked = useAuthGuard();
+  useStackedTableLabels();
 
   // Unread staff messages, shown as a badge on the sidebar link.
   useEffect(() => {

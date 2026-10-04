@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { MessageSquare, Search } from "lucide-react";
+import { ArrowLeft, MessageSquare, Search } from "lucide-react";
 import AdminShell from "@/components/admin/admin-shell";
 import { StaffChat } from "@/components/admin/staff-chat";
 import { apiGet } from "@/lib/api";
@@ -77,7 +77,7 @@ function StaffMessagesInbox() {
         <p>Direct conversations with staff and maintenance accounts. They reply from Messages in the staff portal.</p>
       </header>
 
-      <div className={styles.layout}>
+      <div className={styles.layout} data-view={selected ? "thread" : "list"}>
         <aside className={styles.list} aria-label="Conversations">
           <label className={styles.search}>
             <Search size={15} aria-hidden="true" />
@@ -129,6 +129,14 @@ function StaffMessagesInbox() {
           {selected ? (
             <>
               <header className={styles.convHead}>
+                <button
+                  type="button"
+                  className={styles.backBtn}
+                  aria-label="Back to conversations"
+                  onClick={() => setSelectedId(null)}
+                >
+                  <ArrowLeft size={18} />
+                </button>
                 <span className={styles.avatar}>{initials(selected.staff_name)}</span>
                 <div>
                   <h2>{selected.staff_name}</h2>
