@@ -222,9 +222,48 @@ export function cardNumberGroups(text: string): string[] {
   return groups;
 }
 
+export interface PageLine {
+  text: string;
+  y0: number;
+  y1: number;
+}
+
+/** Vertical band (in the page image's pixels) where the card number should be, and one text-line height. */
+export interface NumberRegion {
+  top: number;
+  bottom: number;
+  unit: number;
+}
+
+/**
+ * Locates the card number from the lines read on the page. The number is printed just
+ * under "Philippine Identification Card" and above the first name label
+ * ("Apelyido/Last Name"), and those two lines are read far more reliably than the
+ * number itself. Returns null when the anchor line wasn't read.
+ */
+export function findNumberRegion(lines: PageLine[]): NumberRegion | null {
+  const anchor = lines.find((line) => containsApprox(lettersOnly(line.text), "IDENTIFICATIONCARD", 4));
+  if (!anchor) return null;
+  const unit = Math.max(8, anchor.y1 - anchor.y0);
+  const label = lines.find(
+    (line) => line.y0 > anchor.y1 && containsApprox(lettersOnly(line.text), "APELYIDOLASTNAME", 4),
+  );
+  const top = anchor.y1 - 0.3 * unit;
+  const bottom = label ? Math.min(label.y0 + 0.2 * unit, anchor.y1 + 5 * unit) : anchor.y1 + 4 * unit;
+  return bottom - top > unit ? { top, bottom, unit } : null;
+}
+
 export interface PassNumberReading {
   reading: CardNumberReading | null;
   groups: string[];
+  /**
+   * Which part of the photo was read ("page-0", "region-1", "strip-340"...) and how it was
+   * prepared ("threshold", "page-0"...). Reads of the same crop share blind spots, and so do
+   * reads prepared the same way (a 5 read as an 8 tends to repeat), so two reads only count
+   * as agreeing when they differ in BOTH the crop and the preparation.
+   */
+  crop: string;
+  prep: string;
 }
 
 /** A supporting pass must show at least this many of the number's four groups, last one included. */
@@ -247,7 +286,8 @@ export interface DecidedCardNumber {
 /**
  * Decides the card number from what each OCR pass saw. The resident can't edit the
  * number afterwards, so how sure we are matters:
- *  - agreed:  two passes read the same full number. Trusted outright.
+ *  - agreed:  two reads that differ in both the part of the photo and the preparation
+ *             give the same full number. Trusted outright.
  *  - settled: one clean full read plus another pass that shows 3+ of its groups
  *             (including the last). Good enough to stop early, but the resident is
  *             still asked to confirm it, because the unseen group is unchecked.
@@ -256,11 +296,22 @@ export interface DecidedCardNumber {
  * A number that needed look-alike repair is never used from a single pass.
  */
 export function decideCardNumber(passes: PassNumberReading[]): DecidedCardNumber {
-  const tally = new Map<string, { passes: number; clean: number; first: number }>();
-  passes.forEach(({ reading }, index) => {
+  const tally = new Map<
+    string,
+    { passes: number; clean: number; first: number; crops: Set<string>; preps: Set<string> }
+  >();
+  passes.forEach(({ reading, crop, prep }, index) => {
     if (!reading) return;
-    const entry = tally.get(reading.value) ?? { passes: 0, clean: 0, first: index };
+    const entry = tally.get(reading.value) ?? {
+      passes: 0,
+      clean: 0,
+      first: index,
+      crops: new Set<string>(),
+      preps: new Set<string>(),
+    };
     entry.passes += 1;
+    entry.crops.add(crop);
+    entry.preps.add(prep);
     if (reading.clean) entry.clean += 1;
     tally.set(reading.value, entry);
   });
@@ -269,7 +320,7 @@ export function decideCardNumber(passes: PassNumberReading[]): DecidedCardNumber
   let bestRank: number[] | null = null;
   for (const [value, entry] of tally) {
     const supporters = passes.filter(({ reading, groups }) => reading?.value !== value && supports(value, groups)).length;
-    const agreed = entry.passes >= 2;
+    const agreed = entry.crops.size >= 2 && entry.preps.size >= 2;
     const settled = agreed || (entry.clean >= 1 && supporters >= 1);
     if (!settled && entry.clean < 1) continue; // a repaired number seen by a single pass
     const rank = [agreed ? 2 : settled ? 1 : 0, entry.passes + supporters, entry.clean, -entry.first];
@@ -408,7 +459,9 @@ export function nameFieldsFromCard(text: string): NameFields | null {
     start = lines.findIndex((line) => containsApprox(lettersOnly(line), "IDENTIFICATIONCARD", 4));
   }
 
-  const groups: string[][] = [[]];
+  // Values grouped under the card's own labels. Anything read above the first label
+  // (an emblem fragment such as "WN") belongs to no field and is left out of the groups.
+  const groups: string[][] = [];
   const values: string[] = [];
   let labels = 0;
   for (const line of lines.slice(start + 1)) {
@@ -418,13 +471,14 @@ export function nameFieldsFromCard(text: string): NameFields | null {
     }
     if (isFieldLabel(line)) {
       labels += 1;
-      if (groups[groups.length - 1].length > 0) groups.push([]);
+      // Each label opens a field; a label with nothing under it yet (or two in a row) doesn't open a second one.
+      if (groups.length === 0 || groups[groups.length - 1].length > 0) groups.push([]);
       continue;
     }
     const value = nameValue(line);
     if (!value) continue;
     values.push(value);
-    groups[groups.length - 1].push(value);
+    if (groups.length > 0) groups[groups.length - 1].push(value);
     if (values.length >= 6) break;
   }
 

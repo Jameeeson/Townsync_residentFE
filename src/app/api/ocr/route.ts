@@ -4,15 +4,21 @@ import { idVerificationConfigured, signNationalIdScan } from "@/lib/idVerificati
 import {
   cardNumberGroups,
   decideCardNumber,
+  findNumberRegion,
   mergeNameFields,
   nameFieldsFromCard,
   parseIdText,
   readCardNumber,
   type NameFields,
+  type NumberRegion,
+  type PageLine,
   type PassNumberReading,
 } from "@/lib/ocrParser";
 
 export const runtime = "nodejs";
+// A hard-to-read photo is retried several ways (see READ_BUDGET_MS) and can take ~10s,
+// longer than the 10s default some hosting plans give a serverless function.
+export const maxDuration = 30;
 
 // sharp is loaded lazily and treated as optional. It needs a native libvips file at runtime; if the
 // deployment is ever missing it, a top-level import would make EVERY scan fail with a 500 before this
@@ -122,6 +128,105 @@ function buildPasses(sharp: Sharp, oriented: import("sharp").Sharp, width: numbe
   ];
 }
 
+/**
+ * Number-focused reading. The 16-digit card number is bold black text over the card's
+ * coloured swirl pattern, right above the photo, and a whole-card read often drops it
+ * even when everything else is legible. So the photo is converted to its brightest
+ * colour channel (black ink stays dark, every coloured background turns light) and read
+ * in overlapping horizontal strips with only digits allowed, which leaves the number
+ * line alone in its strip. Each strip takes about a tenth of a second.
+ */
+async function* numberStrips(
+  sharp: Sharp,
+  oriented: import("sharp").Sharp,
+  tiltDegrees: number,
+  region: NumberRegion | null,
+  regionScale: number,
+): AsyncGenerator<{ crop: string; prep: string; mode: PSM; image: Buffer }> {
+  // Strips are horizontal, so a card photographed at an angle is first straightened by
+  // the tilt Tesseract measured on the page read (reliable for the moderate angles people
+  // actually hold a card at).
+  let source = oriented.clone();
+  if (Math.abs(tiltDegrees) >= 1) {
+    source = sharp(await oriented.clone().toBuffer()).rotate(tiltDegrees, { background: "#ffffff" });
+  }
+  const { data, info } = await source
+    .resize({ width: MIN_WIDTH, kernel: "lanczos3" })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const bright = Buffer.alloc(info.width * info.height);
+  for (let i = 0, p = 0; i < bright.length; i += 1, p += 3) {
+    bright[i] = Math.max(data[p], data[p + 1], data[p + 2]);
+  }
+  const gray = () => sharp(bright, { raw: { width: info.width, height: info.height, channels: 1 } });
+
+  const preparations: { source: string; prepare: (image: import("sharp").Sharp) => import("sharp").Sharp }[] = [
+    { source: "strip-threshold", prepare: (image) => image.normalize().threshold(110) },
+    { source: "strip-normalized", prepare: (image) => image.normalize().sharpen({ sigma: 1 }) },
+    { source: "strip-threshold-light", prepare: (image) => image.normalize().threshold(135) },
+  ];
+
+  // First: the band where the page read says the number is (see findNumberRegion), cut a
+  // few ways because reading is sensitive to exactly where the crop edges fall.
+  if (region) {
+    const unit = region.unit * regionScale;
+    const centre = [
+      [0, 0],
+      [-0.7, 0.7],
+      [0.5, 0.5],
+    ];
+    for (const [cropIndex, [topShift, bottomShift]] of centre.entries()) {
+      const top = Math.max(0, Math.round(region.top * regionScale + topShift * unit));
+      const bottom = Math.min(info.height, Math.round(region.bottom * regionScale + bottomShift * unit));
+      if (bottom - top < 24) continue;
+      for (const { source, prepare } of preparations) {
+        const image = await prepare(gray().extract({ left: 0, top, width: info.width, height: bottom - top }))
+          .png()
+          .toBuffer();
+        yield { crop: `region-${cropIndex}`, prep: source, mode: PSM.SINGLE_BLOCK, image };
+      }
+    }
+  }
+
+  const stripHeight = Math.round(info.height * 0.2);
+  // Reading is sensitive to where a strip lands relative to the number line, so strips
+  // overlap densely. The likeliest area (upper-middle of the card) goes first, nearest
+  // the usual number position outward, then the rest; most cards finish within a few.
+  const likely: number[] = [];
+  for (let fraction = 0.2; fraction <= 0.5001; fraction += 0.035) likely.push(fraction);
+  likely.sort((a, b) => Math.abs(a - 0.33) - Math.abs(b - 0.33));
+  const tops = [...likely, 0.15, 0.55, 0.1, 0.6, 0.05].map((fraction) => Math.round(info.height * fraction));
+  for (const top of tops) {
+    if (top < 0 || top + stripHeight > info.height) continue;
+    for (const { source, prepare } of preparations) {
+      const image = await prepare(gray().extract({ left: 0, top, width: info.width, height: stripHeight }))
+        .png()
+        .toBuffer();
+      yield { crop: `strip-${top}`, prep: source, mode: PSM.SINGLE_BLOCK, image };
+    }
+  }
+}
+
+// A photo that still isn't settled after this long gets a plain "retake" instead of more waiting.
+const READ_BUDGET_MS = 9000;
+
+/** Text lines with their vertical position from a Tesseract result. */
+function pageLines(data: unknown): PageLine[] {
+  const blocks =
+    (data as { blocks?: { paragraphs?: { lines?: { text: string; bbox: { y0: number; y1: number } }[] }[] }[] })
+      .blocks ?? [];
+  const lines: PageLine[] = [];
+  for (const block of blocks) {
+    for (const paragraph of block.paragraphs ?? []) {
+      for (const line of paragraph.lines ?? []) {
+        lines.push({ text: line.text, y0: line.bbox.y0, y1: line.bbox.y1 });
+      }
+    }
+  }
+  return lines;
+}
+
 const hits = new Map<string, number[]>();
 let running = 0;
 
@@ -207,9 +312,11 @@ export async function POST(request: NextRequest) {
     // sharp decodes by content, not by the claimed MIME type, and refuses oversized images.
     const sharp = await loadSharp();
     let passes: OcrPass[];
+    let orientedImage: import("sharp").Sharp | null = null;
     if (sharp) {
       try {
         const oriented = sharp(buffer, { limitInputPixels: MAX_PIXELS }).rotate(); // auto-orient from EXIF
+        orientedImage = oriented;
         const { width = 0 } = await oriented.metadata();
         passes = buildPasses(sharp, oriented, width);
       } catch {
@@ -237,19 +344,78 @@ export async function POST(request: NextRequest) {
     let parsed = parseIdText("");
     let number = decideCardNumber(numbers);
     let name = mergeNameFields(nameReadings);
+    let stripsTried = false;
+    let tiltDegrees = 0;
+    let numberRegion: NumberRegion | null = null;
+    let pageWidth = MIN_WIDTH;
+    const startedAt = Date.now();
     for (const pass of passes) {
-      await worker.setParameters({ tessedit_pageseg_mode: pass.mode, preserve_interword_spaces: "1" });
+      if (texts.length > 0 && Date.now() - startedAt > READ_BUDGET_MS) break;
+      await worker.setParameters({
+        tessedit_pageseg_mode: pass.mode,
+        preserve_interword_spaces: "1",
+        tessedit_char_whitelist: "",
+      });
       // rotateAuto straightens a card held at a slight angle before reading it.
-      const {
-        data: { text },
-      } = await worker.recognize(await pass.image(), { rotateAuto: true });
+      const input = await pass.image();
+      const { data } = await worker.recognize(input, { rotateAuto: true }, { text: true, blocks: true });
+      const text = data.text;
+      if (texts.length === 0) {
+        tiltDegrees = (((data as { rotateRadians?: number }).rotateRadians ?? 0) * 180) / Math.PI;
+        numberRegion = findNumberRegion(pageLines(data));
+        pageWidth = sharp ? ((await sharp(input).metadata()).width ?? MIN_WIDTH) : MIN_WIDTH;
+      }
       texts.push(text);
-      numbers.push({ reading: readCardNumber(text), groups: cardNumberGroups(text) });
+      numbers.push({
+        reading: readCardNumber(text),
+        groups: cardNumberGroups(text),
+        crop: `page-${numbers.length}`,
+        prep: `page-${numbers.length}`,
+      });
       const fields = nameFieldsFromCard(text);
       if (fields) nameReadings.push(fields);
       number = decideCardNumber(numbers);
       name = mergeNameFields(nameReadings);
       parsed = parseIdText(texts.join("\n"));
+
+      // The card is recognisable but its number isn't settled: look for the number on its
+      // own (see numberStrips), then go back to full-page reads. If the first page read
+      // found no number at all there is nothing for a second page read to corroborate, so
+      // strips start right away; otherwise the second page read (a differently prepared
+      // copy, which settles most cards by itself and is cheaper) goes first.
+      if (
+        sharp &&
+        orientedImage &&
+        !stripsTried &&
+        (texts.length >= 2 || !number.value) &&
+        !number.settled &&
+        parsed.idType === "National ID"
+      ) {
+        stripsTried = true;
+        await worker.setParameters({ tessedit_char_whitelist: "0123456789-", preserve_interword_spaces: "1" });
+        let stripReads = 0;
+        // With a clean whole-page reading already in hand the strips only corroborate it.
+        const stripBudget = number.value ? 12 : 30;
+        // Page coordinates only line up with the strip image when the card isn't noticeably tilted.
+        const anchored = Math.abs(tiltDegrees) < 2 ? numberRegion : null;
+        for await (const strip of numberStrips(sharp, orientedImage, tiltDegrees, anchored, 1600 / pageWidth)) {
+          if (stripReads >= stripBudget || Date.now() - startedAt > READ_BUDGET_MS) break;
+          stripReads += 1;
+          await worker.setParameters({ tessedit_pageseg_mode: strip.mode });
+          const {
+            data: { text: stripText },
+          } = await worker.recognize(strip.image);
+          numbers.push({
+            reading: readCardNumber(stripText),
+            groups: cardNumberGroups(stripText),
+            crop: strip.crop,
+            prep: strip.prep,
+          });
+          number = decideCardNumber(numbers);
+          if (number.agreed) break;
+        }
+        await worker.setParameters({ tessedit_char_whitelist: "" });
+      }
       if (parsed.idType === "National ID" && number.settled && name && name.support >= 2) break;
     }
     parsed = { ...parsed, idNumber: number.value, fullName: name?.fullName ?? "" };
