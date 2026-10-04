@@ -74,7 +74,7 @@ export default function SupportPage() {
         </div>
         <div className={styles.field} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
           <label htmlFor="email">Email</label>
-          <input id="email" name="email" type="email" required placeholder="name@example.com" />
+          <input id="email" name="email" type="email" required placeholder="name@email.com" />
         </div>
         <div className={styles.field} style={{ "--ts-stagger-i": 2 } as CSSProperties}>
           <label htmlFor="topic">Topic</label>

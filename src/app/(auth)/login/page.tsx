@@ -98,7 +98,7 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 name="email"
-                placeholder="name@example.com"
+                placeholder="name@email.com"
                 required
                 autoComplete="email"
                 defaultValue={rememberedEmail}

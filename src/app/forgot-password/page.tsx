@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
                   id="email"
                   type="email"
                   name="email"
-                  placeholder="name@example.com"
+                  placeholder="name@email.com"
                   required
                 />
               </div>
