@@ -157,6 +157,12 @@ export default function RegisterScanPage() {
   const [still, setStill] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [fields, setFields] = useState(EMPTY_FIELDS);
+  // "unreadable" = a valid-looking National ID we couldn't read (retake); "not-id" = some other card.
+  const [problem, setProblem] = useState<"not-id" | "unreadable">("not-id");
+  // The scanner wasn't certain of the reading, so the resident is asked to look harder at it.
+  const [uncertain, setUncertain] = useState(false);
+  // The resident has compared the details with their card. The card number can't be edited later.
+  const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
     if (!getRegisterData().role) router.replace("/register");
@@ -302,9 +308,15 @@ export default function RegisterScanPage() {
       form.append("image", blob, "national-id.jpg");
       const response = await fetch("/api/ocr", { method: "POST", body: form });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error ?? "We could not read the ID.");
+      if (!response.ok) {
+        setProblem(payload.retry ? "unreadable" : "not-id");
+        setPhase("rejected");
+        setError(payload.error ?? "We could not read the ID. Please try again.");
+        return;
+      }
 
       if (payload.idType !== "National ID") {
+        setProblem("not-id");
         setPhase("rejected");
         setError(
           "This does not look like a Philippine National ID (PhilSys). Only the National ID is accepted for self-registration.",
@@ -312,7 +324,10 @@ export default function RegisterScanPage() {
         return;
       }
       if (!payload.fullName || !payload.idNumber || !payload.verification) {
-        throw new Error("Part of the ID could not be read. Keep the whole card inside the frame and try again.");
+        setProblem("unreadable");
+        setPhase("rejected");
+        setError("Part of the ID could not be read. Keep the whole card inside the frame and try again.");
+        return;
       }
       setFields({
         fullName: payload.fullName,
@@ -320,9 +335,12 @@ export default function RegisterScanPage() {
         idType: "National ID",
         idVerification: payload.verification,
       });
+      setUncertain(Boolean(payload.confirm));
+      setConfirmed(false);
       setPhase("done");
       stopCamera();
     } catch (err) {
+      setProblem("unreadable");
       setPhase("rejected");
       setError(err instanceof Error ? err.message : "We could not read the ID. Please try again.");
     }
@@ -332,6 +350,8 @@ export default function RegisterScanPage() {
     setStill(null);
     setFields(EMPTY_FIELDS);
     setError("");
+    setUncertain(false);
+    setConfirmed(false);
     setSteady(0);
     setQuality(UNKNOWN_QUALITY);
     setPhase("aim");
@@ -347,7 +367,7 @@ export default function RegisterScanPage() {
   }
 
   function handleNext() {
-    if (phase !== "done" || !fields.idVerification) return;
+    if (phase !== "done" || !fields.idVerification || !confirmed) return;
     saveRegisterData(fields);
     router.push("/register/details");
   }
@@ -496,7 +516,7 @@ export default function RegisterScanPage() {
                 <CheckCircle2 size={12} aria-hidden="true" /> National ID read
               </span>
             ) : phase === "rejected" ? (
-              <span className={scan.badgeBad}>Not accepted</span>
+              <span className={scan.badgeBad}>{problem === "unreadable" ? "Couldn't read it" : "Not accepted"}</span>
             ) : (
               <span className={scan.badgeIdle}>
                 <ScanLine size={12} aria-hidden="true" /> Waiting for scan
@@ -523,6 +543,24 @@ export default function RegisterScanPage() {
             <input id="idType" value="Philippine National ID" disabled readOnly />
           </div>
 
+          {phase === "done" ? (
+            <>
+              {uncertain ? (
+                <p className={scan.warnNote} role="status">
+                  We could not double-check this scan. Compare every letter and digit above with your card. If
+                  anything is wrong or missing, retake the photo.
+                </p>
+              ) : null}
+              <label className={`${scan.confirm} ${confirmed ? scan.confirmOn : ""}`}>
+                <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+                <span>
+                  The name and card number above match my National ID exactly. They can&apos;t be changed in the
+                  next step.
+                </span>
+              </label>
+            </>
+          ) : null}
+
           <div className={scan.divider} />
 
           <ul className={scan.checklist}>
@@ -538,7 +576,7 @@ export default function RegisterScanPage() {
             ))}
           </ul>
 
-          {phase === "rejected" ? (
+          {phase === "rejected" && problem === "not-id" ? (
             <p style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)", margin: "var(--space-4) 0 0" }}>
               <Mail size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> No National ID?{" "}
               <a href={ACCOUNT_REQUEST_MAILTO}>Email {SUPPORT_EMAIL}</a> with the subject &quot;Register&quot;.
@@ -549,7 +587,7 @@ export default function RegisterScanPage() {
             <button className={styles.btnSecondary} type="button" onClick={() => router.push("/register")}>
               Cancel
             </button>
-            <button className={styles.btnPrimary} type="button" disabled={phase !== "done"} onClick={handleNext}>
+            <button className={styles.btnPrimary} type="button" disabled={phase !== "done" || !confirmed} onClick={handleNext}>
               Next Step
               <ArrowRight size={16} />
             </button>

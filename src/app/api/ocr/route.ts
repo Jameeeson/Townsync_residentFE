@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createWorker, PSM } from "tesseract.js";
 import { idVerificationConfigured, signNationalIdScan } from "@/lib/idVerification";
-import { isPlausibleName, parseIdText, pickBestName } from "@/lib/ocrParser";
+import {
+  cardNumberGroups,
+  decideCardNumber,
+  mergeNameFields,
+  nameFieldsFromCard,
+  parseIdText,
+  readCardNumber,
+  type NameFields,
+  type PassNumberReading,
+} from "@/lib/ocrParser";
 
 export const runtime = "nodejs";
 
@@ -82,6 +91,15 @@ function buildPasses(sharp: Sharp, oriented: import("sharp").Sharp, width: numbe
       image: () => scaled(MIN_WIDTH).grayscale().normalize().linear(1.3, -20).sharpen({ sigma: 1 }).toBuffer(),
     },
     {
+      mode: PSM.AUTO,
+      image: () => scaled(2200).grayscale().normalize().sharpen({ sigma: 1.6, m2: 2 }).toBuffer(),
+    },
+    {
+      mode: PSM.SPARSE_TEXT,
+      image: () =>
+        scaled(MIN_WIDTH).grayscale().clahe({ width: 48, height: 48, maxSlope: 3 }).sharpen({ sigma: 1 }).toBuffer(),
+    },
+    {
       // Glare and uneven light: divide the photo by a heavily blurred copy of
       // itself (its lighting), so a washed-out patch becomes as white as the rest
       // of the card, then keep anything even slightly darker than that as ink.
@@ -96,15 +114,6 @@ function buildPasses(sharp: Sharp, oriented: import("sharp").Sharp, width: numbe
           .threshold(215)
           .toBuffer();
       },
-    },
-    {
-      mode: PSM.AUTO,
-      image: () => scaled(2200).grayscale().normalize().sharpen({ sigma: 1.6, m2: 2 }).toBuffer(),
-    },
-    {
-      mode: PSM.SPARSE_TEXT,
-      image: () =>
-        scaled(MIN_WIDTH).grayscale().clahe({ width: 48, height: 48, maxSlope: 3 }).sharpen({ sigma: 1 }).toBuffer(),
     },
     {
       mode: PSM.SPARSE_TEXT,
@@ -215,14 +224,19 @@ export async function POST(request: NextRequest) {
       passes = [{ mode: PSM.SPARSE_TEXT, image: async () => buffer }];
     }
 
-    // Read the photo with each preparation in turn, stopping as soon as it is a
-    // complete National ID. The card wording and number are judged on the
-    // pooled text (words one pass garbles are often clean in another); the name
-    // is the most complete one any single pass read, since pooling mixes lines.
+    // Read the photo with each preparation in turn, stopping early once the result is
+    // dependable. The card wording is judged on the pooled text (words one pass garbles
+    // are often clean in another). The card number and the name are each decided across
+    // passes (see decideCardNumber / mergeNameFields) because the resident can't edit
+    // either afterwards: a number needs two reads to agree, and a name is the most
+    // complete one the passes support.
     worker = await createWorker("eng");
     const texts: string[] = [];
-    const names: string[] = [];
+    const numbers: PassNumberReading[] = [];
+    const nameReadings: NameFields[] = [];
     let parsed = parseIdText("");
+    let number = decideCardNumber(numbers);
+    let name = mergeNameFields(nameReadings);
     for (const pass of passes) {
       await worker.setParameters({ tessedit_pageseg_mode: pass.mode, preserve_interword_spaces: "1" });
       // rotateAuto straightens a card held at a slight angle before reading it.
@@ -230,11 +244,15 @@ export async function POST(request: NextRequest) {
         data: { text },
       } = await worker.recognize(await pass.image(), { rotateAuto: true });
       texts.push(text);
-      names.push(parseIdText(text).fullName);
+      numbers.push({ reading: readCardNumber(text), groups: cardNumberGroups(text) });
+      const fields = nameFieldsFromCard(text);
+      if (fields) nameReadings.push(fields);
+      number = decideCardNumber(numbers);
+      name = mergeNameFields(nameReadings);
       parsed = parseIdText(texts.join("\n"));
-      parsed = { ...parsed, fullName: pickBestName([...names, parsed.fullName]) };
-      if (parsed.idType === "National ID" && parsed.idNumber && isPlausibleName(parsed.fullName)) break;
+      if (parsed.idType === "National ID" && number.settled && name && name.support >= 2) break;
     }
+    parsed = { ...parsed, idNumber: number.value, fullName: name?.fullName ?? "" };
 
     // Only a positively recognised Philippine National ID passes, and only with
     // both its card number and a name read. Everything else is refused here, so
@@ -249,9 +267,25 @@ export async function POST(request: NextRequest) {
         { status: 422 },
       );
     }
-    if (!parsed.idNumber || !isPlausibleName(parsed.fullName)) {
+    // It is a National ID, but something on it wasn't legible: say which, so the
+    // resident knows what to fix before retaking the photo.
+    if (!parsed.idNumber) {
       return NextResponse.json(
-        { error: "Part of the ID could not be read. Keep the whole card inside the frame and try again." },
+        {
+          error:
+            "We can see this is a National ID, but could not read the 16-digit card number. Hold the card flat, avoid glare on the number, and keep it sharp inside the frame.",
+          retry: true,
+        },
+        { status: 422 },
+      );
+    }
+    if (!name) {
+      return NextResponse.json(
+        {
+          error:
+            "We could read the card number but not the name clearly. Keep the whole card inside the frame, in good light, and try again.",
+          retry: true,
+        },
         { status: 422 },
       );
     }
@@ -260,6 +294,9 @@ export async function POST(request: NextRequest) {
       success: true,
       ...parsed,
       verification: signNationalIdScan({ cardNumber: parsed.idNumber, fullName: parsed.fullName }),
+      // Anything less than two agreeing reads of the number and of the name asks the
+      // resident to check the result against their card before continuing.
+      confirm: !number.agreed || !name || name.support < 2,
     });
   } catch (error) {
     console.error("OCR error:", error);
