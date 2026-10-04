@@ -26,6 +26,7 @@ export interface RegisterResidentPayload {
   email: string;
   id_type: string;
   id_number: string;
+  id_verification: string;
   address: string;
   password: string;
   occupancy?: "homeowner" | "tenant";

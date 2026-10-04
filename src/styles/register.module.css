@@ -381,6 +381,17 @@
   font-style: italic;
 }
 
+/* Values locked to the verified ID scan: readable, clearly not editable. */
+.field input:read-only:not(:disabled) {
+  background: var(--color-surface-2);
+  cursor: default;
+}
+
+.fieldHint {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
 .searchWrap {
   position: relative;
 }

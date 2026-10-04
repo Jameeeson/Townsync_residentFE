@@ -5,6 +5,8 @@ export interface RegisterData {
   fullName: string;
   idNumber: string;
   idType: string;
+  // Signed proof from /api/ocr that a National ID was scanned; required by the backend.
+  idVerification: string;
   email: string;
   unit: string;
   password: string;
@@ -17,6 +19,7 @@ export const emptyRegisterData = (): RegisterData => ({
   fullName: "",
   idNumber: "",
   idType: "National ID",
+  idVerification: "",
   email: "",
   unit: "",
   password: "",

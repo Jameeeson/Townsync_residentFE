@@ -48,6 +48,11 @@ const SHARPNESS_MIN = 45;
 const CROP_MARGIN = 0.1;
 const STEADY_SAMPLES = 3; // consecutive good samples (~1s) before capture is allowed
 const SAMPLE_MS = 350;
+// Some webcams never pass the focus check; after this many well-lit samples
+// (~3.5s) capture is allowed anyway and the burst below picks the sharpest frame.
+const FOCUS_GRACE_SAMPLES = 10;
+const BURST_FRAMES = 5;
+const BURST_GAP_MS = 110;
 
 /** Maps the on-screen guide box to source-video pixels (the video is shown with object-fit: cover). */
 function guideToVideoRect(video: HTMLVideoElement, stage: HTMLElement, guide: HTMLElement) {
@@ -68,20 +73,8 @@ function guideToVideoRect(video: HTMLVideoElement, stage: HTMLElement, guide: HT
   };
 }
 
-function measure(pixels: Uint8ClampedArray, width: number, height: number): Quality {
-  const n = width * height;
-  const lum = new Float32Array(n);
-  let sum = 0;
-  let glare = 0;
-  for (let i = 0, p = 0; i < n; i += 1, p += 4) {
-    const l = 0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2];
-    lum[i] = l;
-    sum += l;
-    if (l > GLARE_LEVEL) glare += 1;
-  }
-  const brightness = sum / n;
-
-  // Variance of the Laplacian: low when the image is blurred or out of focus.
+/** Variance of the Laplacian over a luminance image: low when blurred or out of focus. */
+function laplacianVariance(lum: Float32Array, width: number, height: number): number {
   let lapSum = 0;
   let lapSq = 0;
   let count = 0;
@@ -95,7 +88,39 @@ function measure(pixels: Uint8ClampedArray, width: number, height: number): Qual
     }
   }
   const mean = count ? lapSum / count : 0;
-  const sharpness = count ? lapSq / count - mean * mean : 0;
+  return count ? lapSq / count - mean * mean : 0;
+}
+
+/** Focus score of a captured frame, measured on a fixed-width copy so frames compare fairly. */
+function frameSharpness(frame: HTMLCanvasElement): number {
+  const w = 480;
+  const h = Math.max(1, Math.round((w * frame.height) / frame.width));
+  const small = document.createElement("canvas");
+  small.width = w;
+  small.height = h;
+  const ctx = small.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return 0;
+  ctx.drawImage(frame, 0, 0, w, h);
+  const px = ctx.getImageData(0, 0, w, h).data;
+  const lum = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < lum.length; i += 1, p += 4) lum[i] = 0.299 * px[p] + 0.587 * px[p + 1] + 0.114 * px[p + 2];
+  return laplacianVariance(lum, w, h);
+}
+
+function measure(pixels: Uint8ClampedArray, width: number, height: number): Quality {
+  const n = width * height;
+  const lum = new Float32Array(n);
+  let sum = 0;
+  let glare = 0;
+  for (let i = 0, p = 0; i < n; i += 1, p += 4) {
+    const l = 0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2];
+    lum[i] = l;
+    sum += l;
+    if (l > GLARE_LEVEL) glare += 1;
+  }
+  const brightness = sum / n;
+
+  const sharpness = laplacianVariance(lum, width, height);
 
   let lighting: Lighting = "good";
   if (brightness < DARK_LIMIT) lighting = "dark";
@@ -112,7 +137,7 @@ const LIGHTING_TEXT: Record<Lighting, string> = {
   good: "Lighting is good",
 };
 
-const EMPTY_FIELDS = { fullName: "", idNumber: "", idType: "National ID" };
+const EMPTY_FIELDS = { fullName: "", idNumber: "", idType: "National ID", idVerification: "" };
 const UNKNOWN_QUALITY: Quality = { lighting: "unknown", brightness: 0, sharp: false };
 
 export default function RegisterScanPage() {
@@ -122,6 +147,7 @@ export default function RegisterScanPage() {
   const guideRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sampleCanvas = useRef<HTMLCanvasElement | null>(null);
+  const litSamples = useRef(0);
 
   const [camera, setCamera] = useState<CameraState>("starting");
   const [cameraAttempt, setCameraAttempt] = useState(0);
@@ -199,7 +225,11 @@ export default function RegisterScanPage() {
       ctx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, w, h);
       const q = measure(ctx.getImageData(0, 0, w, h).data, w, h);
       setQuality(q);
-      setSteady((n) => (q.lighting === "good" ? Math.min(n + 1, STEADY_SAMPLES) : 0));
+      // Capture needs good light and focus; a camera that never reports focus is
+      // let through after a grace period rather than blocking the resident.
+      litSamples.current = q.lighting === "good" ? litSamples.current + 1 : 0;
+      const focused = q.sharp || litSamples.current >= FOCUS_GRACE_SAMPLES;
+      setSteady((n) => (q.lighting === "good" && focused ? Math.min(n + 1, STEADY_SAMPLES) : 0));
     }, SAMPLE_MS);
     return () => window.clearInterval(timer);
   }, [camera, phase]);
@@ -231,14 +261,34 @@ export default function RegisterScanPage() {
       w: Math.min(video.videoWidth, g.x + g.w + padX) - x0,
       h: Math.min(video.videoHeight, g.y + g.h + padY) - y0,
     };
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(r.w);
-    canvas.height = Math.round(r.h);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+    // Grab a short burst and keep the sharpest frame: hand shake and autofocus
+    // hunting blur single frames more often than not.
+    setPhase("processing");
+    let canvas: HTMLCanvasElement | null = null;
+    let bestScore = -1;
+    for (let k = 0; k < BURST_FRAMES; k += 1) {
+      if (k > 0) await new Promise((resolve) => window.setTimeout(resolve, BURST_GAP_MS));
+      const frame = document.createElement("canvas");
+      frame.width = Math.round(r.w);
+      frame.height = Math.round(r.h);
+      const ctx = frame.getContext("2d");
+      if (!ctx) continue;
+      ctx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, frame.width, frame.height);
+      const score = frameSharpness(frame);
+      if (score > bestScore) {
+        bestScore = score;
+        canvas = frame;
+      }
+    }
+    if (!canvas) {
+      setPhase("aim");
+      setError("Could not capture the photo. Please try again.");
+      return;
+    }
+    const best = canvas;
+    const blob = await new Promise<Blob | null>((resolve) => best.toBlob(resolve, "image/jpeg", 0.92));
     if (!blob) {
+      setPhase("aim");
       setError("Could not capture the photo. Please try again.");
       return;
     }
@@ -261,10 +311,15 @@ export default function RegisterScanPage() {
         );
         return;
       }
-      if (!payload.fullName || !payload.idNumber) {
+      if (!payload.fullName || !payload.idNumber || !payload.verification) {
         throw new Error("Part of the ID could not be read. Keep the whole card inside the frame and try again.");
       }
-      setFields({ fullName: payload.fullName, idNumber: payload.idNumber, idType: "National ID" });
+      setFields({
+        fullName: payload.fullName,
+        idNumber: payload.idNumber,
+        idType: "National ID",
+        idVerification: payload.verification,
+      });
       setPhase("done");
       stopCamera();
     } catch (err) {
@@ -292,6 +347,7 @@ export default function RegisterScanPage() {
   }
 
   function handleNext() {
+    if (phase !== "done" || !fields.idVerification) return;
     saveRegisterData(fields);
     router.push("/register/details");
   }

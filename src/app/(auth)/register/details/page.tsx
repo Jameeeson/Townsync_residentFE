@@ -17,6 +17,7 @@ export default function RegisterDetailsPage() {
     fullName: "",
     idNumber: "",
     idType: "National ID",
+    idVerification: "",
     email: "",
     unit: "",
     password: "",
@@ -32,7 +33,8 @@ export default function RegisterDetailsPage() {
       router.replace("/register");
       return;
     }
-    if (!data.fullName && !data.idNumber) {
+    // No verified National ID scan, no application: send them back to scan.
+    if (!data.idNumber || !data.idVerification) {
       router.replace("/register/scan");
       return;
     }
@@ -43,6 +45,7 @@ export default function RegisterDetailsPage() {
       fullName: data.fullName,
       idNumber: data.idNumber,
       idType: "National ID",
+      idVerification: data.idVerification,
       email: data.email,
       unit: data.unit,
     }));
@@ -81,6 +84,7 @@ export default function RegisterDetailsPage() {
         email: form.email,
         id_type: "National ID",
         id_number: form.idNumber,
+        id_verification: form.idVerification,
         address: form.unit,
         password: form.password,
         occupancy,
@@ -117,8 +121,12 @@ export default function RegisterDetailsPage() {
               id="fullName"
               value={form.fullName}
               onChange={(e) => updateField("fullName", e.target.value)}
+              aria-describedby="fullNameHint"
               required
             />
+            <small id="fullNameHint" className={styles.fieldHint}>
+              Fix a misread letter if needed. It must match the name printed on your National ID.
+            </small>
           </div>
 
           <div className={styles.field} style={{ "--ts-stagger-i": 1 } as CSSProperties}>
@@ -126,12 +134,12 @@ export default function RegisterDetailsPage() {
             <input
               id="idNumber"
               value={form.idNumber}
-              onChange={(e) => updateField("idNumber", e.target.value)}
-              inputMode="numeric"
-              pattern="[0-9\s\-]{12,19}"
-              title="The 12- or 16-digit number printed on your National ID"
-              required
+              readOnly
+              aria-describedby="idNumberHint"
             />
+            <small id="idNumberHint" className={styles.fieldHint}>
+              Read from your scanned National ID. To change it, go back and scan again.
+            </small>
           </div>
 
           <div className={styles.field} style={{ "--ts-stagger-i": 2 } as CSSProperties}>

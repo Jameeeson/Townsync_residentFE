@@ -94,11 +94,19 @@ password=<password>
   "email": "alex.r@example.com",
   "id_type": "National ID",
   "id_number": "1234-5678-9012-3456",
+  "id_verification": "<proof returned by the resident portal's POST /api/ocr>",
   "address": "402B",
   "password": "password123"
 }
 ```
 
+- Only the Philippine National ID is accepted: `id_number` is the 16-digit PhilSys Card Number and
+  `id_verification` is the signed scan proof `/api/ocr` returns when it recognises a National ID
+  (valid 30 minutes). It is bound to the card number and the name read from the card; `name` must
+  closely match the scanned name (small corrections allowed). No ID photo is sent or stored. A
+  missing, forged or expired proof, or a different number or name → `400`; a card number that is
+  already registered → `400`. Both services need the same `ID_VERIFICATION_SECRET`; while it is
+  unset, self-registration is refused.
 - Creates user with status **Pending** (no auto-login).
 - **Response:** `{ "message": "Application submitted successfully." }`
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createWorker, PSM } from "tesseract.js";
-import { parseIdText } from "@/lib/ocrParser";
+import { idVerificationConfigured, signNationalIdScan } from "@/lib/idVerification";
+import { isPlausibleName, parseIdText, pickBestName } from "@/lib/ocrParser";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,61 @@ const RATE_LIMIT = 6;
 const RATE_WINDOW_MS = 60_000;
 const MAX_CONCURRENT = 2;
 
+type OcrPass = { mode: PSM; image: () => Promise<Buffer> };
+
+// Tesseract's accuracy scales with resolution, so small captures are upscaled.
+const MIN_WIDTH = 1600;
+
+/**
+ * Different preparations of the same photo, cheapest and most often right
+ * first. Each one rescues a different real-world problem: the first suits a
+ * clean, evenly lit card; lighting flattening recovers text under glare; a
+ * larger, sharper copy helps blur and small/far cards; local contrast (CLAHE)
+ * helps dim or uneven light; a hard black-and-white threshold cuts through the
+ * card's background pattern.
+ */
+function buildPasses(sharp: Sharp, oriented: import("sharp").Sharp, width: number): OcrPass[] {
+  const scaled = (target: number) =>
+    width > 0 && width < target ? oriented.clone().resize({ width: target, kernel: "lanczos3" }) : oriented.clone();
+  return [
+    {
+      // ID cards are scattered field blocks, not paragraphs — SPARSE_TEXT finds
+      // disjoint text regions far better than AUTO, which expects a uniform page.
+      mode: PSM.SPARSE_TEXT,
+      image: () => scaled(MIN_WIDTH).grayscale().normalize().linear(1.3, -20).sharpen({ sigma: 1 }).toBuffer(),
+    },
+    {
+      // Glare and uneven light: divide the photo by a heavily blurred copy of
+      // itself (its lighting), so a washed-out patch becomes as white as the rest
+      // of the card, then keep anything even slightly darker than that as ink.
+      mode: PSM.SPARSE_TEXT,
+      image: async () => {
+        const gray = await scaled(MIN_WIDTH).grayscale().toBuffer();
+        const lighting = await sharp(gray).blur(30).negate().toBuffer();
+        return sharp(gray)
+          .composite([{ input: lighting, blend: "colour-dodge" }])
+          .grayscale()
+          .normalize()
+          .threshold(215)
+          .toBuffer();
+      },
+    },
+    {
+      mode: PSM.AUTO,
+      image: () => scaled(2200).grayscale().normalize().sharpen({ sigma: 1.6, m2: 2 }).toBuffer(),
+    },
+    {
+      mode: PSM.SPARSE_TEXT,
+      image: () =>
+        scaled(MIN_WIDTH).grayscale().clahe({ width: 48, height: 48, maxSlope: 3 }).sharpen({ sigma: 1 }).toBuffer(),
+    },
+    {
+      mode: PSM.SPARSE_TEXT,
+      image: () => scaled(2000).grayscale().normalize().median(3).threshold(150).toBuffer(),
+    },
+  ];
+}
+
 const hits = new Map<string, number[]>();
 let running = 0;
 
@@ -96,6 +152,13 @@ export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (!idVerificationConfigured()) {
+    console.error("ID_VERIFICATION_SECRET is not set; National ID scans cannot be verified.");
+    return NextResponse.json(
+      { error: "ID verification is temporarily unavailable. Please try again later." },
+      { status: 503 },
+    );
+  }
   if (rateLimited(clientKey(request))) {
     return NextResponse.json(
       { error: "Too many scans. Please wait a minute and try again." },
@@ -134,26 +197,12 @@ export async function POST(request: NextRequest) {
 
     // sharp decodes by content, not by the claimed MIME type, and refuses oversized images.
     const sharp = await loadSharp();
-    let processedImage: Buffer;
+    let passes: OcrPass[];
     if (sharp) {
       try {
         const oriented = sharp(buffer, { limitInputPixels: MAX_PIXELS }).rotate(); // auto-orient from EXIF
         const { width = 0 } = await oriented.metadata();
-
-        // ID photos are often captured small (webcam/low-res upload); Tesseract's accuracy
-        // scales with resolution, so upscale anything below a reasonable working width.
-        const MIN_WIDTH = 1600;
-        let pipeline = oriented;
-        if (width > 0 && width < MIN_WIDTH) {
-          pipeline = pipeline.resize({ width: MIN_WIDTH, kernel: "lanczos3" });
-        }
-
-        processedImage = await pipeline
-          .grayscale() // Tesseract works better on B&W
-          .normalize() // Fix exposure
-          .linear(1.3, -20) // extra contrast boost to push faint watermark/security patterns toward white
-          .sharpen({ sigma: 1 })
-          .toBuffer();
+        passes = buildPasses(sharp, oriented, width);
       } catch {
         return NextResponse.json({ error: "That file is not a readable image." }, { status: 415 });
       }
@@ -163,37 +212,54 @@ export async function POST(request: NextRequest) {
       if (!dimensions || dimensions.width * dimensions.height > MAX_PIXELS) {
         return NextResponse.json({ error: "That file is not a readable image." }, { status: 415 });
       }
-      processedImage = buffer;
+      passes = [{ mode: PSM.SPARSE_TEXT, image: async () => buffer }];
     }
 
+    // Read the photo with each preparation in turn, stopping as soon as it is a
+    // complete National ID. The card wording and number are judged on the
+    // pooled text (words one pass garbles are often clean in another); the name
+    // is the most complete one any single pass read, since pooling mixes lines.
     worker = await createWorker("eng");
-    // ID cards are scattered field blocks, not paragraphs — SPARSE_TEXT finds disjoint
-    // text regions far better than the default AUTO mode, which expects a uniform page.
-    await worker.setParameters({
-      tessedit_pageseg_mode: PSM.SPARSE_TEXT,
-      preserve_interword_spaces: "1",
-    });
-    const {
-      data: { text },
-    } = await worker.recognize(processedImage);
+    const texts: string[] = [];
+    const names: string[] = [];
+    let parsed = parseIdText("");
+    for (const pass of passes) {
+      await worker.setParameters({ tessedit_pageseg_mode: pass.mode, preserve_interword_spaces: "1" });
+      // rotateAuto straightens a card held at a slight angle before reading it.
+      const {
+        data: { text },
+      } = await worker.recognize(await pass.image(), { rotateAuto: true });
+      texts.push(text);
+      names.push(parseIdText(text).fullName);
+      parsed = parseIdText(texts.join("\n"));
+      parsed = { ...parsed, fullName: pickBestName([...names, parsed.fullName]) };
+      if (parsed.idType === "National ID" && parsed.idNumber && isPlausibleName(parsed.fullName)) break;
+    }
 
-    const parsed = parseIdText(text);
-
-    // Basic Validation
-    if (!parsed.idNumber && !parsed.fullName) {
+    // Only a positively recognised Philippine National ID passes, and only with
+    // both its card number and a name read. Everything else is refused here, so
+    // no verification is issued for it.
+    if (parsed.idType !== "National ID") {
       return NextResponse.json(
         {
-          error: "Could not read ID clearly. Please provide a sharper image.",
-          rawText: text,
+          error:
+            "This does not look like a Philippine National ID (PhilSys). Only the National ID is accepted for self-registration.",
+          idType: parsed.idType,
         },
+        { status: 422 },
+      );
+    }
+    if (!parsed.idNumber || !isPlausibleName(parsed.fullName)) {
+      return NextResponse.json(
+        { error: "Part of the ID could not be read. Keep the whole card inside the frame and try again." },
         { status: 422 },
       );
     }
 
     return NextResponse.json({
       success: true,
-      rawText: text,
       ...parsed,
+      verification: signNationalIdScan({ cardNumber: parsed.idNumber, fullName: parsed.fullName }),
     });
   } catch (error) {
     console.error("OCR error:", error);
