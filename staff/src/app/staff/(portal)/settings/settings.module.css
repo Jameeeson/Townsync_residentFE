@@ -27,11 +27,14 @@
 .layout {
   display: grid;
   grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  min-width: 0;
   gap: 1.25rem;
   align-items: start;
 }
 
 .profileCard {
+  min-width: 0;
+  overflow: hidden;
   background: var(--surface-raised);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-lg);
@@ -78,6 +81,8 @@
 }
 
 .profileCard h2 {
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-family: var(--font-display);
   font-size: 1.25rem;
   color: var(--navy-900);
@@ -103,6 +108,7 @@
 }
 
 .role {
+  overflow-wrap: anywhere;
   margin-top: 0.65rem;
   color: var(--muted);
   font-size: 0.88rem;

@@ -301,6 +301,10 @@ export function getStaffProfile() {
   return api.get<StaffProfile>("/api/v1/staff/settings/profile");
 }
 
+export function getStaffPreferences() {
+  return api.get<{ push_notifications: boolean; email_reports: boolean }>("/api/v1/staff/settings/preferences");
+}
+
 export function updateStaffPreferences(prefs: { push_notifications: boolean; email_reports: boolean }) {
   return api.put<{ message: string }>("/api/v1/staff/settings/preferences", prefs);
 }

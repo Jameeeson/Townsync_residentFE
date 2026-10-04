@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   IconBell,
@@ -17,7 +17,7 @@ import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import { ApiError } from "@/lib/api-client";
-import { updateStaffPreferences } from "@/lib/services/staff";
+import { getStaffPreferences, updateStaffPreferences } from "@/lib/services/staff";
 import styles from "./settings.module.css";
 import modalStyles from "@/components/ChangePasswordModal.module.css";
 
@@ -45,6 +45,24 @@ export default function StaffSettingsPage() {
   const [push, setPush] = useState(() => readPrefs().push);
   const [email, setEmail] = useState(() => readPrefs().email);
   const [savingPrefs, setSavingPrefs] = useState(false);
+
+  // The saved switches live in the database; localStorage is only a first-paint guess.
+  useEffect(() => {
+    let cancelled = false;
+    getStaffPreferences()
+      .then((saved) => {
+        if (cancelled) return;
+        setPush(saved.push_notifications);
+        setEmail(saved.email_reports);
+        persist({ push: saved.push_notifications, email: saved.email_reports });
+      })
+      .catch(() => {
+        /* keep the local guess when the API is unreachable */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const docsModalRef = useRef<HTMLDivElement>(null);
