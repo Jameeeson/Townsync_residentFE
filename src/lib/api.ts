@@ -138,10 +138,17 @@ export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
   return request<T>(path, { method: "POST", body: form });
 }
 
-export async function login(
-  email: string,
-  password: string,
-): Promise<{ access_token: string; token_type: string; role?: string }> {
+export type LoginResult = {
+  access_token?: string;
+  token_type?: string;
+  role?: string;
+  /** Set when two-factor sign-in is on: the emailed code still has to be entered. */
+  two_factor_required?: boolean;
+  challenge_token?: string;
+  email_hint?: string;
+};
+
+export async function login(email: string, password: string): Promise<LoginResult> {
   const form = new URLSearchParams();
   form.set("username", email);
   form.set("password", password);
@@ -168,6 +175,38 @@ export async function login(
   const data = await response.json();
   if (data.access_token) setAccessToken(data.access_token);
   return data;
+}
+
+async function postJson(path: string, body: unknown): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Portal": PORTAL },
+      body: JSON.stringify(body),
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiError(0, "Could not reach the server. Check your connection and try again.");
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, (await errorMessage(response)) || "Something went wrong.");
+  }
+  return response;
+}
+
+/** Second step of sign-in: the code that was emailed to the administrator. */
+export async function verifyTwoFactor(challengeToken: string, code: string): Promise<LoginResult> {
+  const response = await postJson("/api/auth/login/verify-2fa", { challenge_token: challengeToken, code: code.trim() });
+  const data = (await response.json()) as LoginResult;
+  if (data.access_token) setAccessToken(data.access_token);
+  return data;
+}
+
+/** Emails a fresh code; returns the masked address it went to. */
+export async function resendTwoFactor(challengeToken: string): Promise<string> {
+  const response = await postJson("/api/auth/login/resend-2fa", { challenge_token: challengeToken });
+  return ((await response.json()) as { email_hint?: string }).email_hint ?? "";
 }
 
 /** Revokes the session server-side and clears the cookie; always clears the local flag. */

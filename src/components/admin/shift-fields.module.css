@@ -1,0 +1,46 @@
+.wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+@media (max-width: 640px) {
+  .field input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+}

@@ -21,7 +21,6 @@ import {
   Phone,
   CheckCircle2,
   X,
-  MapPin,
   Droplets,
   Snowflake,
   Refrigerator,
@@ -47,7 +46,7 @@ import { StaffChatModal } from "@/components/admin/staff-chat";
 /* ─── Shared domain data (one source of truth) ─── */
 
 type Priority = "high" | "medium" | "low";
-type StaffStatus = "available" | "on-job" | "on-site" | "break";
+type StaffStatus = "available" | "on-job" | "on-site" | "break" | "off-shift";
 type DetailView = "pending" | "ongoing" | "staff" | "available" | "calendar" | "history";
 type ModalMode = "dispatch" | "decline" | "success" | "decline-success" | null;
 
@@ -171,6 +170,8 @@ type DispatchBoardItem = {
   current_task_id: string | null;
   active_task_count?: number | null;
   shift?: string | null;
+  shift_label?: string | null;
+  on_shift?: boolean | null;
   location?: string | null;
   tasks_completed?: number | null;
   avg_resolution_minutes?: number | null;
@@ -228,8 +229,9 @@ function toPriority(value: string): Priority {
 }
 
 function toStaffStatus(value: string): StaffStatus {
-  // Backend (dispatch-board) only ever returns "On-Duty" or "Busy".
+  // Backend (dispatch-board) returns "On-Duty", "Busy" or "Off-Shift".
   const v = value.toLowerCase();
+  if (v.includes("off")) return "off-shift";
   if (v.includes("on-duty") || v.includes("available")) return "available";
   if (v.includes("site")) return "on-site";
   if (v.includes("break")) return "break";
@@ -310,7 +312,7 @@ function adaptStaffItem(item: DispatchBoardItem): StaffMember {
     specialty: item.specialty,
     skills: [item.specialty],
     status,
-    shift: item.shift ?? NOT_AVAILABLE,
+    shift: item.shift_label ?? NOT_AVAILABLE,
     location: item.location ?? NOT_AVAILABLE,
     isTech: true,
     activeTask: item.current_task_id ?? undefined,
@@ -409,6 +411,7 @@ function statusLabel(status: StaffStatus) {
   if (status === "available") return "Available";
   if (status === "on-job") return "On Job";
   if (status === "on-site") return "On-Site";
+  if (status === "off-shift") return "Off Shift";
   return "Break";
 }
 
@@ -416,6 +419,7 @@ function statusDotClass(status: StaffStatus) {
   if (status === "available") return styles.dotGreen;
   if (status === "on-site") return styles.dotBlue;
   if (status === "break") return styles.dotBlue;
+  if (status === "off-shift") return styles.dotGray;
   return styles.dotRed;
 }
 
@@ -549,6 +553,10 @@ function MaintenanceCommand() {
         staff_id: selectedTechId,
         deadline: `${dispatchDeadlineDate} ${dispatchDeadlineTime}`,
       });
+      // The dispatch dialog warns about an off-shift technician; pressing confirm is the OK.
+      if (staff.find((t) => t.id === selectedTechId)?.status === "off-shift") {
+        params.set("allow_off_shift", "true");
+      }
       await apiPost(
         `/api/v1/admin/maintenance/tickets/${dispatchTicket.id}/assign?${params.toString()}`,
       );
@@ -1544,7 +1552,7 @@ function StaffRosterView({
     };
   }, [menu]);
 
-  const onDuty = staff.length;
+  const onDuty = staff.filter((s) => s.status !== "off-shift").length;
   const available = staff.filter((s) => s.status === "available").length;
   const onJob = staff.filter((s) => s.status === "on-job" || s.status === "on-site").length;
   const rows =
@@ -1607,10 +1615,8 @@ function StaffRosterView({
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Specialty</th>
                 <th>Status</th>
                 <th>Shift</th>
-                <th>Location</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -1631,7 +1637,6 @@ function StaffRosterView({
                       <strong>{person.name}</strong>
                     </div>
                   </td>
-                  <td>{person.specialty}</td>
                   <td>
                     <span className={statusDotClass(person.status)}>
                       {statusLabel(person.status)}
@@ -1643,7 +1648,6 @@ function StaffRosterView({
                     ) : null}
                   </td>
                   <td>{person.shift}</td>
-                  <td>{person.location}</td>
                   <td>
                     {person.status === "available" && person.isTech ? (
                       <button
@@ -2209,12 +2213,15 @@ function DispatchFlowModal({
     .filter((s) => skillMatch.some((skill) => s.skills.includes(skill) || s.specialty === skill))
     .sort(byWorkload);
   const unmatched = allTechs.filter((s) => !matched.includes(s)).sort(byWorkload);
-  const list = [...matched, ...unmatched];
+  const offShiftLast = (a: StaffMember, b: StaffMember) =>
+    Number(a.status === "off-shift") - Number(b.status === "off-shift");
+  const list = [...matched, ...unmatched].sort(offShiftLast);
   const selected = staff.find((s) => s.id === selectedTechId);
   // Not a hard limit — an emergency may genuinely need the busiest tech. This
   // only drives a confirmation warning so the dispatcher sees the risk.
   const OVERLOAD_THRESHOLD = 3;
   const selectedIsOverloaded = Boolean(selected && selected.activeTaskCount >= OVERLOAD_THRESHOLD);
+  const selectedIsOffShift = selected?.status === "off-shift";
   const loadLabel = (count: number) => {
     if (count <= 0) return "Free";
     if (count < OVERLOAD_THRESHOLD) return `Load: ${count} active`;
@@ -2569,8 +2576,10 @@ function DispatchFlowModal({
                       </strong>
                       <p>
                         {tech.status === "available"
-                          ? `Available Now · ${tech.title ?? tech.specialty}`
-                          : `In Progress (${tech.location}) · ${tech.specialty}`}
+                          ? "Available Now"
+                          : tech.status === "off-shift"
+                          ? `Off shift${tech.shift !== NOT_AVAILABLE ? ` · ${tech.shift}` : ""}`
+                          : "In Progress"}
                       </p>
                     </div>
                   </div>
@@ -2580,6 +2589,12 @@ function DispatchFlowModal({
                 </button>
               ))}
             </div>
+            {selectedIsOffShift ? (
+              <p className={styles.fieldError} role="alert">
+                {selected?.name} is off shift right now ({selected?.shift}). Dispatch only if this can&apos;t
+                wait for someone on shift.
+              </p>
+            ) : null}
             {selectedIsOverloaded ? (
               <p className={styles.fieldError} role="alert">
                 {selected?.name} already has {selected?.activeTaskCount} active jobs. Confirm only
@@ -2607,7 +2622,8 @@ function DispatchFlowModal({
                 : undefined
             }
           >
-            <Send size={18} /> {assigning ? "Dispatching…" : "Confirm Dispatch"}
+            <Send size={18} />{" "}
+            {assigning ? "Dispatching…" : selectedIsOffShift ? "Dispatch Anyway" : "Confirm Dispatch"}
           </button>
         </footer>
       </div>
@@ -2664,11 +2680,8 @@ function TechProfileView({
               </span>
             </div>
             <p>
-              {tech.title ?? tech.specialty}
+              Maintenance technician
               {tech.since ? ` · Since ${tech.since}` : ""}
-            </p>
-            <p className={styles.location}>
-              <MapPin size={14} /> {tech.district ?? tech.location}
             </p>
           </div>
           <div className={styles.contactGroup}>
@@ -2755,10 +2768,6 @@ function TechProfileView({
             <h4>{tech.activeTask ?? "No active task"}</h4>
             <div className={styles.taskMeta}>
               <div>
-                <span>Location</span>
-                <p>{tech.location}</p>
-              </div>
-              <div>
                 <span>Status</span>
                 <p>{statusLabel(tech.status)}</p>
               </div>
@@ -2789,7 +2798,7 @@ function TechProfileView({
         <StaffChatModal
           staffUserId={tech.userId}
           staffName={tech.name}
-          subtitle={`${tech.specialty} technician · replies arrive in Staff Messages`}
+          subtitle="Maintenance technician · replies arrive in Staff Messages"
           onClose={() => setChatOpen(false)}
         />
       ) : null}

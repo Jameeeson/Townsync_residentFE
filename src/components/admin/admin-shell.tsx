@@ -22,6 +22,7 @@ import PostAlertPage from "./post-alert";
 import { apiGet } from "../../lib/api";
 import { ADMIN_ROLE } from "../../lib/auth";
 import { logoutRequest } from "../../lib/api";
+import { useIdleLogout } from "../../lib/use-idle-logout";
 import { useAuthGuard } from "../../lib/use-auth-guard";
 import { useStackedTableLabels } from "../../lib/use-stacked-tables";
 import styles from "./admin-shell.module.css";
@@ -92,6 +93,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const signOut = () => {
     void logoutRequest().then(() => router.push("/"));
   };
+
+  // "Automatic Logout" in Global Security Settings.
+  useIdleLogout(() => {
+    void logoutRequest().then(() => router.replace("/?idle=1"));
+  }, authChecked);
 
   if (!authChecked) {
     return null;

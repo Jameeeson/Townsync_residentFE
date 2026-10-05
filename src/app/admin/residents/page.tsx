@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "../../../lib/api";
 import { formatDay as formatDate, ordinal } from "../../../components/admin/property-rates-modal";
 import { useToast } from "@/components/ui/toast";
@@ -21,6 +21,7 @@ import {
   Eye,
   EyeOff,
   MessageSquare,
+  ChevronDown,
 } from "lucide-react";
 
 import {
@@ -35,6 +36,7 @@ import {
 import DocumentViewer, { type ViewerSource } from "../../../components/admin/document-viewer";
 import ResidentDocumentPicker from "../../../components/admin/resident-document-picker";
 import AdminShell from "../../../components/admin/admin-shell";
+import ShiftFields, { joinShift, shiftLabel, splitShift } from "../../../components/admin/shift-fields";
 import { StaffChatModal } from "../../../components/admin/staff-chat";
 import { formatServerFull } from "../../../lib/datetime";
 import styles from "../../../components/styles/Resident.module.css";
@@ -107,6 +109,9 @@ type StaffUser = {
   role: string;
   full_name: string | null;
   employee_id: string | null;
+  shift?: string | null;
+  shift_label?: string | null;
+  on_shift?: boolean | null;
 };
 
 type AccessGroup = {
@@ -259,6 +264,8 @@ export default function DirectoryAndUserManagementPage() {
 
   const [residents, setResidents] = useState<Resident[]>([]);
   const [residentSearch, setResidentSearch] = useState("");
+  const [residentType, setResidentType] = useState<"all" | "Homeowner" | "Tenant">("all");
+  const [residentSort, setResidentSort] = useState<"default" | "name-asc" | "name-desc" | "unit" | "type">("default");
   const [residentsError, setResidentsError] = useState<string | null>(null);
   const [residentMenuOpenId, setResidentMenuOpenId] = useState<number | null>(null);
   const [residentBusyId, setResidentBusyId] = useState<number | null>(null);
@@ -529,7 +536,34 @@ export default function DirectoryAndUserManagementPage() {
   // GET /api/v1/admin/staff/, with inline Approve/Reject for rows still Pending.
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [staffSearch, setStaffSearch] = useState("");
+  const [staffRole, setStaffRole] = useState<"all" | "Staff" | "Admin" | "Maintenance">("all");
+  const [staffSort, setStaffSort] = useState<"default" | "name-asc" | "name-desc" | "role">("default");
   const [staffError, setStaffError] = useState<string | null>(null);
+
+  const visibleResidents = useMemo(() => {
+    const isTenant = (r: Resident) => r.occupancyType === "Tenant";
+    const rows = residents.filter(
+      (r) => residentType === "all" || (residentType === "Tenant" ? isTenant(r) : !isTenant(r)),
+    );
+    const byName = (a: Resident, b: Resident) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    if (residentSort === "name-asc") rows.sort(byName);
+    else if (residentSort === "name-desc") rows.sort((a, b) => byName(b, a));
+    else if (residentSort === "unit") {
+      rows.sort((a, b) => a.unit.localeCompare(b.unit, undefined, { numeric: true }) || byName(a, b));
+    } else if (residentSort === "type") {
+      rows.sort((a, b) => Number(isTenant(a)) - Number(isTenant(b)) || byName(a, b));
+    }
+    return rows;
+  }, [residents, residentType, residentSort]);
+
+  const visibleStaff = useMemo(() => {
+    const label = (u: StaffUser) => (u.full_name || u.email).toLowerCase();
+    const rows = staffUsers.filter((u) => staffRole === "all" || u.role === staffRole);
+    if (staffSort === "name-asc") rows.sort((a, b) => label(a).localeCompare(label(b)));
+    else if (staffSort === "name-desc") rows.sort((a, b) => label(b).localeCompare(label(a)));
+    else if (staffSort === "role") rows.sort((a, b) => a.role.localeCompare(b.role) || label(a).localeCompare(label(b)));
+    return rows;
+  }, [staffUsers, staffRole, staffSort]);
   const [staffBusyId, setStaffBusyId] = useState<number | null>(null);
 
   const loadStaffUsers = () => {
@@ -620,7 +654,8 @@ export default function DirectoryAndUserManagementPage() {
   const [registerEmployeeId, setRegisterEmployeeId] = useState("");
   const [registerStaffType, setRegisterStaffType] = useState<"Admin" | "Staff" | "Maintenance">("Staff");
   const [registerSpecialization, setRegisterSpecialization] = useState("");
-  const [registerShift, setRegisterShift] = useState("");
+  const [registerShiftStart, setRegisterShiftStart] = useState("");
+  const [registerShiftEnd, setRegisterShiftEnd] = useState("");
   const [registerSubmitting, setRegisterSubmitting] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerResult, setRegisterResult] = useState<string | null>(null);
@@ -631,7 +666,8 @@ export default function DirectoryAndUserManagementPage() {
     setRegisterEmployeeId("");
     setRegisterStaffType("Staff");
     setRegisterSpecialization("");
-    setRegisterShift("");
+    setRegisterShiftStart("");
+    setRegisterShiftEnd("");
     setRegisterError(null);
     setRegisterResult(null);
   };
@@ -639,6 +675,14 @@ export default function DirectoryAndUserManagementPage() {
   const submitRegisterStaff = async (isDraft: boolean) => {
     if (!registerFullName.trim() || !registerEmail || !registerEmployeeId.trim()) {
       setRegisterError("Full name, email, and employee ID are required.");
+      return;
+    }
+    if (registerStaffType !== "Admin" && !joinShift(registerShiftStart, registerShiftEnd)) {
+      setRegisterError("Set the shift start and end time.");
+      return;
+    }
+    if (registerStaffType === "Maintenance" && !registerSpecialization.trim()) {
+      setRegisterError("Specialization is required for maintenance staff.");
       return;
     }
     setRegisterSubmitting(true);
@@ -652,7 +696,7 @@ export default function DirectoryAndUserManagementPage() {
           employee_id: registerEmployeeId.trim(),
           staff_type: registerStaffType,
           specialization: registerSpecialization || null,
-          shift: registerShift || null,
+          shift: registerStaffType === "Admin" ? null : joinShift(registerShiftStart, registerShiftEnd),
           is_draft: isDraft,
         },
       );
@@ -687,6 +731,8 @@ export default function DirectoryAndUserManagementPage() {
   const [editingStaffUser, setEditingStaffUser] = useState<StaffUser | null>(null);
   const [editFullName, setEditFullName] = useState("");
   const [editEmployeeId, setEditEmployeeId] = useState("");
+  const [editShiftStart, setEditShiftStart] = useState("");
+  const [editShiftEnd, setEditShiftEnd] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -695,22 +741,37 @@ export default function DirectoryAndUserManagementPage() {
     setEditingStaffUser(user);
     setEditFullName(user.full_name ?? "");
     setEditEmployeeId(user.employee_id ?? "");
+    const [start, end] = splitShift(user.shift);
+    setEditShiftStart(start);
+    setEditShiftEnd(end);
     setEditError(null);
   };
 
   const submitEditStaffUser = async () => {
     if (!editingStaffUser) return;
+    const hasShift = editingStaffUser.role !== "Admin";
+    if (hasShift && Boolean(editShiftStart) !== Boolean(editShiftEnd)) {
+      setEditError("Set both the shift start and end time, or clear both.");
+      return;
+    }
+    const newShift = hasShift ? joinShift(editShiftStart, editShiftEnd) : null;
     setEditSubmitting(true);
     setEditError(null);
     try {
       await apiPatch(`/api/v1/admin/staff/${editingStaffUser.user_id}`, {
         full_name: editFullName,
         employee_id: editEmployeeId,
+        ...(hasShift ? { shift: newShift } : {}),
       });
       toast(`${editFullName || editingStaffUser.email} updated.`, "success");
       setViewingStaffUser((prev) =>
         prev && prev.user_id === editingStaffUser.user_id
-          ? { ...prev, full_name: editFullName, employee_id: editEmployeeId }
+          ? {
+              ...prev,
+              full_name: editFullName,
+              employee_id: editEmployeeId,
+              ...(hasShift ? { shift: newShift || null, shift_label: shiftLabel(newShift) } : {}),
+            }
           : prev,
       );
       setEditingStaffUser(null);
@@ -1163,6 +1224,32 @@ export default function DirectoryAndUserManagementPage() {
                       onChange={(e) => setResidentSearch(e.target.value)}
                     />
                   </div>
+                  <div className={styles.selectWrapper}>
+                    <select
+                      aria-label="Filter by occupancy"
+                      value={residentType}
+                      onChange={(e) => setResidentType(e.target.value as typeof residentType)}
+                    >
+                      <option value="all">All residents</option>
+                      <option value="Homeowner">Homeowners</option>
+                      <option value="Tenant">Tenants</option>
+                    </select>
+                    <ChevronDown size={16} className={styles.selectIcon} aria-hidden="true" />
+                  </div>
+                  <div className={styles.selectWrapper}>
+                    <select
+                      aria-label="Sort residents"
+                      value={residentSort}
+                      onChange={(e) => setResidentSort(e.target.value as typeof residentSort)}
+                    >
+                      <option value="default">Sort: Default</option>
+                      <option value="name-asc">Name A–Z</option>
+                      <option value="name-desc">Name Z–A</option>
+                      <option value="unit">Unit number</option>
+                      <option value="type">Homeowners first</option>
+                    </select>
+                    <ChevronDown size={16} className={styles.selectIcon} aria-hidden="true" />
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1241,12 +1328,12 @@ export default function DirectoryAndUserManagementPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {residents.length === 0 ? (
+                    {visibleResidents.length === 0 ? (
                       <tr>
                         <td colSpan={5}>No residents found.</td>
                       </tr>
                     ) : (
-                      residents.map((item) => (
+                      visibleResidents.map((item) => (
                         <tr
                           key={item.id}
                           className={styles.clickableRow}
@@ -1376,6 +1463,32 @@ export default function DirectoryAndUserManagementPage() {
                       onChange={(e) => setStaffSearch(e.target.value)}
                     />
                   </div>
+                  <div className={styles.selectWrapper}>
+                    <select
+                      aria-label="Filter by system role"
+                      value={staffRole}
+                      onChange={(e) => setStaffRole(e.target.value as typeof staffRole)}
+                    >
+                      <option value="all">All roles</option>
+                      <option value="Staff">Staff</option>
+                      <option value="Maintenance">Maintenance</option>
+                      <option value="Admin">Admin</option>
+                    </select>
+                    <ChevronDown size={16} className={styles.selectIcon} aria-hidden="true" />
+                  </div>
+                  <div className={styles.selectWrapper}>
+                    <select
+                      aria-label="Sort accounts"
+                      value={staffSort}
+                      onChange={(e) => setStaffSort(e.target.value as typeof staffSort)}
+                    >
+                      <option value="default">Sort: Default</option>
+                      <option value="name-asc">Name A–Z</option>
+                      <option value="name-desc">Name Z–A</option>
+                      <option value="role">System role</option>
+                    </select>
+                    <ChevronDown size={16} className={styles.selectIcon} aria-hidden="true" />
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1399,17 +1512,18 @@ export default function DirectoryAndUserManagementPage() {
                       <th>ROLE</th>
                       <th>EMAIL</th>
                       <th>EMPLOYEE ID</th>
+                      <th>SHIFT</th>
                       <th>STATUS</th>
                       <th className={styles.textRight}>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {staffUsers.length === 0 ? (
+                    {visibleStaff.length === 0 ? (
                       <tr>
-                        <td colSpan={6}>No staff or admin accounts found.</td>
+                        <td colSpan={7}>No staff or admin accounts found.</td>
                       </tr>
                     ) : (
-                      staffUsers.map((user) => (
+                      visibleStaff.map((user) => (
                         <tr
                           key={user.user_id}
                           className={styles.clickableRow}
@@ -1424,6 +1538,9 @@ export default function DirectoryAndUserManagementPage() {
                           <td>{user.role}</td>
                           <td className={styles.subTextDark}>{user.email}</td>
                           <td className={styles.subTextDark}>{user.employee_id ?? "—"}</td>
+                          <td className={styles.subTextDark} data-label="Shift">
+                            {user.shift_label ?? "—"}
+                          </td>
                           <td>
                             <span
                               className={`${styles.badge} ${
@@ -1524,7 +1641,7 @@ export default function DirectoryAndUserManagementPage() {
                     <div>
                       <div className={styles.toggleTitle}>Two-Factor Authentication (2FA)</div>
                       <div className={styles.toggleSub}>
-                        Require 2FA for all admin and staff accounts
+                        Admin, staff and maintenance enter a code emailed to them when signing in
                       </div>
                     </div>
                   </div>
@@ -1540,7 +1657,7 @@ export default function DirectoryAndUserManagementPage() {
                     <div>
                       <div className={styles.toggleTitle}>Automatic Logout</div>
                       <div className={styles.toggleSub}>
-                        Automatically log out inactive users after 30 minutes
+                        Automatically log out inactive users after {sessionTimeoutMinutes} minutes
                       </div>
                     </div>
                   </div>
@@ -2101,6 +2218,17 @@ export default function DirectoryAndUserManagementPage() {
                   <dt>Role</dt>
                   <dd>{viewingStaffUser.role}</dd>
                 </div>
+                {viewingStaffUser.role !== "Admin" ? (
+                  <div>
+                    <dt>Shift</dt>
+                    <dd>
+                      {viewingStaffUser.shift_label ?? "Not set"}
+                      {viewingStaffUser.on_shift != null ? (
+                        <span> · {viewingStaffUser.on_shift ? "On shift now" : "Off shift now"}</span>
+                      ) : null}
+                    </dd>
+                  </div>
+                ) : null}
                 <div>
                   <dt>Registered</dt>
                   <dd>{formatServerFull(viewingStaffUser.created_at)}</dd>
@@ -2254,26 +2382,27 @@ export default function DirectoryAndUserManagementPage() {
                 </div>
               </div>
               {registerStaffType === "Maintenance" ? (
-                <div className={styles.formGrid2}>
-                  <div className={styles.formGroup}>
-                    <label>Specialization</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Plumbing, HVAC"
-                      value={registerSpecialization}
-                      onChange={(e) => setRegisterSpecialization(e.target.value)}
-                    />
-                  </div>
-                  <div className={styles.formGroup}>
-                    <label>Shift</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 8AM - 4PM"
-                      value={registerShift}
-                      onChange={(e) => setRegisterShift(e.target.value)}
-                    />
-                  </div>
+                <div className={styles.formGroup}>
+                  <label>Specialization</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Plumbing, HVAC"
+                    value={registerSpecialization}
+                    onChange={(e) => setRegisterSpecialization(e.target.value)}
+                  />
                 </div>
+              ) : null}
+              {registerStaffType !== "Admin" ? (
+                <ShiftFields
+                  idPrefix="register-shift"
+                  start={registerShiftStart}
+                  end={registerShiftEnd}
+                  disabled={registerSubmitting}
+                  onChange={(start, end) => {
+                    setRegisterShiftStart(start);
+                    setRegisterShiftEnd(end);
+                  }}
+                />
               ) : null}
             </div>
             <div className={styles.modalFooter}>
@@ -2329,6 +2458,18 @@ export default function DirectoryAndUserManagementPage() {
                   onChange={(e) => setEditEmployeeId(e.target.value)}
                 />
               </div>
+              {editingStaffUser.role !== "Admin" ? (
+                <ShiftFields
+                  idPrefix="edit-shift"
+                  start={editShiftStart}
+                  end={editShiftEnd}
+                  disabled={editSubmitting}
+                  onChange={(start, end) => {
+                    setEditShiftStart(start);
+                    setEditShiftEnd(end);
+                  }}
+                />
+              ) : null}
             </div>
             <div className={styles.modalFooter}>
               <button type="button" className={styles.cancelBtn} onClick={() => setEditingStaffUser(null)}>
