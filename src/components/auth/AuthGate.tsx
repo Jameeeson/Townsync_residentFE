@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { RESIDENT_ROLE, fetchMe, logout } from "@/lib/api/auth";
 import { hasSession } from "@/lib/apiClient";
+import { useIdleLogout } from "@/lib/useIdleLogout";
 
 /**
  * Keeps the resident shell from rendering for signed-out visitors or for accounts
@@ -40,6 +41,11 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [router]);
+
+  // "Automatic Logout" in Global Security Settings.
+  useIdleLogout(() => {
+    void logout().finally(() => router.replace("/login?idle=1"));
+  }, ready);
 
   if (!ready) {
     return (

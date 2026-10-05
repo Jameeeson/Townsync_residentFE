@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { Eye, EyeOff, Home, Loader2, Lock, Mail } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
 import { fetchMe, login } from "@/lib/api/auth";
@@ -17,6 +17,17 @@ function readRememberedEmail(): string {
     // localStorage unavailable (private mode, etc.)
     return "";
   }
+}
+
+/** Shown on the sign-in page after the automatic logout sent the user here. */
+function IdleNotice() {
+  const params = useSearchParams();
+  if (!params.has("idle")) return null;
+  return (
+    <p role="status" className={styles.successText}>
+      You were signed out after a period of inactivity. Sign in again to continue.
+    </p>
+  );
 }
 
 export default function LoginPage() {
@@ -83,6 +94,9 @@ export default function LoginPage() {
           <p className={styles.subtitle}>Access your TownSync community portal</p>
         </div>
 
+        <Suspense fallback={null}>
+          <IdleNotice />
+        </Suspense>
         <form className={styles.form} onSubmit={handleSubmit}>
           {error ? (
             <p className={styles.errorText} role="alert">
