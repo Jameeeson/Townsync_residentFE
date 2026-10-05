@@ -7,12 +7,6 @@ export interface ReportFieldDef {
   collected: boolean;
 }
 
-export interface UnderstoodItem {
-  key: string;
-  label: string;
-  value: string;
-}
-
 function titleCase(value: string): string {
   return value
     .replace(/[_-]+/g, " ")
@@ -20,6 +14,13 @@ function titleCase(value: string): string {
     .split(/\s+/)
     .map((word) => (word.length > 3 ? word[0].toUpperCase() + word.slice(1) : word.toUpperCase()))
     .join(" ");
+}
+
+const PLACEHOLDERS = new Set(["", "pending", "n/a", "none", "unknown", "unspecified location"]);
+
+/** A value the resident actually gave, not the backend's "Pending" placeholder. */
+function isReal(value: string | null | undefined): value is string {
+  return Boolean(value) && !PLACEHOLDERS.has((value as string).trim().toLowerCase());
 }
 
 /**
@@ -31,9 +32,17 @@ export function deriveReportFields(
   summary: AiSummaryState | null,
   isComplete: boolean
 ): ReportFieldDef[] {
-  const category = summary?.category ? titleCase(summary.category) : null;
-  const location = summary?.location ?? null;
-  const description = summary?.gathered_detail ?? null;
+  const location = isReal(summary?.location) ? summary.location : null;
+  // "Hi" is not a description: it takes at least a couple of words to say what is wrong.
+  const description =
+    isReal(summary?.gathered_detail) && summary.gathered_detail.trim().split(/\s+/).length >= 2
+      ? summary.gathered_detail
+      : null;
+  // The backend labels a greeting "Other"; a category only counts once something real was said.
+  const category =
+    isReal(summary?.category) && (description || summary.category.toLowerCase() !== "other")
+      ? titleCase(summary.category)
+      : null;
   const hasRealSignal = Boolean(category || location || description);
   const urgencyKnown = Boolean(summary?.urgency_level) && (hasRealSignal || isComplete);
   const urgency = urgencyKnown && summary?.urgency_level ? titleCase(summary.urgency_level) : null;
@@ -44,20 +53,6 @@ export function deriveReportFields(
     { key: "description", label: "Description", value: description, collected: Boolean(description) },
     { key: "urgency", label: "Urgency", value: urgency, collected: urgencyKnown },
   ];
-}
-
-/** Fields that just flipped from unknown to known between two snapshots — the "understood" reveal. */
-export function diffNewlyCollected(
-  prev: ReportFieldDef[] | null,
-  next: ReportFieldDef[]
-): UnderstoodItem[] {
-  return next
-    .filter((field) => field.collected && field.value)
-    .filter((field) => {
-      const before = prev?.find((f) => f.key === field.key);
-      return !before?.collected;
-    })
-    .map((field) => ({ key: field.key, label: field.label, value: field.value as string }));
 }
 
 export function isUrgentSignal(fields: ReportFieldDef[]): boolean {

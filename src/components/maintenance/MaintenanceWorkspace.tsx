@@ -7,7 +7,6 @@ import { deriveReportFields, isUrgentSignal } from "@/lib/maintenanceReport";
 import { AIPresence } from "./AIPresence";
 import { EmptyState } from "./EmptyState";
 import { ConversationStream } from "./ConversationStream";
-import { GatheredBar } from "./GatheredBar";
 import { ChatComposer } from "./ChatComposer";
 import { CaseFile } from "./CaseFile";
 import { ReviewBrief } from "./ReviewBrief";
@@ -74,8 +73,6 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
             Ticket Draft #{chat.sessionId ? chat.sessionId.slice(-4).toUpperCase() : "----"}
           </div>
         </div>
-
-        <GatheredBar summaryState={chat.summaryState} />
 
         <ConversationStream
           messages={chat.messages}

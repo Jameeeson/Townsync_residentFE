@@ -1,17 +1,16 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   maintenanceAiChatTurn,
-  cancelMaintenanceTicket,
+  cancelMaintenanceChat,
   createMaintenanceTicket,
   sendTicketChatMessage,
   type AiSummaryState,
   type MaintenanceTicket,
 } from "@/lib/api/resident";
 import { ApiClientError } from "@/lib/apiClient";
-import { deriveReportFields, diffNewlyCollected, type UnderstoodItem } from "@/lib/maintenanceReport";
 
 export type ChatRole = "ai" | "user";
 
@@ -21,7 +20,6 @@ export interface ChatMessageData {
   text: string;
   timestamp: string;
   isError?: boolean;
-  understood?: UnderstoodItem[];
 }
 
 export interface ChatAttachment {
@@ -53,8 +51,6 @@ export function useMaintenanceChat() {
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  // Ticket the backend already filed when the AI triage completed (null until then).
-  const [aiTicketId, setAiTicketId] = useState<number | null>(null);
   const [summaryState, setSummaryState] = useState<AiSummaryState | null>(null);
   const [suggestedOptions, setSuggestedOptions] = useState<string[]>([]);
   const [isComplete, setIsComplete] = useState(false);
@@ -73,8 +69,6 @@ export function useMaintenanceChat() {
   const [submitError, setSubmitError] = useState("");
   const [submittedTicket, setSubmittedTicket] = useState<MaintenanceTicket | null>(null);
 
-  const lastFieldsRef = useRef(deriveReportFields(null, false));
-
   const sendText = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -92,15 +86,10 @@ export function useMaintenanceChat() {
       try {
         const result = await maintenanceAiChatTurn(trimmed, sessionId);
         setSessionId(result.session_id);
-        if (result.ticket_id != null) setAiTicketId(result.ticket_id);
         setSummaryState(result.summary_state);
         setSuggestedOptions(result.suggested_options);
         setIsComplete(result.is_complete);
         if (result.emergency) setEmergencyDetected(true);
-
-        const nextFields = deriveReportFields(result.summary_state, result.is_complete);
-        const understood = diffNewlyCollected(lastFieldsRef.current, nextFields);
-        lastFieldsRef.current = nextFields;
 
         setMessages((prev) => [
           ...prev,
@@ -109,7 +98,6 @@ export function useMaintenanceChat() {
             role: "ai",
             text: result.reply_message,
             timestamp: new Date().toISOString(),
-            understood,
           },
         ]);
       } catch {
@@ -181,11 +169,10 @@ export function useMaintenanceChat() {
   }, []);
 
   const discardRequest = useCallback(() => {
-    // The AI chat already filed this as a real 'Open' ticket (see aiTicketId above);
-    // discarding the draft must cancel it server-side too, or it's orphaned as Open
-    // forever. Best-effort and not awaited: the resident expects an instant exit.
-    if (aiTicketId != null) {
-      cancelMaintenanceTicket(aiTicketId).catch(() => {
+    // Nothing is filed while chatting, so there is no ticket to cancel: the conversation is just
+    // closed. Best-effort and not awaited: the resident expects an instant exit.
+    if (sessionId) {
+      cancelMaintenanceChat(sessionId).catch(() => {
         // ignored - nothing left in this flow to show the error on
       });
     }
@@ -195,15 +182,13 @@ export function useMaintenanceChat() {
     setPhase("empty");
     setMessages([]);
     setSessionId(null);
-    setAiTicketId(null);
     setSummaryState(null);
     setSuggestedOptions([]);
     setIsComplete(false);
     setEmergencyDetected(false);
     setNotHelpful(false);
     setEscalateError("");
-    lastFieldsRef.current = deriveReportFields(null, false);
-  }, [aiTicketId]);
+  }, [sessionId]);
 
   const updateDraft = useCallback((patch: Partial<RequestDraft>) => {
     setDraft((d) => (d ? { ...d, ...patch } : d));
@@ -230,7 +215,7 @@ export function useMaintenanceChat() {
         priority_level: draft.urgency || "Medium",
         detailed_description: description,
         preferred_date: draft.preferredDate || undefined,
-        ticket_id: aiTicketId,
+        session_id: sessionId,
         images: attachments.map((a) => a.file),
       });
       setSubmittedTicket(ticket);
@@ -246,7 +231,7 @@ export function useMaintenanceChat() {
     } finally {
       setSubmitting(false);
     }
-  }, [draft, attachments, submitting, aiTicketId]);
+  }, [draft, attachments, submitting, sessionId]);
 
   /** Hidden by default; the AI decides. The backend sets `emergency` when the
    * model flags `needs_human` (or a safety keyword matches). */
@@ -281,7 +266,7 @@ export function useMaintenanceChat() {
         priority_level: summaryState?.urgency_level || "Medium",
         detailed_description: description,
         human_requested: true,
-        ticket_id: aiTicketId,
+        session_id: sessionId,
       });
 
       // Best-effort: seed the human thread with context so whoever picks it
@@ -309,7 +294,7 @@ export function useMaintenanceChat() {
     } finally {
       setEscalating(false);
     }
-  }, [escalating, summaryState, messages, emergencyDetected, aiTicketId, router]);
+  }, [escalating, summaryState, messages, emergencyDetected, sessionId, router]);
 
   return {
     phase,

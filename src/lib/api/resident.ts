@@ -58,9 +58,9 @@ export async function createMaintenanceTicket(fields: {
    * decides urgency independently of priority_level for these - see
    * resolve_escalation_priority on the backend. */
   human_requested?: boolean;
-  /** The AI chat files a ticket itself when triage completes. Passing its id
-   * completes that ticket instead of creating a duplicate. */
-  ticket_id?: number | null;
+  /** The AI chat this request came from. Nothing is filed while chatting: the ticket is created
+   * from the conversation when the resident submits the review. */
+  session_id?: string | null;
   images?: File[];
 }): Promise<MaintenanceTicket> {
   const form = new FormData();
@@ -70,9 +70,14 @@ export async function createMaintenanceTicket(fields: {
   form.set("detailed_description", fields.detailed_description);
   if (fields.preferred_date) form.set("preferred_date", fields.preferred_date);
   if (fields.human_requested) form.set("human_requested", "true");
-  if (fields.ticket_id != null) form.set("ticket_id", String(fields.ticket_id));
+  if (fields.session_id) form.set("session_id", fields.session_id);
   fields.images?.forEach((file) => form.append("images", file));
   return apiClient.post<MaintenanceTicket>("/api/v1/resident/maintenance/tickets", form);
+}
+
+/** The resident left the chat without submitting. Nothing was filed; the conversation is just closed. */
+export async function cancelMaintenanceChat(sessionId: string): Promise<{ message: string; cancelled: boolean }> {
+  return apiClient.post(`/api/v1/ai_chat/maintenance/${encodeURIComponent(sessionId)}/cancel`, null);
 }
 
 export async function cancelMaintenanceTicket(

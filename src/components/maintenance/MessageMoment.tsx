@@ -1,6 +1,5 @@
 import styles from "@/styles/maintenance.module.css";
 import type { ChatMessageData } from "@/hooks/useMaintenanceChat";
-import { UnderstoodChips } from "./UnderstoodChips";
 import { parseServerDate } from "@/lib/datetime";
 
 interface MessageMomentProps {
@@ -45,7 +44,6 @@ export function MessageMoment({ message, isLatest, urgentNote, onNotHelpful }: M
         {highlight ? <div className={styles.diagnosticClarificationLabel}>Diagnostic Clarification</div> : null}
         <p className={styles.bubbleText}>{message.text}</p>
         {highlight && urgentNote ? <p className={styles.bubbleUrgentNote}>{urgentNote}</p> : null}
-        {message.understood?.length ? <UnderstoodChips items={message.understood} /> : null}
       </div>
       <span className={styles.bubbleTimestamp}>TownSync AI · {formatTime(message.timestamp)}</span>
       {highlight && onNotHelpful ? (
