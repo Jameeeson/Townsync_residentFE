@@ -12,6 +12,7 @@ import {
   IconScan,
   IconSettings,
 } from "@/components/icons";
+import { isOnShift, shiftLabel } from "@/lib/shift";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import {
   getAdminUnreadCount,
@@ -100,6 +101,15 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
   const roleLabel = session
     ? `${session.profile.staff_type} · ${session.profile.employee_id}`
     : "";
+  // Re-checked every minute so the badge flips at shift change without a reload.
+  const [clockTick, setClockTick] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const shiftText = session ? shiftLabel(session.profile.shift) : null;
+  const onShift = session ? isOnShift(session.profile.shift) : null;
+  void clockTick;
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -154,8 +164,12 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
 
         <div className={styles.sidebarFoot}>
           <div className={styles.shiftBadge}>
-            <span className={styles.onlineDot} />
-            {error ? "Connection issue" : roleLabel || "Shift active"}
+            <span className={onShift === false ? styles.offDot : styles.onlineDot} />
+            {error
+              ? "Connection issue"
+              : shiftText
+              ? `${onShift ? "On shift" : "Off shift"} · ${shiftText}`
+              : roleLabel || "No shift set"}
           </div>
           <p className={styles.version}>v1.0.0-beta · Beta</p>
         </div>

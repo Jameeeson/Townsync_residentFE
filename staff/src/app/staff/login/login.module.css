@@ -415,3 +415,25 @@
     min-height: 100dvh;
   }
 }
+
+.shiftRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.timeInput {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line-soft, #d5dce8);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+}
+
+@media (max-width: 640px) {
+  .timeInput {
+    font-size: 16px;
+  }
+}

@@ -117,6 +117,13 @@
   animation: pulse-dot 2s ease infinite;
 }
 
+.offDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
 .version {
   font-size: 0.7rem;
   color: rgba(232, 238, 248, 0.4);

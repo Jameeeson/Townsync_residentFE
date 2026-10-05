@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   IconAlert,
   IconArrowRight,
@@ -14,8 +14,19 @@ import {
   IconUser,
 } from "@/components/icons";
 import { ApiError, API_BASE_URL } from "@/lib/api-client";
-import { login } from "@/lib/auth";
+import { login, resendTwoFactor, verifyTwoFactor } from "@/lib/auth";
 import styles from "./login.module.css";
+
+/** Shown on the sign-in page after the automatic logout sent the user here. */
+function IdleNotice() {
+  const params = useSearchParams();
+  if (!params.has("idle")) return null;
+  return (
+    <p role="status" className={styles.notice}>
+      You were signed out after a period of inactivity. Sign in again to continue.
+    </p>
+  );
+}
 
 export default function StaffLoginPage() {
   const router = useRouter();
@@ -23,6 +34,35 @@ export default function StaffLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [challenge, setChallenge] = useState<{ token: string; hint: string } | null>(null);
+  const [code, setCode] = useState("");
+
+  async function onCodeSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!challenge) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await verifyTwoFactor(challenge.token, code);
+      router.push("/staff/dashboard");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Verification failed. Please try again.");
+      if (err instanceof ApiError && (err.status === 429 || /expired/i.test(err.message))) setChallenge(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onResend() {
+    if (!challenge) return;
+    setError(null);
+    try {
+      const hint = await resendTwoFactor(challenge.token);
+      setNotice(`A new code was sent to ${hint || challenge.hint}.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not resend the code.");
+    }
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,7 +84,13 @@ export default function StaffLoginPage() {
 
     setLoading(true);
     try {
-      await login(identity, password);
+      const step = await login(identity, password);
+      if (step) {
+        setChallenge({ token: step.challengeToken, hint: step.emailHint });
+        setCode("");
+        setNotice(null);
+        return;
+      }
       router.push("/staff/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Sign in failed. Please try again.");
@@ -88,6 +134,67 @@ export default function StaffLoginPage() {
             <strong>TownSync</strong>
           </div>
 
+          {challenge ? (
+            <form className={styles.card} onSubmit={onCodeSubmit} noValidate>
+              <div className={styles.logo}>
+                <IconShieldUser size={28} />
+              </div>
+              <h2 className={styles.title}>Verify sign-in</h2>
+              <p className={styles.subtitle}>
+                We emailed a 6-digit code to {challenge.hint}. Enter it to finish signing in.
+              </p>
+              <label className={styles.field}>
+                <span>Verification code</span>
+                <div className={styles.inputWrap}>
+                  <IconLock size={18} className={styles.inputIcon} />
+                  <input
+                    name="code"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                    autoFocus
+                    required
+                  />
+                </div>
+              </label>
+              {error ? (
+                <p className={styles.error} role="alert">
+                  {error}
+                </p>
+              ) : null}
+              {notice ? (
+                <p className={styles.notice} role="status">
+                  {notice}
+                </p>
+              ) : null}
+              <div className={styles.forgotRow}>
+                <button type="button" className={styles.textLink} onClick={() => void onResend()}>
+                  Resend code
+                </button>
+                <button
+                  type="button"
+                  className={styles.textLink}
+                  onClick={() => {
+                    setChallenge(null);
+                    setCode("");
+                    setError(null);
+                    setNotice(null);
+                  }}
+                >
+                  Back
+                </button>
+              </div>
+              <button type="submit" className={styles.submit} disabled={loading || code.length < 6}>
+                {loading ? <span className={styles.spinner} aria-hidden /> : null}
+                <span>{loading ? "Verifying…" : "Verify and sign in"}</span>
+                {!loading ? <IconArrowRight size={18} /> : null}
+              </button>
+            </form>
+          ) : (
           <form className={styles.card} onSubmit={onSubmit} noValidate>
             <div className={styles.logo}>
               <IconShieldUser size={28} />
@@ -99,6 +206,9 @@ export default function StaffLoginPage() {
               <IconAlert size={16} />
               <span>Restricted access: authorized personnel only</span>
             </div>
+            <Suspense fallback={null}>
+              <IdleNotice />
+            </Suspense>
 
             <label className={styles.field}>
               <span>Work Email</span>
@@ -107,7 +217,7 @@ export default function StaffLoginPage() {
                 <input
                   name="identity"
                   type="email"
-                  placeholder="james.rivera@townsync.local"
+                  placeholder="user@email.com.rivera@townsync.local"
                   autoComplete="username"
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? "login-error" : undefined}
@@ -169,6 +279,7 @@ export default function StaffLoginPage() {
               {!loading ? <IconArrowRight size={18} /> : null}
             </button>
           </form>
+          )}
 
           <footer className={styles.footer}>
             <p>© 2026 TownSync Property Management. All rights reserved.</p>

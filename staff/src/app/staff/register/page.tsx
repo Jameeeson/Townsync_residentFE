@@ -15,6 +15,7 @@ import {
 } from "@/components/icons";
 import { ApiError } from "@/lib/api-client";
 import { registerStaff } from "@/lib/auth";
+import { joinShift } from "@/lib/shift";
 import styles from "../login/login.module.css";
 
 export default function StaffRegisterPage() {
@@ -22,6 +23,9 @@ export default function StaffRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [role, setRole] = useState<"Staff" | "Maintenance">("Staff");
+  const [shiftStart, setShiftStart] = useState("");
+  const [shiftEnd, setShiftEnd] = useState("");
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,11 +36,21 @@ export default function StaffRegisterPage() {
     const email = String(form.get("email") ?? "").trim();
     const employeeId = String(form.get("employee_id") ?? "").trim();
     const staffType = String(form.get("staff_type") ?? "Staff") as "Staff" | "Maintenance";
+    const specialization = String(form.get("specialization") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const confirmPassword = String(form.get("confirm_password") ?? "");
 
     if (!name || !email || !employeeId) {
       setError("Full name, work email, and employee ID are required.");
+      return;
+    }
+    if (staffType === "Maintenance" && !specialization) {
+      setError("Specialization is required for maintenance staff (e.g. Plumbing, HVAC).");
+      return;
+    }
+    const shift = joinShift(shiftStart, shiftEnd);
+    if (!shift) {
+      setError("Set the start and end time of your shift.");
       return;
     }
     if (password.length < 8) {
@@ -50,7 +64,15 @@ export default function StaffRegisterPage() {
 
     setLoading(true);
     try {
-      await registerStaff({ name, email, employee_id: employeeId, staff_type: staffType, password });
+      await registerStaff({
+        name,
+        email,
+        employee_id: employeeId,
+        staff_type: staffType,
+        shift,
+        ...(staffType === "Maintenance" ? { specialization } : {}),
+        password,
+      });
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Registration failed. Please try again.");
@@ -149,11 +171,57 @@ export default function StaffRegisterPage() {
 
               <label className={styles.field}>
                 <span>Role</span>
-                <select name="staff_type" defaultValue="Staff" className={styles.roleSelect}>
+                <select
+                  name="staff_type"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as "Staff" | "Maintenance")}
+                  className={styles.roleSelect}
+                >
                   <option value="Staff">Staff (Operations)</option>
                   <option value="Maintenance">Maintenance</option>
                 </select>
               </label>
+
+              {role === "Maintenance" ? (
+                <label className={styles.field}>
+                  <span>Specialization</span>
+                  <div className={styles.inputWrap}>
+                    <IconUser size={18} className={styles.inputIcon} />
+                    <input
+                      name="specialization"
+                      type="text"
+                      placeholder="e.g. Plumbing, HVAC, Electrical"
+                      maxLength={80}
+                      required
+                    />
+                  </div>
+                </label>
+              ) : null}
+
+              <div className={styles.shiftRow}>
+                <label className={styles.field}>
+                  <span>Shift starts</span>
+                  <input
+                    name="shift_start"
+                    type="time"
+                    value={shiftStart}
+                    onChange={(e) => setShiftStart(e.target.value)}
+                    className={styles.timeInput}
+                    required
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Shift ends</span>
+                  <input
+                    name="shift_end"
+                    type="time"
+                    value={shiftEnd}
+                    onChange={(e) => setShiftEnd(e.target.value)}
+                    className={styles.timeInput}
+                    required
+                  />
+                </label>
+              </div>
 
               <label className={styles.field}>
                 <span>Password</span>

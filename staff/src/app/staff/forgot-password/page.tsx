@@ -99,7 +99,7 @@ export default function StaffForgotPasswordPage() {
                   <input
                     name="email"
                     type="email"
-                    placeholder="james.rivera@townsync.local"
+                    placeholder="user@email.com.rivera@townsync.local"
                     autoComplete="username"
                     aria-invalid={Boolean(error)}
                     required

@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api-client";
 import { isSignedIn, logout as authLogout } from "@/lib/auth";
+import { useIdleLogout } from "@/lib/use-idle-logout";
 import { getStaffProfile, type StaffProfile } from "@/lib/services/staff";
 
 export type StaffSession = {
@@ -84,6 +85,11 @@ export function StaffSessionProvider({ children }: { children: React.ReactNode }
   }, [router, tick]);
 
   const staffType = session?.profile.staff_type ?? null;
+
+  // "Automatic Logout" in Global Security Settings.
+  useIdleLogout(() => {
+    void authLogout().then(() => router.replace("/staff/login?idle=1"));
+  }, isSignedIn());
 
   const value = useMemo<StaffSessionContextValue>(
     () => ({

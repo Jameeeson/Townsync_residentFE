@@ -18,35 +18,19 @@ import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import { ApiError } from "@/lib/api-client";
 import { getStaffPreferences, updateStaffPreferences } from "@/lib/services/staff";
+import { isOnShift, shiftLabel } from "@/lib/shift";
 import styles from "./settings.module.css";
 import modalStyles from "@/components/ChangePasswordModal.module.css";
-
-const PREFS_KEY = "townsync.staff.notificationPrefs";
-
-function readPrefs(): { push: boolean; email: boolean } {
-  if (typeof window === "undefined") return { push: true, email: false };
-  try {
-    const raw = window.localStorage.getItem(PREFS_KEY);
-    if (!raw) return { push: true, email: false };
-    const prefs = JSON.parse(raw) as { push?: boolean; email?: boolean };
-    return {
-      push: typeof prefs.push === "boolean" ? prefs.push : true,
-      email: typeof prefs.email === "boolean" ? prefs.email : false,
-    };
-  } catch {
-    return { push: true, email: false };
-  }
-}
 
 export default function StaffSettingsPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { session, loading, error, logout } = useStaffSession();
-  const [push, setPush] = useState(() => readPrefs().push);
-  const [email, setEmail] = useState(() => readPrefs().email);
+  const [push, setPush] = useState(true);
+  const [email, setEmail] = useState(true);
   const [savingPrefs, setSavingPrefs] = useState(false);
 
-  // The saved switches live in the database; localStorage is only a first-paint guess.
+  // Both switches default to on (as in the database) until the saved values load.
   useEffect(() => {
     let cancelled = false;
     getStaffPreferences()
@@ -54,7 +38,6 @@ export default function StaffSettingsPage() {
         if (cancelled) return;
         setPush(saved.push_notifications);
         setEmail(saved.email_reports);
-        persist({ push: saved.push_notifications, email: saved.email_reports });
       })
       .catch(() => {
         /* keep the local guess when the API is unreachable */
@@ -68,14 +51,6 @@ export default function StaffSettingsPage() {
   const docsModalRef = useRef<HTMLDivElement>(null);
   const closeDocs = useCallback(() => setDocsOpen(false), []);
   useDialogA11y(docsOpen, closeDocs, docsModalRef);
-
-  function persist(next: { push: boolean; email: boolean }) {
-    try {
-      window.localStorage.setItem(PREFS_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
-  }
 
   async function syncPrefs(
     next: { push: boolean; email: boolean },
@@ -93,7 +68,6 @@ export default function StaffSettingsPage() {
       // Revert the optimistic update — local and backend state must not diverge.
       setPush(previous.push);
       setEmail(previous.email);
-      persist(previous);
       toast(e instanceof ApiError ? e.message : "Could not save preferences.", "danger");
     } finally {
       setSavingPrefs(false);
@@ -104,7 +78,6 @@ export default function StaffSettingsPage() {
     const previous = { push, email };
     const next = { push: !push, email };
     setPush(next.push);
-    persist(next);
     void syncPrefs(next, previous, next.push ? "Push notifications enabled." : "Push notifications disabled.");
   }
 
@@ -112,7 +85,6 @@ export default function StaffSettingsPage() {
     const previous = { push, email };
     const next = { push, email: !email };
     setEmail(next.email);
-    persist(next);
     void syncPrefs(next, previous, next.email ? "Email reports enabled." : "Email reports disabled.");
   }
 
@@ -151,6 +123,16 @@ export default function StaffSettingsPage() {
               ? `${session.profile.staff_type} · ${session.profile.employee_id}`
               : error ?? ""}
           </p>
+          {session ? (
+            <p className={styles.role}>
+              Shift: {shiftLabel(session.profile.shift) ?? "Not set"}
+              {isOnShift(session.profile.shift) === null
+                ? ""
+                : isOnShift(session.profile.shift)
+                ? " · On shift now"
+                : " · Off shift now"}
+            </p>
+          ) : null}
         </aside>
 
         <div className={styles.panels}>

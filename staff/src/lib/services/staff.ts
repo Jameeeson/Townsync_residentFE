@@ -294,6 +294,10 @@ export type StaffProfile = {
   employee_id: string;
   specialization: string | null;
   shift_id: string | null;
+  /** "HH:MM-HH:MM" in Philippine time, or null when no shift is set. */
+  shift?: string | null;
+  shift_label?: string | null;
+  on_shift?: boolean | null;
   profile_pic_url: string | null;
 };
 
