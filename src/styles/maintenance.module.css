@@ -2769,3 +2769,23 @@ button.helpfulResourceHeader {
     overflow-y: visible;
   }
 }
+
+.talkToPersonDismiss {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.talkToPersonDismiss:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}

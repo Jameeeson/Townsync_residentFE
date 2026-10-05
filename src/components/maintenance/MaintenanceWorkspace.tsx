@@ -90,6 +90,7 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
           escalating={chat.escalating}
           escalateError={chat.escalateError}
           onEscalate={chat.escalateToHuman}
+          onDismiss={chat.dismissEmergency}
         />
 
         <HelpfulResource category={chat.summaryState?.category ?? null} />

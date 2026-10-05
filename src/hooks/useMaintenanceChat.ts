@@ -59,6 +59,7 @@ export function useMaintenanceChat() {
 
   // "Talk to a person" escalation
   const [emergencyDetected, setEmergencyDetected] = useState(false);
+  const [emergencyDismissed, setEmergencyDismissed] = useState(false);
   const [notHelpful, setNotHelpful] = useState(false);
   const [escalating, setEscalating] = useState(false);
   const [escalateError, setEscalateError] = useState("");
@@ -89,7 +90,10 @@ export function useMaintenanceChat() {
         setSummaryState(result.summary_state);
         setSuggestedOptions(result.suggested_options);
         setIsComplete(result.is_complete);
-        if (result.emergency) setEmergencyDetected(true);
+        // Follows the server every turn: when the conversation shows it was not an emergency, the banner goes
+        // away, and a resident's dismissal is forgotten so a later, real alarm shows again.
+        setEmergencyDetected(Boolean(result.emergency));
+        if (!result.emergency) setEmergencyDismissed(false);
 
         setMessages((prev) => [
           ...prev,
@@ -186,6 +190,7 @@ export function useMaintenanceChat() {
     setSuggestedOptions([]);
     setIsComplete(false);
     setEmergencyDetected(false);
+    setEmergencyDismissed(false);
     setNotHelpful(false);
     setEscalateError("");
   }, [sessionId]);
@@ -235,7 +240,14 @@ export function useMaintenanceChat() {
 
   /** Hidden by default; the AI decides. The backend sets `emergency` when the
    * model flags `needs_human` (or a safety keyword matches). */
-  const canTalkToPerson = useMemo(() => emergencyDetected || notHelpful, [emergencyDetected, notHelpful]);
+  const canTalkToPerson = useMemo(
+    () => (emergencyDetected && !emergencyDismissed) || notHelpful,
+    [emergencyDetected, emergencyDismissed, notHelpful],
+  );
+  const dismissEmergency = useCallback(() => {
+    setEmergencyDismissed(true);
+    setNotHelpful(false);
+  }, []);
 
   const markNotHelpful = useCallback(() => {
     setNotHelpful(true);
@@ -321,7 +333,8 @@ export function useMaintenanceChat() {
     submitting,
     submitError,
     submittedTicket,
-    emergencyDetected,
+    emergencyDetected: emergencyDetected && !emergencyDismissed,
+    dismissEmergency,
     notHelpful,
     canTalkToPerson,
     markNotHelpful,

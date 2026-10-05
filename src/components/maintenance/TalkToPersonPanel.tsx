@@ -1,4 +1,4 @@
-import { AlertTriangle, Loader2, UserRound } from "lucide-react";
+import { AlertTriangle, Loader2, UserRound, X } from "lucide-react";
 import styles from "@/styles/maintenance.module.css";
 
 interface TalkToPersonPanelProps {
@@ -7,6 +7,8 @@ interface TalkToPersonPanelProps {
   escalating: boolean;
   escalateError: string;
   onEscalate: () => void;
+  /** Lets the resident close the banner, e.g. when it was a misunderstanding or a test. */
+  onDismiss?: () => void;
 }
 
 export function TalkToPersonPanel({
@@ -15,6 +17,7 @@ export function TalkToPersonPanel({
   escalating,
   escalateError,
   onEscalate,
+  onDismiss,
 }: TalkToPersonPanelProps) {
   if (!visible) return null;
 
@@ -50,6 +53,11 @@ export function TalkToPersonPanel({
           "Talk to a Person"
         )}
       </button>
+      {onDismiss ? (
+        <button type="button" className={styles.talkToPersonDismiss} onClick={onDismiss} aria-label="Dismiss this notice">
+          <X size={14} aria-hidden="true" />
+        </button>
+      ) : null}
       {escalateError ? (
         <p className={styles.talkToPersonError} role="alert">
           {escalateError}
