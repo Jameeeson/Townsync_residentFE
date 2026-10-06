@@ -34,18 +34,25 @@ function categoryIcon(category: string) {
 }
 
 function relativeTime(iso: string): string {
-  const then = parseServerDate(iso)?.getTime() ?? NaN;
-  if (Number.isNaN(then)) return "";
-  const diffMs = Date.now() - then;
+  const parsed = parseServerDate(iso);
+  const then = parsed?.getTime() ?? NaN;
+  if (!parsed || Number.isNaN(then)) return "";
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const thenStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
+  const calendarDaysAgo = Math.floor((todayStart - thenStart) / 86400000);
+  const diffMs = now.getTime() - then;
   const minutes = Math.round(diffMs / 60000);
   if (minutes < 1) return "just now";
+  if (calendarDaysAgo > 0) {
+    if (calendarDaysAgo === 1) return "yesterday";
+    if (calendarDaysAgo < 30) return `${calendarDaysAgo} days ago`;
+    return parsed.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
   if (minutes < 60) return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `today at ${parseServerDate(iso)?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-  const days = Math.round(hours / 24);
-  if (days === 1) return "1 day ago";
-  if (days < 30) return `${days} days ago`;
-  return parseServerDate(iso)?.toLocaleDateString([], { month: "short", day: "numeric" }) ?? "";
+  return parsed.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 const SORTS = [
