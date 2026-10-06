@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/apiClient";
+import { apiBlob, apiClient } from "@/lib/apiClient";
 import { getBackendUrl } from "@/lib/config";
 
 /** Resolve relative upload paths against BACKEND_URL */
@@ -245,22 +245,47 @@ export interface BillingSummary {
   overall_due_date: string | null;
   breakdown_notes: string | null;
   urgency_banner: string | null;
-  /** "overdue" | "due_soon" | "upcoming" | "paid_up" */
-  billing_status?: "overdue" | "due_soon" | "upcoming" | "paid_up";
+  /** "overdue" | "due_today" | "due_soon" | "upcoming" | "paid_up" */
+  billing_status?: "overdue" | "due_today" | "due_soon" | "upcoming" | "paid_up";
   /** Earliest unpaid due date, otherwise the next scheduled one. */
   next_due_date?: string | null;
+  /** "Due today", "Due in 3 days", "2 days overdue". */
+  due_label?: string | null;
+  days_left?: number | null;
+  is_due_today?: boolean;
+  unpaid_count?: number;
+  pending_receipt_count?: number;
+  /** "Your bill was updated" notices the resident has not dismissed yet. */
+  notices?: Array<{ id: number; invoice_id: number; message: string; created_at: string | null }>;
   monthly_due?: number | null;
   due_day?: number | null;
   unit_number?: string | null;
 }
 
 export interface BillingHistoryItem {
+  id?: number;
   date: string;
   description: string;
   invoice_number: string;
+  /** Statement total: HOA dues + extra charges + penalty. */
   amount: number;
   status: string;
-  id?: number;
+  balance?: number;
+  due_label?: string | null;
+  is_due_today?: boolean;
+  /** Latest receipt the resident sent: Pending, Verified or Rejected. */
+  receipt_status?: string | null;
+  can_upload_receipt?: boolean;
+}
+
+export interface BillingReceipt {
+  id: number;
+  file_path: string;
+  note: string | null;
+  status: "Pending" | "Verified" | "Rejected" | string;
+  submitted_at: string | null;
+  review_note: string | null;
+  reviewed_at?: string | null;
 }
 
 export interface BillingInvoice {
@@ -272,15 +297,29 @@ export interface BillingInvoice {
   status: string;
   currency: string;
   line_items: Array<{
-    id: number;
+    id: number | null;
     label: string;
     amount: number;
     description: string | null;
+    /** "dues" | "charge" | "penalty" */
+    kind?: string;
   }>;
+  paid?: number;
+  balance?: number;
+  days_left?: number | null;
+  is_due_today?: boolean;
+  due_label?: string | null;
+  payments?: Array<{ amount: number; method: string | null; reference: string | null; paid_at: string | null }>;
+  receipts?: BillingReceipt[];
+  can_upload_receipt?: boolean;
 }
 
 export async function getBillingSummary(): Promise<BillingSummary> {
   return apiClient.get<BillingSummary>("/api/v1/resident/billing/summary");
+}
+
+export async function dismissBillingNotice(noticeId: number): Promise<{ message: string }> {
+  return apiClient.post(`/api/v1/resident/billing/notices/${noticeId}/seen`, null);
 }
 
 export async function getBillingHistory(page = 1): Promise<BillingHistoryItem[]> {
@@ -291,8 +330,17 @@ export async function getBillingInvoice(invoiceId: number): Promise<BillingInvoi
   return apiClient.get<BillingInvoice>(`/api/v1/resident/billing/invoices/${invoiceId}`);
 }
 
-export async function downloadInvoiceReceipt(invoiceId: number): Promise<string> {
-  return apiClient.get<string>(`/api/v1/resident/billing/invoices/${invoiceId}/receipt`);
+/** Proof of an online payment (image or PDF). The bill stays unpaid until an administrator confirms it. */
+export async function uploadBillingReceipt(invoiceId: number, file: File, note?: string): Promise<BillingInvoice> {
+  const form = new FormData();
+  form.set("receipt", file);
+  if (note?.trim()) form.set("note", note.trim());
+  return apiClient.post<BillingInvoice>(`/api/v1/resident/billing/invoices/${invoiceId}/receipt`, form);
+}
+
+/** The statement as a PDF (breakdown, payments and receipts, with dates). */
+export async function downloadStatementPdf(invoiceId: number): Promise<Blob> {
+  return apiBlob(`/api/v1/resident/billing/invoices/${invoiceId}/statement.pdf`);
 }
 
 // --- Announcements ---

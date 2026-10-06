@@ -5,12 +5,13 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import styles from "@/styles/BillingPayments.module.css";
 import SuccessModal from "./success";
-import { Clock, Megaphone, Filter, Eye, CheckCircle2, AlertCircle } from "lucide-react";
+import { Bell, Clock, Megaphone, Filter, Eye, CheckCircle2, AlertCircle, Upload } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
-import { formatDueDate, formatPeso, ordinal } from "@/lib/billingDates";
+import { daysUntil, formatDueDate, formatPeso, ordinal } from "@/lib/billingDates";
 import {
   BillingHistoryItem,
   BillingSummary,
+  dismissBillingNotice,
   getBillingHistory,
   getBillingSummary,
   listAnnouncements,
@@ -23,6 +24,10 @@ type PaymentRow = {
   inv: string;
   amount: string;
   status: "Paid" | "Unpaid" | "Overdue" | string;
+  dueLabel?: string | null;
+  isDueToday?: boolean;
+  receiptStatus?: string | null;
+  canUpload?: boolean;
 };
 
 function formatMoney(amount: number): string {
@@ -47,6 +52,13 @@ export default function BillingPayments() {
   const [announcementBody, setAnnouncementBody] = useState("Check announcements for the latest updates.");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [reloadTick, setReloadTick] = useState(0);
+  const [dismissed, setDismissed] = useState<number[]>([]);
+
+  const dismissNotice = (id: number) => {
+    setDismissed((list) => [...list, id]);
+    dismissBillingNotice(id).catch(() => undefined);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +79,10 @@ export default function BillingPayments() {
             inv: item.invoice_number,
             amount: formatMoney(Number(item.amount)),
             status: normalizeStatus(item.status),
+            dueLabel: item.due_label ?? null,
+            isDueToday: Boolean(item.is_due_today),
+            receiptStatus: item.receipt_status ?? null,
+            canUpload: Boolean(item.can_upload_receipt),
           }))
         );
         if (anns[0]) {
@@ -90,7 +106,7 @@ export default function BillingPayments() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadTick]);
 
   useEffect(() => {
     if (!showFilterMenu) return;
@@ -131,6 +147,19 @@ export default function BillingPayments() {
       </header>
 
       {error ? <p className={styles.errorBanner} role="alert">{error}</p> : null}
+      {summary?.notices
+        ?.filter((n) => !dismissed.includes(n.id))
+        .map((n) => (
+          <div key={n.id} className={styles.noticeBar} role="status">
+            <Bell size={16} />
+            <span>
+              <strong>Your bill was updated.</strong> {n.message}
+            </span>
+            <button type="button" className={styles.noticeClose} onClick={() => dismissNotice(n.id)}>
+              Got it
+            </button>
+          </div>
+        ))}
       {loading ? <p className={styles.loadingText}>Loading billing…</p> : null}
 
       <div className={`${styles.topGrid} ts-stagger`}>
@@ -142,7 +171,9 @@ export default function BillingPayments() {
                 className={`${styles.dueBadge} ${
                   summary.billing_status === "overdue"
                     ? styles.dueBadgeOverdue
-                    : summary.billing_status === "paid_up"
+                    : summary.billing_status === "due_today"
+                      ? styles.dueBadgeToday
+                      : summary.billing_status === "paid_up"
                       ? styles.dueBadgePaid
                       : ""
                 }`}
@@ -150,7 +181,9 @@ export default function BillingPayments() {
                 {summary.billing_status === "paid_up" ? <CheckCircle2 size={14} /> : <Clock size={14} />}
                 {summary.billing_status === "overdue"
                   ? "Past due"
-                  : summary.billing_status === "due_soon"
+                  : summary.billing_status === "due_today"
+                    ? "Due today"
+                    : summary.billing_status === "due_soon"
                     ? "Due soon"
                     : summary.billing_status === "upcoming"
                       ? "Upcoming"
@@ -164,9 +197,21 @@ export default function BillingPayments() {
           <hr className={styles.divider} />
           <div className={styles.balanceFooter}>
             <strong>
-              {summary?.billing_status === "paid_up" ? "Next due date" : "Due date"}:{" "}
+              {summary?.billing_status === "paid_up" ? "Next statement" : "Due date"}:{" "}
               {formatDueDate(summary?.next_due_date ?? summary?.overall_due_date)}
+              {summary?.due_label && summary.billing_status !== "paid_up" ? ` (${summary.due_label})` : ""}
+              {summary?.billing_status === "paid_up" && daysUntil(summary.next_due_date) === 0 ? " (today)" : ""}
             </strong>
+            {summary?.billing_status === "paid_up" ? (
+              <p className={styles.dueTerms}>
+                Nothing to pay right now. Your next statement appears once it is issued for this month.
+              </p>
+            ) : null}
+            {summary && summary.pending_receipt_count ? (
+              <p className={styles.dueTerms}>
+                {summary.pending_receipt_count} receipt{summary.pending_receipt_count === 1 ? "" : "s"} waiting to be confirmed.
+              </p>
+            ) : null}
             {summary?.monthly_due != null && summary?.due_day != null ? (
               <p className={styles.dueTerms}>
                 {summary.unit_number ? `${summary.unit_number}: ` : ""}
@@ -248,14 +293,25 @@ export default function BillingPayments() {
             <tbody>
               {filtered.map((item) => (
                 <tr key={`${item.inv}-${item.date}`}>
-                  <td className={styles.dateCell}>{item.date}</td>
+                  <td className={styles.dateCell}>
+                    {item.date}
+                    {item.dueLabel && item.status !== "Paid" ? (
+                      <div className={`${styles.dueNote} ${item.isDueToday || item.status === "Overdue" ? styles.dueNoteAlert : ""}`}>
+                        {item.dueLabel}
+                      </div>
+                    ) : null}
+                  </td>
                   <td className={styles.descCell}>
                     <div className={styles.descMain}>{item.description}</div>
                     <div className={styles.descSub}>{item.inv}</div>
                   </td>
                   <td className={styles.amountCell}>{item.amount}</td>
                   <td className={styles.statusCell}>
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={item.isDueToday && item.status !== "Paid" ? "Due today" : item.status} />
+                    {item.receiptStatus === "Pending" ? <div className={styles.dueNote}>Receipt under review</div> : null}
+                    {item.receiptStatus === "Rejected" && item.status !== "Paid" ? (
+                      <div className={`${styles.dueNote} ${styles.dueNoteAlert}`}>Receipt not accepted</div>
+                    ) : null}
                   </td>
                   <td className={`${styles.textRight} ${styles.actionCell}`}>
                     <button
@@ -266,6 +322,17 @@ export default function BillingPayments() {
                     >
                       <Eye size={18} />
                     </button>
+                    {item.canUpload ? (
+                      <button
+                        type="button"
+                        onClick={() => handleViewClick(item)}
+                        className={styles.actionBtn}
+                        aria-label={`Upload receipt for ${item.inv}`}
+                        title="Upload payment receipt"
+                      >
+                        <Upload size={18} />
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -286,6 +353,7 @@ export default function BillingPayments() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           data={selectedPayment}
+          onChanged={() => setReloadTick((n) => n + 1)}
         />
       ) : null}
     </div>
@@ -301,6 +369,8 @@ function StatusBadge({ status }: { status: string }) {
         return styles.statusUnpaid;
       case "Overdue":
         return styles.statusOverdue;
+      case "Due today":
+        return styles.statusToday;
       default:
         return "";
     }

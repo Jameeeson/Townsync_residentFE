@@ -13,6 +13,7 @@ import {
   getMaintenanceTicket,
 } from "@/lib/api/resident";
 import { badgeClassName, priorityTone, statusTone } from "@/lib/maintenanceStatus";
+import { parseServerDate } from "@/lib/datetime";
 
 function TicketDetail() {
   const router = useRouter();
@@ -243,13 +244,19 @@ function TicketDetail() {
                 <div key={index} className={styles.timelineItem}>
                   <div className={styles.timelineDot}></div>
                   <div className={styles.timelineDate}>
-                    {String(event.date ?? event.at ?? "")}
+                    {(() => {
+                      const raw = String(event.timestamp ?? event.date ?? event.at ?? "");
+                      const parsed = parseServerDate(raw);
+                      return parsed
+                        ? parsed.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+                        : raw;
+                    })()}
                   </div>
                   <div className={styles.timelineHeading}>
                     {String(event.title ?? event.heading ?? "Update")}
                   </div>
                   <p className={styles.timelineText}>
-                    {String(event.description ?? event.text ?? "")}
+                    {String(event.description ?? event.text ?? event.activity_text ?? "")}
                   </p>
                 </div>
               ))

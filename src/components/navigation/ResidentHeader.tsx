@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Bell, ChevronDown, X } from "lucide-react";
+import { ChevronDown, Megaphone, X } from "lucide-react";
 import styles from "@/styles/dashboard.module.css";
 import { fetchMe } from "@/lib/api/auth";
 import { hasSession } from "@/lib/apiClient";
 import { listAnnouncements, type Announcement } from "@/lib/api/resident";
 import { parseServerDate } from "@/lib/datetime";
+import { NotificationBell } from "@/components/navigation/NotificationBell";
 
 function relativeMeta(iso: string, category: string): string {
   const then = parseServerDate(iso)?.getTime() ?? NaN;
@@ -104,6 +105,7 @@ export function ResidentHeader() {
       <div>
       </div>
       <div className={styles.topBarActions}>
+        <NotificationBell />
         <div className={styles.announcementArea} data-announcements onPointerEnter={reveal} onPointerLeave={hide}>
         <button
           type="button"
@@ -112,7 +114,7 @@ export function ResidentHeader() {
           aria-label={open ? "Close announcements" : "Open announcements"}
           aria-expanded={open}
         >
-          <Bell size={18} aria-hidden="true" />
+          <Megaphone size={18} aria-hidden="true" />
           <span>Announcements</span>
           <ChevronDown size={14} className={open ? styles.chevronOpen : styles.chevron} aria-hidden="true" />
         </button>

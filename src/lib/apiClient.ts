@@ -218,6 +218,20 @@ export async function apiFetch<TResponse>(path: string, options: ApiRequestOptio
   return parseResponseBody<TResponse>(response);
 }
 
+/** An authenticated file download (PDFs). Returns the raw bytes. */
+export async function apiBlob(path: string): Promise<Blob> {
+  const response = await fetch(normalizeBaseUrl(path), {
+    method: "GET",
+    credentials: "include",
+    headers: buildHeaders(undefined, getStoredAccessToken(), null),
+  });
+  if (!response.ok) {
+    const payload = await parseErrorPayload(response);
+    throw new ApiClientError(response.status, formatApiErrorDetail(payload, `Request failed with status ${response.status}`), payload);
+  }
+  return response.blob();
+}
+
 export const apiClient = {
   get<TResponse>(path: string, options: ApiClientMethodOptions = {}): Promise<TResponse> {
     return apiFetch<TResponse>(path, { ...options, method: "GET" });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import styles from "@/styles/qrpass.module.css";
@@ -21,6 +21,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { ApiClientError } from "@/lib/apiClient";
 import GuestListEditor, { cleanGuestNames } from "@/components/visitors/GuestListEditor";
+import ListControls from "@/components/ui/ListControls";
 import {
   VisitorPass as ApiVisitorPass,
   createVisitorPass,
@@ -61,6 +62,36 @@ function normalizePasses(data: unknown): { passes: UiPass[]; usage: string } {
     return { passes, usage };
   }
   return { passes: [], usage: "0 of 5 used" };
+}
+
+const PASS_SORTS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "visit_soon", label: "Visit date: soonest" },
+  { value: "visit_late", label: "Visit date: latest" },
+  { value: "name", label: "Visitor name (A-Z)" },
+];
+
+function visitTime(pass: UiPass): number {
+  const t = new Date(pass.scheduledAt.replace(" ", "T")).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/** Newest first by default; the pass id grows with every pass created, so it is the creation order. */
+function sortPasses(list: UiPass[], order: string): UiPass[] {
+  const copy = [...list];
+  switch (order) {
+    case "oldest":
+      return copy.sort((a, b) => a.id - b.id);
+    case "visit_soon":
+      return copy.sort((a, b) => visitTime(a) - visitTime(b) || b.id - a.id);
+    case "visit_late":
+      return copy.sort((a, b) => visitTime(b) - visitTime(a) || b.id - a.id);
+    case "name":
+      return copy.sort((a, b) => a.name.localeCompare(b.name) || b.id - a.id);
+    default:
+      return copy.sort((a, b) => b.id - a.id);
+  }
 }
 
 function mapPass(p: ApiVisitorPass): UiPass {
@@ -130,6 +161,27 @@ export default function PassesPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [gateHours, setGateHours] = useState<GateHours | null>(null);
+  const [passSort, setPassSort] = useState("newest");
+  const [passStatus, setPassStatus] = useState("all");
+  const [passSearch, setPassSearch] = useState("");
+
+  const statusOptions = useMemo(
+    () => [
+      { value: "all", label: "All statuses" },
+      ...Array.from(new Set(passes.map((p) => p.status))).sort().map((value) => ({ value, label: value })),
+    ],
+    [passes]
+  );
+
+  const visiblePasses = useMemo(() => {
+    const term = passSearch.trim().toLowerCase();
+    const filtered = passes.filter(
+      (p) =>
+        (passStatus === "all" || p.status === passStatus) &&
+        (!term || p.name.toLowerCase().includes(term) || p.purpose.toLowerCase().includes(term) || String(p.id) === term)
+    );
+    return sortPasses(filtered, passSort);
+  }, [passes, passStatus, passSearch, passSort]);
 
   async function refresh() {
     const data = await listVisitorPasses();
@@ -348,6 +400,22 @@ export default function PassesPage() {
             <div className={styles.limitText}>{usage}</div>
           </div>
 
+          {passes.length > 1 ? (
+            <ListControls
+              search={{ value: passSearch, onChange: setPassSearch, placeholder: "Search by visitor or purpose" }}
+              sort={{ value: passSort, options: PASS_SORTS, onChange: setPassSort }}
+              filters={[
+                { id: "status", label: "Status", value: passStatus, options: statusOptions, onChange: setPassStatus },
+              ]}
+              summary={`Showing ${visiblePasses.length} of ${passes.length} passes`}
+              onReset={() => {
+                setPassSort("newest");
+                setPassStatus("all");
+                setPassSearch("");
+              }}
+            />
+          ) : null}
+
           <div className={`${styles.passesGrid} ${passes.length > 0 ? "ts-stagger" : ""}`}>
             {loading ? (
               [0, 1, 2].map((i) => (
@@ -364,8 +432,13 @@ export default function PassesPage() {
                 <Ticket size={28} className={styles.emptyIcon} aria-hidden="true" />
                 <p>No active passes yet. Create one on the left.</p>
               </div>
+            ) : visiblePasses.length === 0 ? (
+              <div className={styles.emptyState}>
+                <Ticket size={28} className={styles.emptyIcon} aria-hidden="true" />
+                <p>No passes match your search or filter.</p>
+              </div>
             ) : (
-              passes.map((pass, i) => (
+              visiblePasses.map((pass, i) => (
                 <div
                   key={pass.id}
                   className={styles.passCard}

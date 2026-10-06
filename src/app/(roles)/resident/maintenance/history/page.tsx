@@ -16,6 +16,7 @@ import styles from "@/styles/maintenance.module.css";
 import { listMaintenanceTickets, type MaintenanceTicket } from "@/lib/api/resident";
 import { badgeClassName, statusTone } from "@/lib/maintenanceStatus";
 import { parseServerDate } from "@/lib/datetime";
+import ListControls from "@/components/ui/ListControls";
 
 type FilterKey = "all" | "active" | "completed" | "cancelled";
 
@@ -47,11 +48,23 @@ function relativeTime(iso: string): string {
   return parseServerDate(iso)?.toLocaleDateString([], { month: "short", day: "numeric" }) ?? "";
 }
 
+const SORTS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "status", label: "Status (active first)" },
+  { value: "category", label: "Category (A-Z)" },
+];
+
+const STATUS_ORDER: Record<string, number> = { Open: 0, Assigned: 1, Ongoing: 2, Completed: 3, Cancelled: 4 };
+
 /** Full, unbounded maintenance history — every request the resident has ever filed. */
 export default function MaintenanceHistoryPage() {
   const [tickets, setTickets] = useState<MaintenanceTicket[] | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [order, setOrder] = useState("newest");
+  const [category, setCategory] = useState("all");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -67,13 +80,33 @@ export default function MaintenanceHistoryPage() {
     };
   }, []);
 
+  const categoryOptions = useMemo(
+    () => [
+      { value: "all", label: "All categories" },
+      ...Array.from(new Set((tickets ?? []).map((t) => t.category).filter(Boolean)))
+        .sort()
+        .map((value) => ({ value, label: value })),
+    ],
+    [tickets]
+  );
+
   const filtered = useMemo(() => {
     if (!tickets) return [];
-    if (filter === "completed") return tickets.filter((t) => t.status === "Completed");
-    if (filter === "cancelled") return tickets.filter((t) => t.status === "Cancelled");
-    if (filter === "active") return tickets.filter((t) => ACTIVE_STATUSES.has(t.status));
-    return tickets;
-  }, [tickets, filter]);
+    const term = search.trim().toLowerCase();
+    const matches = tickets.filter((t) => {
+      if (filter === "completed" && t.status !== "Completed") return false;
+      if (filter === "cancelled" && t.status !== "Cancelled") return false;
+      if (filter === "active" && !ACTIVE_STATUSES.has(t.status)) return false;
+      if (category !== "all" && t.category !== category) return false;
+      return !term || t.subject.toLowerCase().includes(term) || String(t.id) === term.replace(/^#?(tc-)?/i, "");
+    });
+    // Ticket numbers only ever grow, so they are the filing order (newest first by default).
+    const sorted = [...matches].sort((a, b) => b.id - a.id);
+    if (order === "oldest") sorted.reverse();
+    if (order === "status") sorted.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) || b.id - a.id);
+    if (order === "category") sorted.sort((a, b) => a.category.localeCompare(b.category) || b.id - a.id);
+    return sorted;
+  }, [tickets, filter, category, search, order]);
 
   const loading = !tickets && !error;
   const activeCount = tickets ? tickets.filter((t) => ACTIVE_STATUSES.has(t.status)).length : 0;
@@ -123,6 +156,19 @@ export default function MaintenanceHistoryPage() {
               {f.label}
             </button>
           ))}
+        </div>
+
+        <div style={{ padding: "0 var(--space-4)" }}>
+          <ListControls
+            search={{ value: search, onChange: setSearch, placeholder: "Search by subject or ticket number" }}
+            sort={{ value: order, options: SORTS, onChange: setOrder }}
+            filters={[{ id: "category", label: "Category", value: category, options: categoryOptions, onChange: setCategory }]}
+            onReset={() => {
+              setOrder("newest");
+              setCategory("all");
+              setSearch("");
+            }}
+          />
         </div>
 
         <div className={styles.historyList} style={{ maxHeight: "none" }}>

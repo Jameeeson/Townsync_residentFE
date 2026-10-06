@@ -63,9 +63,11 @@ export function TicketHistoryPanel() {
 
   const filtered = useMemo(() => {
     if (!tickets) return [];
-    if (filter === "completed") return tickets.filter((t) => t.status === "Completed");
-    if (filter === "active") return tickets.filter((t) => ACTIVE_STATUSES.has(t.status));
-    return tickets;
+    // Newest first: ticket numbers only ever grow, so they are the filing order.
+    const newest = [...tickets].sort((a, b) => b.id - a.id);
+    if (filter === "completed") return newest.filter((t) => t.status === "Completed");
+    if (filter === "active") return newest.filter((t) => ACTIVE_STATUSES.has(t.status));
+    return newest;
   }, [tickets, filter]);
 
   const visible = filtered.slice(0, 3);

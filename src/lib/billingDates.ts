@@ -14,6 +14,16 @@ export function formatDueDate(iso: string | null | undefined): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+/** Whole days from today to an ISO date: 0 = today, negative = past. */
+export function daysUntil(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - today.getTime()) / 86_400_000);
+}
+
 export function formatPeso(amount: number): string {
   return `₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

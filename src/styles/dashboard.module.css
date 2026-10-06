@@ -776,3 +776,21 @@
     padding: var(--space-4) var(--space-3);
   }
 }
+
+/* Phones: this block must come after the base .announcementPanel rule, otherwise the absolute, right-anchored desktop
+   placement wins and the panel hangs off the right edge of the screen. */
+@media (max-width: 640px) {
+  .announcementPanel {
+    position: fixed;
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100dvh - 80px);
+    transform-origin: top center;
+  }
+
+  .announcementPanelBody {
+    max-height: calc(100dvh - 190px);
+  }
+}
