@@ -43,6 +43,7 @@ type VisitorRequest = {
   qr_token?: string;
   companions?: string[];
   party_size?: number;
+  resident_deleted?: boolean;
 };
 
 const STATUS_FILTERS = ["All", "Pending", "Approved", "Rejected", "Expired"] as const;
@@ -170,6 +171,7 @@ function VisitorApprovalsTable({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -196,6 +198,7 @@ function VisitorApprovalsTable({
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (dateFrom) params.set("date_from", dateFrom);
     if (dateTo) params.set("date_to", dateTo);
+    params.set("sort", sortBy);
     apiGet<VisitorRequest[]>(`/api/v1/admin/visitor-management/requests?${params.toString()}`)
       .then((data) => {
         if (cancelled) return;
@@ -208,7 +211,7 @@ function VisitorApprovalsTable({
     return () => {
       cancelled = true;
     };
-  }, [statusFilter, debouncedSearch, dateFrom, dateTo, page, reloadKey]);
+  }, [statusFilter, debouncedSearch, dateFrom, dateTo, sortBy, page, reloadKey]);
 
   // Powers the number on each status chip. Reuses the same date/search scope
   // as the list (but not status_filter, since it asks for every status at
@@ -273,9 +276,9 @@ function VisitorApprovalsTable({
           <button
             type="button"
             className={styles.iconBtn}
-            aria-label="Filter by date"
+            aria-label="Sort and filter"
             aria-expanded={showFilters}
-            title={activeFilterCount ? `${activeFilterCount} date filter(s) active` : "Filter by scheduled date"}
+            title={activeFilterCount + (sortBy !== "newest" ? 1 : 0) ? "Sort or filter is active" : "Sort and filter by date"}
             onClick={() => setShowFilters((v) => !v)}
           >
             <Filter size={18} />
@@ -313,6 +316,23 @@ function VisitorApprovalsTable({
 
       {showFilters ? (
         <div className={styles.filterPanel}>
+          <div className={styles.inputGroup}>
+            <label htmlFor="visitor-sort">Sort by</label>
+            <select
+              id="visitor-sort"
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="newest">Newest request first</option>
+              <option value="oldest">Oldest request first</option>
+              <option value="visit_soon">Visit date: soonest</option>
+              <option value="visit_late">Visit date: latest</option>
+              <option value="name">Visitor name (A-Z)</option>
+            </select>
+          </div>
           <div className={styles.inputGroup}>
             <label htmlFor="visitor-date-from">Scheduled from</label>
             <input
@@ -399,7 +419,10 @@ function VisitorApprovalsTable({
                       </div>
                     </div>
                   </td>
-                  <td>{req.resident_name}</td>
+                  <td>
+                    {req.resident_name}
+                    {req.resident_deleted ? <span style={{ marginLeft: 8, padding: "1px 8px", borderRadius: 999, background: "#e2e8f0", color: "#475569", fontSize: "0.68rem", fontWeight: 700 }}>Account deleted</span> : null}
+                  </td>
                   <td>{req.unit_number}</td>
                   <td>{formatTime(req.scheduled_at)}</td>
                   <td>

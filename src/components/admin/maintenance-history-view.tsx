@@ -18,6 +18,8 @@ export type HistoryTicket = {
   status: "Completed" | "Cancelled";
   unit_number: string | null;
   resident_name: string | null;
+  resident_deleted?: boolean;
+  tech_deleted?: boolean;
   created_at: string | null;
   assigned_at: string | null;
   deadline: string | null;
@@ -52,10 +54,10 @@ function formatHours(hours: number | null): string {
 }
 
 /** Past maintenance tickets (completed or cancelled) with search, filters and a detail panel. */
-export default function MaintenanceHistoryView() {
+export default function MaintenanceHistoryView({ initialSearch = "" }: { initialSearch?: string }) {
   const [status, setStatus] = useState<HistoryStatus>("All");
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [search, setSearch] = useState(initialSearch);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
@@ -254,9 +256,9 @@ export default function MaintenanceHistoryView() {
                   </td>
                   <td>
                     <span className={styles.cellMain}>{t.unit_number ?? "Common area"}</span>
-                    <span className={styles.sub}>{t.resident_name ?? "Staff-reported"}</span>
+                    <span className={styles.sub}>{t.resident_name ?? "Staff-reported"}{t.resident_deleted ? " (account deleted)" : ""}</span>
                   </td>
-                  <td>{t.tech_name ?? <span className={styles.sub}>Not dispatched</span>}</td>
+                  <td>{t.tech_name ? `${t.tech_name}${t.tech_deleted ? " (account deleted)" : ""}` : <span className={styles.sub}>Not dispatched</span>}</td>
                   <td>{formatServerDateTime(t.closed_at)}</td>
                   <td>
                     {formatHours(t.turnaround_hours)}
@@ -318,7 +320,7 @@ export default function MaintenanceHistoryView() {
 function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose: () => void }) {
   const timeline = [
     { label: "Reported", at: t.created_at, by: t.resident_name ?? "Staff" },
-    { label: "Dispatched", at: t.assigned_at, by: t.tech_name },
+    { label: "Dispatched", at: t.assigned_at, by: t.tech_name ? `${t.tech_name}${t.tech_deleted ? " (account deleted)" : ""}` : t.tech_name },
     t.status === "Completed"
       ? { label: "Completed", at: t.completed_at ?? t.closed_at, by: t.tech_name }
       : { label: "Cancelled", at: t.closed_at, by: null },
@@ -346,7 +348,7 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
             <p>
               {t.category ?? "General"}
               {t.priority ? ` · ${t.priority} priority` : ""} · {t.unit_number ?? "Common area"}
-              {t.resident_name ? ` · ${t.resident_name}` : ""}
+              {t.resident_name ? ` · ${t.resident_name}${t.resident_deleted ? " (account deleted)" : ""}` : ""}
             </p>
           </div>
           <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>
@@ -359,7 +361,7 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
             <div>
               <span>Technician</span>
               <strong>
-                <User size={14} aria-hidden="true" /> {t.tech_name ?? "Not dispatched"}
+                <User size={14} aria-hidden="true" /> {t.tech_name ? `${t.tech_name}${t.tech_deleted ? " (account deleted)" : ""}` : "Not dispatched"}
               </strong>
             </div>
             <div>

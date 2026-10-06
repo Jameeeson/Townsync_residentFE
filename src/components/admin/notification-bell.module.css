@@ -1,0 +1,270 @@
+.wrap {
+  position: relative;
+}
+
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+}
+
+.bell:hover {
+  background: #f1f5f9;
+  color: #0b1a2d;
+}
+
+.badge {
+  position: absolute;
+  top: 0.05rem;
+  right: 0;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: -0.5rem;
+  z-index: 60;
+  width: min(25rem, calc(100vw - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  max-height: min(34rem, 78vh);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem 0.7rem;
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.head p {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.markAll {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #1e3a8a;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.markAll:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.markAll:disabled {
+  color: #94a3b8;
+  cursor: default;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tabActive {
+  color: #1e3a8a;
+  border-bottom-color: #1e3a8a;
+}
+
+.tabCount {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  font-size: 0.7rem;
+  color: #475569;
+}
+
+.tabActive .tabCount {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.item:hover {
+  background: #f8fafc;
+}
+
+.itemUnread {
+  background: #f5f9ff;
+}
+
+.itemUnread:hover {
+  background: #eaf2ff;
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.6rem;
+}
+
+.toneBlue { background: #dbeafe; color: #1d4ed8; }
+.toneAmber { background: #fef3c7; color: #b45309; }
+.toneGreen { background: #dcfce7; color: #15803d; }
+.tonePurple { background: #ede9fe; color: #6d28d9; }
+.toneRed { background: #fee2e2; color: #b91c1c; }
+.toneTeal { background: #ccfbf1; color: #0f766e; }
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.title {
+  font-size: 0.88rem;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.itemUnread .title {
+  font-weight: 700;
+}
+
+.time {
+  flex: none;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.detail {
+  font-size: 0.8rem;
+  color: #475569;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.dot {
+  flex: none;
+  align-self: center;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #2563eb;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2.2rem 1.5rem;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.empty strong {
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 560px) {
+  .panel {
+    position: fixed;
+    top: 4rem;
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+  }
+}

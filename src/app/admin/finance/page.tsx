@@ -17,39 +17,77 @@ import {
   Mail,
   Globe,
   Printer,
-  ShieldCheck,
   Send,
   Home,
+  Receipt,
 } from "lucide-react";
 import AdminShell from "../../../components/admin/admin-shell";
 import PropertyRatesModal, { ordinal } from "../../../components/admin/property-rates-modal";
+import ResidentBillingDrawer from "../../../components/admin/resident-billing-drawer";
 import styles from "../../../components/styles/Finance.module.css";
 
 type StatusType = "Paid" | "Unpaid" | "Overdue";
 
 interface LedgerApiRecord {
   id: number;
-  date: string;
-  resident_name: string;
-  invoice_number: string;
-  amount: number;
   status: StatusType;
 }
 
-interface LedgerRecord {
-  id: number;
+interface ResidentApiRow {
+  resident_id: number;
+  resident_name: string;
+  unit_number: string | null;
+  statements: number;
+  unpaid_count: number;
+  outstanding: number;
+  status: "Overdue" | "DueToday" | "Unpaid" | "Paid";
+  next_due_date: string | null;
+  due_label: string | null;
+  pending_receipts: number;
+  focus_invoice_id: number;
+  account_deleted?: boolean;
+}
+
+interface ResidentRow {
+  residentId: number;
   initials: string;
   name: string;
-  invoiceNumber: string;
-  amount: string;
-  dueDate: string;
-  status: StatusType;
+  unit: string | null;
+  statements: number;
+  unpaidCount: number;
+  outstanding: number;
+  status: ResidentApiRow["status"];
+  nextDue: string | null;
+  dueLabel: string | null;
+  pendingReceipts: number;
+  focusInvoiceId: number;
+  accountDeleted: boolean;
 }
 
 interface FinanceMetrics {
   total_collections_monthly: number;
   collection_efficiency_index: number;
   overdue_liquidity_alert: number;
+}
+
+type LedgerFilter = "All" | StatusType | "DueToday" | "Receipt";
+
+function toRow(item: ResidentApiRow): ResidentRow {
+  return {
+    residentId: item.resident_id,
+    initials: initialsFor(item.resident_name),
+    name: item.resident_name,
+    unit: item.unit_number,
+    statements: item.statements,
+    unpaidCount: item.unpaid_count,
+    outstanding: item.outstanding,
+    status: item.status,
+    nextDue: item.next_due_date,
+    dueLabel: item.due_label,
+    pendingReceipts: item.pending_receipts,
+    focusInvoiceId: item.focus_invoice_id,
+    accountDeleted: Boolean(item.account_deleted),
+  };
 }
 
 function initialsFor(name: string): string {
@@ -163,37 +201,33 @@ function printStatements(lines: StatementLine[], periodLabel: string): boolean {
   return true;
 }
 
+function breakdownOf(all: LedgerApiRecord[]) {
+  if (all.length === 0) return { paidPct: 0, unpaidPct: 0, overduePct: 0 };
+  const count = (status: StatusType) => all.filter((r) => r.status === status).length;
+  return {
+    paidPct: Math.round((count("Paid") / all.length) * 100),
+    unpaidPct: Math.round((count("Unpaid") / all.length) * 100),
+    overduePct: Math.round((count("Overdue") / all.length) * 100),
+  };
+}
+
 function FinancePage() {
   const { toast, toastError } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const deepLinkInvoice = searchParams.get("invoice");
   // Modal states
-  const [isLogPaymentOpen, setIsLogPaymentOpen] = useState(false);
   const [isGenerateStatementOpen, setIsGenerateStatementOpen] = useState(false);
-  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
 
-  // Form State for Payment
-  const [paymentStatus, setPaymentStatus] = useState<"full" | "partial" | "unreconciled">("full");
-  const [paymentInvoiceId, setPaymentInvoiceId] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
-  const [paymentDate, setPaymentDate] = useState("");
-  const [paymentRef, setPaymentRef] = useState("");
-  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [paymentReceipt, setPaymentReceipt] = useState<{
-    residentLabel: string;
-    amount: string;
-    method: string;
-    date: string;
-    reference: string;
-  } | null>(null);
+  // Opening a resident's bills (click a row, or pick an invoice from "Log Payment")
+  const [drawer, setDrawer] = useState<{ residentId: number; invoiceId: number | null } | null>(null);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [pickedInvoiceId, setPickedInvoiceId] = useState("");
 
-  const [records, setRecords] = useState<LedgerRecord[]>([]);
+  const [records, setRecords] = useState<ResidentRow[]>([]);
   const [metrics, setMetrics] = useState<FinanceMetrics | null>(null);
   const [statusBreakdown, setStatusBreakdown] = useState<{ paidPct: number; unpaidPct: number; overduePct: number } | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"All" | StatusType>("All");
+  const [statusFilter, setStatusFilter] = useState<LedgerFilter>("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [generatingStatements, setGeneratingStatements] = useState(false);
@@ -261,46 +295,48 @@ function FinancePage() {
   const visibleRecords = searchTerm.trim()
     ? records.filter((r) => {
         const term = searchTerm.trim().toLowerCase();
-        return r.name.toLowerCase().includes(term) || r.invoiceNumber.toLowerCase().includes(term);
+        return r.name.toLowerCase().includes(term) || (r.unit ?? "").toLowerCase().includes(term);
       })
     : records;
 
-  const payableInvoices = records.filter((r) => r.status !== "Paid");
+  const payableResidents = records.filter((r) => r.status !== "Paid");
 
-  // Arriving from a dashboard drill-down: select that invoice and open the
-  // payment panel once the ledger has loaded, then clear the param so a later
-  // refresh cannot reopen it behind the admin's back.
+  const openBills = (row: ResidentRow) => {
+    setDrawer({ residentId: row.residentId, invoiceId: row.focusInvoiceId });
+  };
+
+  // Arriving from a dashboard drill-down: open that invoice's resident, then clear the param so a later refresh
+  // cannot reopen it behind the admin's back.
   useEffect(() => {
     if (!deepLinkInvoice) return;
-    if (!records.some((r) => String(r.id) === deepLinkInvoice)) return; // ledger still loading
-    /* eslint-disable react-hooks/set-state-in-effect -- one-shot sync from the
-       URL, cleared immediately below so it cannot cascade or re-apply. */
-    setPaymentInvoiceId(deepLinkInvoice);
-    setIsLogPaymentOpen(true);
-    /* eslint-enable react-hooks/set-state-in-effect */
-    router.replace("/admin/finance", { scroll: false });
-  }, [deepLinkInvoice, records, router]);
-  const selectedInvoice = payableInvoices.find((r) => String(r.id) === paymentInvoiceId) ?? null;
+    let cancelled = false;
+    apiGet<{ id: number; resident_id: number }>(`/api/v1/admin/finance/invoices/${deepLinkInvoice}`)
+      .then((inv) => {
+        if (!cancelled) setDrawer({ residentId: inv.resident_id, invoiceId: inv.id });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) router.replace("/admin/finance", { scroll: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deepLinkInvoice, router]);
 
   const refreshLedger = () => {
     apiGet<FinanceMetrics>("/api/v1/admin/finance/dashboard-metrics")
       .then(setMetrics)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to refresh metrics"));
+    apiGet<LedgerApiRecord[]>("/api/v1/admin/finance/ledger")
+      .then((all) => setStatusBreakdown(breakdownOf(all)))
+      .catch(() => setStatusBreakdown(null));
+    loadRecords();
+  };
+
+  const loadRecords = () => {
     const query = statusFilter === "All" ? "" : `?status_filter=${statusFilter}`;
-    apiGet<LedgerApiRecord[]>(`/api/v1/admin/finance/ledger${query}`)
-      .then((data) =>
-        setRecords(
-          data.map((item) => ({
-            id: item.id,
-            initials: initialsFor(item.resident_name),
-            name: item.resident_name,
-            invoiceNumber: item.invoice_number,
-            amount: formatCurrency(item.amount),
-            dueDate: item.date,
-            status: item.status,
-          })),
-        ),
-      )
+    apiGet<ResidentApiRow[]>(`/api/v1/admin/finance/ledger/residents${query}`)
+      .then((data) => setRecords(data.map(toRow)))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load ledger"));
   };
 
@@ -309,37 +345,14 @@ function FinancePage() {
       .then(setMetrics)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load metrics"));
     apiGet<LedgerApiRecord[]>("/api/v1/admin/finance/ledger")
-      .then((all) => {
-        if (all.length === 0) {
-          setStatusBreakdown({ paidPct: 0, unpaidPct: 0, overduePct: 0 });
-          return;
-        }
-        const count = (status: StatusType) => all.filter((r) => r.status === status).length;
-        setStatusBreakdown({
-          paidPct: Math.round((count("Paid") / all.length) * 100),
-          unpaidPct: Math.round((count("Unpaid") / all.length) * 100),
-          overduePct: Math.round((count("Overdue") / all.length) * 100),
-        });
-      })
+      .then((all) => setStatusBreakdown(breakdownOf(all)))
       .catch(() => setStatusBreakdown(null));
   }, []);
 
   useEffect(() => {
     const query = statusFilter === "All" ? "" : `?status_filter=${statusFilter}`;
-    apiGet<LedgerApiRecord[]>(`/api/v1/admin/finance/ledger${query}`)
-      .then((data) =>
-        setRecords(
-          data.map((item) => ({
-            id: item.id,
-            initials: initialsFor(item.resident_name),
-            name: item.resident_name,
-            invoiceNumber: item.invoice_number,
-            amount: formatCurrency(item.amount),
-            dueDate: item.date,
-            status: item.status,
-          })),
-        ),
-      )
+    apiGet<ResidentApiRow[]>(`/api/v1/admin/finance/ledger/residents${query}`)
+      .then((data) => setRecords(data.map(toRow)))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load ledger"));
   }, [statusFilter]);
 
@@ -357,55 +370,6 @@ function FinancePage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
-    }
-  };
-
-  const handleRecordPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedInvoice) {
-      setPaymentError("Select an invoice to apply this payment to.");
-      return;
-    }
-    const amountNumber = Number(paymentAmount.replace(/[^0-9.]/g, ""));
-    if (!amountNumber || amountNumber <= 0) {
-      setPaymentError("Enter a valid amount paid.");
-      return;
-    }
-
-    setPaymentSubmitting(true);
-    setPaymentError(null);
-    try {
-      await apiPost(`/api/v1/admin/finance/invoices/${selectedInvoice.id}/payments`, {
-        amount_paid: amountNumber,
-        payment_method: paymentMethod,
-        transaction_ref: paymentRef || undefined,
-        paid_at: paymentDate || undefined,
-      });
-
-      setPaymentReceipt({
-        residentLabel: selectedInvoice.name,
-        amount: formatCurrency(amountNumber),
-        method: paymentMethod,
-        date: paymentDate || new Date().toISOString().slice(0, 10),
-        reference: paymentRef || "Auto-generated",
-      });
-
-      setIsLogPaymentOpen(false);
-      setIsSuccessOpen(true);
-      setPaymentInvoiceId("");
-      setPaymentAmount("");
-      setPaymentRef("");
-      setPaymentDate("");
-      toast(
-        `Payment of ${formatCurrency(amountNumber)} recorded for ${selectedInvoice.name}.`,
-        "success",
-      );
-      refreshLedger();
-    } catch (err) {
-      toastError(err, "Could not record the payment.");
-      setPaymentError(err instanceof Error ? err.message : "Failed to record payment.");
-    } finally {
-      setPaymentSubmitting(false);
     }
   };
 
@@ -428,8 +392,8 @@ function FinancePage() {
             <button type="button" className={styles.btnSecondary} onClick={() => setIsRatesOpen(true)}>
               <Home size={16} /> Property Rates
             </button>
-            <button 
-              className={styles.btnPrimary} 
+            <button
+              className={styles.btnPrimary}
               onClick={() => {
                 setStatementMessage(null);
                 setIsGenerateStatementOpen(true);
@@ -499,7 +463,7 @@ function FinancePage() {
               <Search size={16} className={styles.searchIcon} />
               <input
                 type="text"
-                placeholder="Search by name or reference..."
+                placeholder="Search by resident name or unit..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -510,19 +474,21 @@ function FinancePage() {
               <div className={styles.selectWrapper}>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as "All" | StatusType)}
+                  onChange={(e) => setStatusFilter(e.target.value as LedgerFilter)}
                 >
                   <option value="All">All Statuses</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Unpaid">Unpaid</option>
+                  <option value="DueToday">Due today</option>
                   <option value="Overdue">Overdue</option>
+                  <option value="Unpaid">Unpaid (not yet due)</option>
+                  <option value="Receipt">Receipt to review</option>
+                  <option value="Paid">Paid</option>
                 </select>
                 <ChevronDown size={14} className={styles.selectIcon} />
               </div>
 
               <button
                 className={styles.btnLogPayment}
-                onClick={() => setIsLogPaymentOpen(true)}
+                onClick={() => setIsPickerOpen(true)}
               >
                 Log Payment
               </button>
@@ -533,18 +499,17 @@ function FinancePage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Resident Name</th>
-                  <th>Invoice Number</th>
-                  <th>Amount</th>
-                  <th>Due Date</th>
+                  <th>Resident</th>
+                  <th>Statements</th>
+                  <th>Outstanding</th>
+                  <th>Next Due</th>
                   <th>Status</th>
-                  <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={5}>
                       {records.length === 0
                         ? "No ledger records found."
                         : "No records match your search."}
@@ -552,33 +517,62 @@ function FinancePage() {
                   </tr>
                 ) : (
                   visibleRecords.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      key={item.residentId}
+                      className={styles.clickableRow}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Open bills for ${item.name}`}
+                      onClick={() => openBills(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openBills(item);
+                        }
+                      }}
+                    >
                       <td>
                         <div className={styles.residentCell}>
                           <div className={styles.avatar}>{item.initials}</div>
-                          <span className={styles.residentName}>{item.name}</span>
+                          <div>
+                            <span className={styles.residentName}>{item.name}</span>
+                            {item.accountDeleted ? <span className={styles.deletedTag}>Account deleted</span> : null}
+                            {item.unit ? <div className={styles.unitLine}>{item.unit}</div> : null}
+                          </div>
                         </div>
                       </td>
-                      <td>{item.invoiceNumber}</td>
+                      <td>
+                        {item.statements} total
+                        <div className={styles.dueNote}>
+                          {item.unpaidCount === 0 ? "all paid" : `${item.unpaidCount} unpaid`}
+                        </div>
+                      </td>
                       <td className={item.status === "Overdue" ? styles.amountRed : styles.amountBold}>
-                        {item.amount}
+                        {formatCurrency(item.outstanding)}
                       </td>
                       <td className={item.status === "Overdue" ? styles.dateRed : undefined}>
-                        {item.dueDate}
+                        {item.nextDue ?? "—"}
+                        {item.status !== "Paid" && item.dueLabel ? (
+                          <div className={item.status === "DueToday" ? styles.dueTodayNote : styles.dueNote}>{item.dueLabel}</div>
+                        ) : null}
                       </td>
                       <td>
                         <span className={
                           item.status === "Paid"
                             ? styles.badgePaid
+                            : item.status === "DueToday"
+                            ? styles.badgeToday
                             : item.status === "Unpaid"
                             ? styles.badgeUnpaid
                             : styles.badgeOverdue
                         }>
-                          • {item.status}
+                          • {item.status === "DueToday" ? "Due today" : item.status}
                         </span>
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        {/* Optional action buttons */}
+                        {item.pendingReceipts > 0 ? (
+                          <span className={styles.receiptTag} title="The resident uploaded a receipt that needs checking">
+                            <Receipt size={12} /> Receipt
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
                   ))
@@ -589,153 +583,53 @@ function FinancePage() {
 
           {/* Pagination Footer */}
           <div className={styles.pagination}>
-            <span>Showing {records.length} record{records.length === 1 ? "" : "s"}</span>
+            <span>Showing {records.length} resident{records.length === 1 ? "" : "s"}. Click a row to see their statements and adjust their bills.</span>
           </div>
         </div>
       </div>
 
-      {/* --- MODAL 1: LOG NEW PAYMENT --- */}
-      {isLogPaymentOpen && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
+      {/* --- LOG PAYMENT: pick the invoice, then the resident's bills open with the payment form --- */}
+      {isPickerOpen && (
+        <div className={styles.modalOverlay} onClick={() => setIsPickerOpen(false)}>
+          <div className={styles.modalContent} style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <div>
-                <h2>Log New Payment</h2>
-                <p>Record a resident transaction manually.</p>
+                <h2>Log Payment</h2>
+                <p>Choose who paid. Their bills open with the payment form.</p>
               </div>
-              <button onClick={() => setIsLogPaymentOpen(false)} className={styles.closeBtn}>
+              <button onClick={() => setIsPickerOpen(false)} className={styles.closeBtn} aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-
-            {paymentError ? (
-              <p className={styles.cardTrendNegative} style={{ padding: "0 1.5rem" }}>{paymentError}</p>
-            ) : null}
-
-            <form onSubmit={handleRecordPayment} className={styles.modalBody}>
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label>Invoice</label>
-                  <select
-                    value={paymentInvoiceId}
-                    onChange={(e) => setPaymentInvoiceId(e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>Select an unpaid or overdue invoice</option>
-                    {payableInvoices.map((inv) => (
-                      <option key={inv.id} value={inv.id}>
-                        {inv.invoiceNumber} — {inv.name} ({inv.amount})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Resident</label>
-                  <div className={styles.inputIconWrapper}>
-                    <Search size={16} className={styles.inputIcon} />
-                    <input type="text" value={selectedInvoice?.name ?? ""} readOnly placeholder="Select an invoice first" />
-                  </div>
-                </div>
-              </div>
-
-              <div className={styles.formRow3}>
-                <div className={styles.formGroup}>
-                  <label>Amount Paid</label>
-                  <input
-                    type="text"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    placeholder="₱ 0.00"
-                    required
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Payment Method</label>
-                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Check">Check</option>
-                    <option value="E-Wallet">E-Wallet</option>
-                  </select>
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Transaction Date</label>
-                  <input
-                    type="date"
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
+            <div className={styles.modalBody}>
               <div className={styles.formGroup}>
-                <label>Reference / Check No. (Optional)</label>
-                <input
-                  type="text"
-                  value={paymentRef}
-                  onChange={(e) => setPaymentRef(e.target.value)}
-                  placeholder="Auto-generated if left blank"
-                />
+                <label htmlFor="pick-invoice">Resident with a balance</label>
+                <select id="pick-invoice" value={pickedInvoiceId} onChange={(e) => setPickedInvoiceId(e.target.value)}>
+                  <option value="" disabled>Select a resident</option>
+                  {payableResidents.map((r) => (
+                    <option key={r.residentId} value={r.residentId}>
+                      {r.name}{r.unit ? ` · ${r.unit}` : ""} ({formatCurrency(r.outstanding)})
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              <div className={styles.formGroup}>
-                <label>Status Assignment</label>
-                <div className={styles.statusToggleGrid}>
-                  <button
-                    type="button"
-                    className={`${styles.statusOption} ${paymentStatus === "full" ? styles.statusOptionActiveGreen : ""}`}
-                    onClick={() => setPaymentStatus("full")}
-                  >
-                    <CheckCircle2 size={18} />
-                    <span>Full Payment</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.statusOption} ${paymentStatus === "partial" ? styles.statusOptionActiveBlue : ""}`}
-                    onClick={() => setPaymentStatus("partial")}
-                  >
-                    <Clock size={18} />
-                    <span>Partial Payment</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.statusOption} ${paymentStatus === "unreconciled" ? styles.statusOptionActiveGray : ""}`}
-                    onClick={() => setPaymentStatus("unreconciled")}
-                  >
-                    <AlertTriangle size={18} />
-                    <span>Unreconciled</span>
-                  </button>
-                </div>
+              <div className={styles.modalFooterRight}>
+                <button type="button" className={styles.btnSecondary} onClick={() => setIsPickerOpen(false)}>Cancel</button>
+                <button
+                  type="button"
+                  className={styles.btnNavy}
+                  disabled={!pickedInvoiceId}
+                  onClick={() => {
+                    const rec = payableResidents.find((r) => String(r.residentId) === pickedInvoiceId);
+                    if (rec) openBills(rec);
+                    setIsPickerOpen(false);
+                    setPickedInvoiceId("");
+                  }}
+                >
+                  Open bills
+                </button>
               </div>
-
-              <div className={styles.formGroup}>
-                <label>Admin Notes (Internal)</label>
-                <textarea
-                  rows={3}
-                  placeholder="Add specific details about the check number, bank name, or resident special requests..."
-                />
-              </div>
-
-              <div className={styles.modalFooter}>
-                <div className={styles.securedNotice}>
-                  <ShieldCheck size={16} />
-                  <span>Secured Transaction Logging</span>
-                </div>
-                <div className={styles.footerBtns}>
-                  <button 
-                    type="button" 
-                    className={styles.btnSecondary} 
-                    onClick={() => setIsLogPaymentOpen(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className={styles.btnNavy} disabled={paymentSubmitting}>
-                    {paymentSubmitting ? "Recording…" : "Confirm & Record Payment"}
-                  </button>
-                </div>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -913,80 +807,14 @@ function FinancePage() {
         />
       ) : null}
 
-      {/* --- MODAL 3: PAYMENT SUCCESS --- */}
-      {isSuccessOpen && (
-        <div className={styles.modalOverlay}>
-          <div className={`${styles.modalContent} ${styles.modalSuccess}`}>
-            <div className={styles.successIconCircle}>
-              <CheckCircle2 size={36} color="#ffffff" />
-            </div>
-
-            <h2 className={styles.successTitle}>Payment Recorded Successfully</h2>
-            <p className={styles.successSubtitle}>
-              The transaction for <strong>{paymentReceipt?.residentLabel ?? "this resident"}</strong> has been added to the ledger.
-            </p>
-
-            <div className={styles.receiptBox}>
-              <div className={styles.receiptRow}>
-                <div>
-                  <span className={styles.receiptLabel}>REFERENCE</span>
-                  <p className={styles.receiptValue}>{paymentReceipt?.reference ?? "—"}</p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span className={styles.receiptLabel}>AMOUNT PAID</span>
-                  <p className={styles.receiptValueLarge}>{paymentReceipt?.amount ?? "—"}</p>
-                </div>
-              </div>
-              <div className={styles.receiptRow} style={{ marginTop: "1rem" }}>
-                <div>
-                  <span className={styles.receiptLabel}>PAYMENT METHOD</span>
-                  <p className={styles.receiptValue}>{paymentReceipt?.method ?? "—"}</p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span className={styles.receiptLabel}>DATE</span>
-                  <p className={styles.receiptValue}>{paymentReceipt?.date ?? "—"}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.successActions}>
-              <button
-                className={styles.btnNavy}
-                onClick={() => {
-                  if (!paymentReceipt) return;
-                  const lines = [
-                    "TownSync — Payment Receipt",
-                    `Resident: ${paymentReceipt.residentLabel}`,
-                    `Reference: ${paymentReceipt.reference}`,
-                    `Amount Paid: ${paymentReceipt.amount}`,
-                    `Payment Method: ${paymentReceipt.method}`,
-                    `Date: ${paymentReceipt.date}`,
-                  ];
-                  const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement("a");
-                  link.href = url;
-                  link.download = `receipt_${paymentReceipt.reference || "payment"}.txt`;
-                  link.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                <Download size={16} /> Download Receipt
-              </button>
-              <button 
-                className={styles.btnLink} 
-                onClick={() => setIsSuccessOpen(false)}
-              >
-                Back to Billing Dashboard
-              </button>
-            </div>
-
-            <p className={styles.copyNotice}>
-              A copy of the receipt has also been sent to j.miller@email.com
-            </p>
-          </div>
-        </div>
-      )}
+      {drawer ? (
+        <ResidentBillingDrawer
+          residentId={drawer.residentId}
+          invoiceId={drawer.invoiceId}
+          onClose={() => setDrawer(null)}
+          onChanged={refreshLedger}
+        />
+      ) : null}
     </AdminShell>
   );
 }

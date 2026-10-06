@@ -36,7 +36,7 @@ export const MAX_DOC_LABEL = `${MAX_DOC_BYTES / (1024 * 1024)} MB`;
 
 export function docKind(name: string): "pdf" | "image" | "other" {
   if (/\.pdf$/i.test(name)) return "pdf";
-  if (/\.(png|jpe?g)$/i.test(name)) return "image";
+  if (/\.(png|jpe?g|webp)$/i.test(name)) return "image";
   return "other";
 }
 

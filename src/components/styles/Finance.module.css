@@ -1000,3 +1000,74 @@
     padding: 0.9rem;
   }
 }
+
+
+/* --- Clickable ledger rows, due-date notes --- */
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover,
+.clickableRow:focus-visible {
+  background: #f1f5f9;
+  outline: none;
+}
+
+.unitLine {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.dueNote {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.dueTodayNote {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #c2410c;
+}
+
+.badgeToday {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.receiptTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.4rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.deletedTag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+/* A deleted resident's tag sits under the name instead of crowding it on narrow screens. */
+.residentCell .deletedTag {
+  display: block;
+  width: max-content;
+  margin: 2px 0 0;
+}

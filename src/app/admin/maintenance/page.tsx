@@ -24,6 +24,8 @@ import {
   Droplets,
   Snowflake,
   Refrigerator,
+  Zap,
+  Hammer,
   Home,
   ChevronLeft,
   ChevronRight,
@@ -42,6 +44,8 @@ import { parseServerDate } from "@/lib/datetime";
 import AuthImageGallery from "@/components/ui/auth-image-gallery";
 import MaintenanceHistoryView from "@/components/admin/maintenance-history-view";
 import { StaffChatModal } from "@/components/admin/staff-chat";
+import { specialtyFit } from "@/lib/specialty";
+import ListControls from "@/components/ui/list-controls";
 
 /* ─── Shared domain data (one source of truth) ─── */
 
@@ -55,7 +59,13 @@ type PendingRequest = {
   title: string;
   resident: string;
   unit: string;
-  category: "Plumbing" | "HVAC" | "Appliance";
+  category: string;
+  /** The resident's own words, unchanged (the description is the AI's English rewrite). */
+  residentReport: string | null;
+  /** The resident's account was deleted; the ticket and its history are kept. */
+  residentDeleted?: boolean;
+  /** Set when the ticket came back to the queue because its technician's account was deleted. */
+  returnedNote?: string | null;
   aiLabel: string;
   /** Risk Triage Engine score (0-10ish) and the reasons behind it; absent for tickets it never scored. */
   riskScore: number | null;
@@ -99,6 +109,9 @@ type OngoingJob = {
   residentStatus: string | null;
   techEmail: string | null;
   details: string;
+  residentReport: string | null;
+  residentDeleted?: boolean;
+  techDeleted?: boolean;
   category: string;
   priority: Priority;
   location: string;
@@ -160,6 +173,9 @@ type TriageQueueItem = {
   risk_explanation?: { reasons?: string[]; sources?: string[] } | null;
   /** The engine's reasons in general terms, without source citations. */
   risk_summary?: string[];
+  resident_report?: string | null;
+  resident_deleted?: boolean;
+  returned_note?: string | null;
 };
 
 type DispatchBoardItem = {
@@ -217,6 +233,9 @@ type OngoingJobItem = {
   tech_email?: string | null;
   initial_image_url?: string | null;
   image_urls?: string[];
+  resident_report?: string | null;
+  resident_deleted?: boolean;
+  tech_deleted?: boolean;
 };
 
 const NOT_AVAILABLE = "Not available from backend";
@@ -266,10 +285,7 @@ function formatWhen(value: string | null | undefined): string {
 }
 
 function adaptTriageItem(item: TriageQueueItem): PendingRequest {
-  const category: PendingRequest["category"] =
-    item.category === "Plumbing" || item.category === "HVAC" || item.category === "Appliance"
-      ? item.category
-      : "Appliance";
+  const category = item.category || "Other";
   return {
     id: item.id,
     title: item.subject ?? truncate(item.description),
@@ -281,6 +297,9 @@ function adaptTriageItem(item: TriageQueueItem): PendingRequest {
     resident: item.resident_name ?? NOT_AVAILABLE,
     unit: item.unit_number ?? NOT_AVAILABLE,
     category,
+    residentReport: item.resident_report ?? null,
+    residentDeleted: Boolean(item.resident_deleted),
+    returnedNote: item.returned_note ?? null,
     aiLabel: item.ai_priority ?? item.status,
     riskScore: typeof item.risk_score === "number" ? item.risk_score : null,
     riskReasons: item.risk_summary ?? [],
@@ -341,6 +360,9 @@ function adaptOngoingJob(item: OngoingJobItem): OngoingJob {
     techEmail: item.tech_email ?? null,
     imageUrls: item.image_urls ?? (item.initial_image_url ? [item.initial_image_url] : []),
     details: item.description,
+    residentReport: item.resident_report ?? null,
+    residentDeleted: Boolean(item.resident_deleted),
+    techDeleted: Boolean(item.tech_deleted),
     category: item.category,
     priority: toPriority(item.priority),
     location: item.unit_number ?? NOT_AVAILABLE,
@@ -358,16 +380,15 @@ function adaptOngoingJob(item: OngoingJobItem): OngoingJob {
  * could open it at all. Reshapes an OngoingJob into the same shape so the one
  * chat view works from either list rather than forking it in two. */
 function toChatTicket(job: OngoingJob): PendingRequest {
-  const category: PendingRequest["category"] =
-    job.category === "Plumbing" || job.category === "HVAC" || job.category === "Appliance"
-      ? job.category
-      : "Appliance";
+  const category = job.category || "Other";
   return {
     id: job.id,
     title: job.title,
     resident: job.resident,
     unit: job.location,
     category,
+    residentReport: job.residentReport,
+    residentDeleted: job.residentDeleted,
     aiLabel: job.status,
     riskScore: null,
     riskReasons: [],
@@ -389,10 +410,48 @@ function toChatTicket(job: OngoingJob): PendingRequest {
   };
 }
 
-function categoryIcon(category: PendingRequest["category"]) {
+const PRIORITY_RANK: Record<string, number> = { Emergency: 0, High: 1, Medium: 2, Low: 3 };
+
+const PRIORITY_FILTER = [
+  { value: "all", label: "All priorities" },
+  { value: "Emergency", label: "Emergency" },
+  { value: "High", label: "High" },
+  { value: "Medium", label: "Medium" },
+  { value: "Low", label: "Low" },
+];
+
+function categoryOptions(values: string[]) {
+  return [
+    { value: "all", label: "All categories" },
+    ...Array.from(new Set(values.filter(Boolean)))
+      .sort()
+      .map((value) => ({ value, label: value })),
+  ];
+}
+
+/** Ticket numbers only ever grow, so they are the filing order: the default view is always newest first. */
+function byNewest<T extends { id: string }>(a: T, b: T): number {
+  return Number(b.id) - Number(a.id);
+}
+
+function categoryIcon(category: string) {
   if (category === "Plumbing") return <Droplets size={16} />;
   if (category === "HVAC") return <Snowflake size={16} />;
-  return <Refrigerator size={16} />;
+  if (category === "Electrical") return <Zap size={16} />;
+  if (category === "Structural") return <Hammer size={16} />;
+  if (category === "Appliance") return <Refrigerator size={16} />;
+  return <Wrench size={16} />;
+}
+
+/** What the resident actually typed, shown beside the AI's rewrite so nothing is lost in translation. */
+function ResidentWords({ text }: { text: string | null | undefined }) {
+  if (!text) return null;
+  return (
+    <div className={styles.sideGroup}>
+      <label>Resident&apos;s own words</label>
+      <p style={{ whiteSpace: "pre-wrap", fontStyle: "italic" }}>&ldquo;{text}&rdquo;</p>
+    </div>
+  );
 }
 
 function priorityClass(priority: Priority) {
@@ -485,6 +544,9 @@ function MaintenanceCommand() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const deepLinkTicket = searchParams.get("ticket");
+  // A finished (completed or cancelled) ticket found by search opens in the history, filtered to that ticket.
+  const historyTicket = searchParams.get("history");
+  const [historySearch, setHistorySearch] = useState("");
 
   const viewingJob = useMemo(
     () => ongoingJobs.find((j) => j.id === viewingJobId) ?? null,
@@ -619,6 +681,15 @@ function MaintenanceCommand() {
     /* eslint-enable react-hooks/set-state-in-effect */
     router.replace("/admin/maintenance", { scroll: false });
   }, [deepLinkTicket, ongoingJobs, pendingRequests, router]);
+
+  useEffect(() => {
+    if (!historyTicket) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-shot sync from the URL, cleared right below. */
+    setHistorySearch(`#${historyTicket}`);
+    setDetailView("history");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    router.replace("/admin/maintenance", { scroll: false });
+  }, [historyTicket, router]);
 
   const availableTechs = staff.filter((s) => s.isTech && s.status === "available").length;
 
@@ -762,7 +833,7 @@ function MaintenanceCommand() {
               onOpenJob={(id) => setViewingJobId(id)}
             />
           ) : detailView === "history" ? (
-            <MaintenanceHistoryView />
+            <MaintenanceHistoryView key={historySearch} initialSearch={historySearch} />
           ) : detailView === "calendar" ? (
             <MaintenanceCalendarView jobs={ongoingJobs} onOpenJob={(id) => setViewingJobId(id)} />
           ) : (
@@ -892,6 +963,32 @@ function PendingRequestsView({
     const a = parseServerDate(acc?.createdAt)?.getTime();
     return t !== undefined && (a === undefined || t < a) ? r : acc;
   }, null);
+  const [order, setOrder] = useState("newest");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [personFilter, setPersonFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const visible = useMemo(() => {
+    const term = search.trim().toLowerCase().replace(/^#/, "");
+    const rows = requests.filter(
+      (r) =>
+        (priorityFilter === "all" || r.priorityLevel === priorityFilter) &&
+        (categoryFilter === "all" || r.category === categoryFilter) &&
+        (personFilter === "all" || Boolean(r.humanRequested)) &&
+        (!term ||
+          r.id === term ||
+          r.title.toLowerCase().includes(term) ||
+          r.resident.toLowerCase().includes(term) ||
+          r.unit.toLowerCase().includes(term)),
+    );
+    const sorted = [...rows].sort(byNewest);
+    if (order === "oldest") sorted.reverse();
+    if (order === "priority")
+      sorted.sort((a, b) => (PRIORITY_RANK[a.priorityLevel] ?? 9) - (PRIORITY_RANK[b.priorityLevel] ?? 9) || byNewest(a, b));
+    if (order === "category") sorted.sort((a, b) => a.category.localeCompare(b.category) || byNewest(a, b));
+    if (order === "resident") sorted.sort((a, b) => a.resident.localeCompare(b.resident) || byNewest(a, b));
+    return sorted;
+  }, [requests, order, priorityFilter, categoryFilter, personFilter, search]);
   const selectedRisk = selected.riskScore !== null ? riskTier(selected.riskScore) : null;
   const shortDesc =
     selected.description.length > 140
@@ -932,8 +1029,14 @@ function PendingRequestsView({
           </div>
           <h4 className={styles.detailTitle}>{selected.title}</h4>
           <p className={styles.detailMeta}>
-            {selected.resident} · {selected.unit}
+            {selected.resident}
+            {selected.residentDeleted ? " (account deleted)" : ""} · {selected.unit}
           </p>
+          {selected.returnedNote ? (
+            <p className={styles.returnedNote}>
+              <strong>Needs a new technician.</strong> {selected.returnedNote}
+            </p>
+          ) : null}
           <blockquote className={styles.residentQuote}>
             &ldquo;{shortDesc}&rdquo;
           </blockquote>
@@ -989,8 +1092,51 @@ function PendingRequestsView({
         <div className={styles.cardHeader}>
           <h3>Action Queue</h3>
           <span className={styles.mutedMeta}>
-            Showing {requests.length} request{requests.length === 1 ? "" : "s"}
+            Showing {visible.length} of {requests.length} request{requests.length === 1 ? "" : "s"}
           </span>
+        </div>
+        <div style={{ padding: "0 0.75rem 0.75rem" }}>
+          <ListControls
+            search={{ value: search, onChange: setSearch, placeholder: "Search resident, unit, title or ticket number" }}
+            sort={{
+              value: order,
+              onChange: setOrder,
+              options: [
+                { value: "newest", label: "Newest first" },
+                { value: "oldest", label: "Oldest first (waiting longest)" },
+                { value: "priority", label: "Priority (highest first)" },
+                { value: "category", label: "Category (A-Z)" },
+                { value: "resident", label: "Resident (A-Z)" },
+              ],
+            }}
+            filters={[
+              { id: "priority", label: "Priority", value: priorityFilter, options: PRIORITY_FILTER, onChange: setPriorityFilter },
+              {
+                id: "category",
+                label: "Category",
+                value: categoryFilter,
+                options: categoryOptions(requests.map((r) => r.category)),
+                onChange: setCategoryFilter,
+              },
+              {
+                id: "person",
+                label: "Asked for a person",
+                value: personFilter,
+                options: [
+                  { value: "all", label: "Any" },
+                  { value: "yes", label: "Only those who asked" },
+                ],
+                onChange: setPersonFilter,
+              },
+            ]}
+            onReset={() => {
+              setOrder("newest");
+              setPriorityFilter("all");
+              setCategoryFilter("all");
+              setPersonFilter("all");
+              setSearch("");
+            }}
+          />
         </div>
         <div className={styles.tableWrapper}>
           <table className={`${styles.table} ${styles.queueTable}`}>
@@ -1004,7 +1150,14 @@ function PendingRequestsView({
               </tr>
             </thead>
             <tbody>
-              {requests.map((req) => (
+              {visible.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className={styles.emptyCell}>
+                    {requests.length === 0 ? "No open requests." : "No requests match your search or filters."}
+                  </td>
+                </tr>
+              ) : null}
+              {visible.map((req) => (
                 <tr
                   key={req.id}
                   className={req.id === selectedId ? styles.rowSelected : undefined}
@@ -1021,7 +1174,13 @@ function PendingRequestsView({
                   </td>
                   <td>
                     <strong>{req.resident}</strong>
+                    {req.residentDeleted ? <span className={styles.deletedTag}>Account deleted</span> : null}
                     <div className={styles.cellSub}>{req.unit}</div>
+                    {req.returnedNote ? (
+                      <div className={styles.returnedTag} title={req.returnedNote}>
+                        Returned to queue
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     <span className={styles.categoryCell}>
@@ -1207,12 +1366,43 @@ function OngoingRepairsView({
 }) {
   const criticalCount = jobs.filter((j) => j.priority === "high").length;
   const overdueCount = jobs.filter((j) => j.isOverdue).length;
-  const filtered =
-    jobTab === "critical"
-      ? jobs.filter((j) => j.priority === "high")
-      : jobTab === "overdue"
-        ? jobs.filter((j) => j.isOverdue)
-        : jobs;
+  const [order, setOrder] = useState("newest");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [techFilter, setTechFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase().replace(/^#/, "");
+    const tabbed =
+      jobTab === "critical"
+        ? jobs.filter((j) => j.priority === "high")
+        : jobTab === "overdue"
+          ? jobs.filter((j) => j.isOverdue)
+          : jobs;
+    const rows = tabbed.filter(
+      (j) =>
+        (priorityFilter === "all" || j.priorityLevel === priorityFilter) &&
+        (categoryFilter === "all" || j.category === categoryFilter) &&
+        (techFilter === "all" || j.tech === techFilter) &&
+        (!term ||
+          j.id === term ||
+          j.title.toLowerCase().includes(term) ||
+          j.location.toLowerCase().includes(term) ||
+          j.tech.toLowerCase().includes(term)),
+    );
+    const sorted = [...rows].sort(byNewest);
+    if (order === "oldest") sorted.reverse();
+    if (order === "deadline")
+      sorted.sort((a, b) => {
+        const da = parseServerDate(a.deadline)?.getTime() ?? Number.POSITIVE_INFINITY;
+        const db = parseServerDate(b.deadline)?.getTime() ?? Number.POSITIVE_INFINITY;
+        return da - db || byNewest(a, b);
+      });
+    if (order === "priority")
+      sorted.sort((a, b) => (PRIORITY_RANK[a.priorityLevel] ?? 9) - (PRIORITY_RANK[b.priorityLevel] ?? 9) || byNewest(a, b));
+    if (order === "tech") sorted.sort((a, b) => a.tech.localeCompare(b.tech) || byNewest(a, b));
+    return sorted;
+  }, [jobs, jobTab, order, priorityFilter, categoryFilter, techFilter, search]);
 
   return (
     <section className={styles.card}>
@@ -1240,6 +1430,52 @@ function OngoingRepairsView({
             Overdue ({overdueCount})
           </button>
         </div>
+      </div>
+
+      <div style={{ padding: "0 0.75rem 0.75rem" }}>
+        <ListControls
+          search={{ value: search, onChange: setSearch, placeholder: "Search ticket, location or technician" }}
+          sort={{
+            value: order,
+            onChange: setOrder,
+            options: [
+              { value: "newest", label: "Newest first" },
+              { value: "oldest", label: "Oldest first" },
+              { value: "deadline", label: "Deadline (soonest first)" },
+              { value: "priority", label: "Priority (highest first)" },
+              { value: "tech", label: "Technician (A-Z)" },
+            ],
+          }}
+          filters={[
+            { id: "priority", label: "Priority", value: priorityFilter, options: PRIORITY_FILTER, onChange: setPriorityFilter },
+            {
+              id: "category",
+              label: "Category",
+              value: categoryFilter,
+              options: categoryOptions(jobs.map((j) => j.category)),
+              onChange: setCategoryFilter,
+            },
+            {
+              id: "tech",
+              label: "Technician",
+              value: techFilter,
+              options: [
+                { value: "all", label: "All technicians" },
+                ...Array.from(new Set(jobs.map((j) => j.tech)))
+                  .sort()
+                  .map((value) => ({ value, label: value })),
+              ],
+              onChange: setTechFilter,
+            },
+          ]}
+          onReset={() => {
+            setOrder("newest");
+            setPriorityFilter("all");
+            setCategoryFilter("all");
+            setTechFilter("all");
+            setSearch("");
+          }}
+        />
       </div>
 
       <div className={styles.tableWrapper}>
@@ -1285,11 +1521,13 @@ function OngoingRepairsView({
                     <span className={styles.categoryCell}>
                       <Home size={14} /> {job.location}
                     </span>
+                    {job.residentDeleted ? <span className={styles.deletedTag}>Resident account deleted</span> : null}
                   </td>
                   <td>
                     <div className={styles.techCell}>
                       <div className={styles.avatar}>{job.techInitials}</div>
                       <strong>{job.tech}</strong>
+                      {job.techDeleted ? <span className={styles.deletedTag}>Account deleted</span> : null}
                     </div>
                   </td>
                   <td>
@@ -1395,6 +1633,7 @@ function OngoingJobDetailView({
             <label>Location</label>
             <p>{job.location}</p>
           </div>
+          <ResidentWords text={job.residentReport} />
           <div className={styles.sideGroup}>
             <label>Resident</label>
             <p>
@@ -1930,6 +2169,7 @@ function TicketDetailView({
               {ticket.unit}
             </p>
           </div>
+          <ResidentWords text={ticket.residentReport} />
           <div className={styles.sideGroup}>
             <label>Reported</label>
             <p>{ticket.reportedAt}</p>
@@ -1971,8 +2211,12 @@ const PRIORITY_OPTIONS: { value: string; label: string; cls: string }[] = [
 
 const MIN_PRIORITY_REASON = 10;
 
+/** A stored deadline is UTC; the editor shows it, and takes new ones, as the admin's local time. */
 function toLocalInput(value: string | null | undefined): string {
-  return value ? value.replace(" ", "T").slice(0, 16) : "";
+  const d = parseServerDate(value);
+  if (!d) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function TicketEditor({
@@ -2201,21 +2445,42 @@ function DispatchFlowModal({
   onConfirmDecline: () => void;
   onTicketSaved: () => void;
 }) {
-  const skillMatch =
-    ticket.category === "Appliance" ? ["General", "Plumbing"] : [ticket.category];
+  const [techOrder, setTechOrder] = useState("match");
+  const [techAvail, setTechAvail] = useState("all");
+  const [techSpecialty, setTechSpecialty] = useState("all");
+  const [techSearch, setTechSearch] = useState("");
   const allTechs = staff.filter((s) => s.isTech);
   const byWorkload = (a: StaffMember, b: StaffMember) => a.activeTaskCount - b.activeTaskCount;
-  // Show every maintenance tech, but surface the ones matching this ticket's
-  // category first, and within each group put the least-loaded techs first.
-  // Previously techs with no matching specialty were dropped entirely, so a
-  // ticket could hide real, available technicians.
-  const matched = allTechs
-    .filter((s) => skillMatch.some((skill) => s.skills.includes(skill) || s.specialty === skill))
-    .sort(byWorkload);
-  const unmatched = allTechs.filter((s) => !matched.includes(s)).sort(byWorkload);
   const offShiftLast = (a: StaffMember, b: StaffMember) =>
     Number(a.status === "off-shift") - Number(b.status === "off-shift");
-  const list = [...matched, ...unmatched].sort(offShiftLast);
+  // Every maintenance tech stays listed. By default the ones whose specialization fits this ticket's category come
+  // first (a Structural ticket lists the structural technicians on top), then generalists, and within each group the
+  // least-loaded and on-shift ones. The controls below re-sort or narrow the list.
+  const term = techSearch.trim().toLowerCase();
+  const list = allTechs
+    .filter(
+      (t) =>
+        (techAvail === "all" || (techAvail === "available" ? t.status === "available" : t.status !== "off-shift")) &&
+        (techSpecialty === "all" || t.specialty === techSpecialty) &&
+        (!term || t.name.toLowerCase().includes(term) || t.specialty.toLowerCase().includes(term)),
+    )
+    .sort((a, b) => {
+      if (techOrder === "workload") return byWorkload(a, b) || a.name.localeCompare(b.name);
+      if (techOrder === "name") return a.name.localeCompare(b.name);
+      if (techOrder === "specialty") return a.specialty.localeCompare(b.specialty) || byWorkload(a, b);
+      return (
+        specialtyFit(b.specialty, ticket.category) - specialtyFit(a.specialty, ticket.category) ||
+        offShiftLast(a, b) ||
+        byWorkload(a, b) ||
+        a.name.localeCompare(b.name)
+      );
+    });
+  const specialtyOptions = [
+    { value: "all", label: "All specializations" },
+    ...Array.from(new Set(allTechs.map((t) => t.specialty).filter(Boolean)))
+      .sort()
+      .map((value) => ({ value, label: value })),
+  ];
   const selected = staff.find((s) => s.id === selectedTechId);
   // Not a hard limit — an emergency may genuinely need the busiest tech. This
   // only drives a confirmation warning so the dispatcher sees the risk.
@@ -2453,6 +2718,12 @@ function DispatchFlowModal({
                 <label>Preferred day</label>
                 <p>{ticket.preferredDay}</p>
               </div>
+              {ticket.residentReport ? (
+                <div className={styles.metaFull}>
+                  <label>Resident&apos;s own words</label>
+                  <p style={{ whiteSpace: "pre-wrap", fontStyle: "italic" }}>&ldquo;{ticket.residentReport}&rdquo;</p>
+                </div>
+              ) : null}
             </div>
 
             <TicketEditor
@@ -2550,7 +2821,42 @@ function DispatchFlowModal({
                 {deadlineError}
               </p>
             ) : null}
+            <ListControls
+              search={{ value: techSearch, onChange: setTechSearch, placeholder: "Search technician or specialization" }}
+              sort={{
+                value: techOrder,
+                onChange: setTechOrder,
+                options: [
+                  { value: "match", label: `Best match for ${ticket.category}` },
+                  { value: "workload", label: "Lightest workload" },
+                  { value: "specialty", label: "Specialization (A-Z)" },
+                  { value: "name", label: "Name (A-Z)" },
+                ],
+              }}
+              filters={[
+                {
+                  id: "avail",
+                  label: "Availability",
+                  value: techAvail,
+                  onChange: setTechAvail,
+                  options: [
+                    { value: "all", label: "Everyone" },
+                    { value: "onshift", label: "On shift only" },
+                    { value: "available", label: "Free right now" },
+                  ],
+                },
+                { id: "specialty", label: "Specialization", value: techSpecialty, onChange: setTechSpecialty, options: specialtyOptions },
+              ]}
+              summary={`Showing ${list.length} of ${allTechs.length} technicians`}
+              onReset={() => {
+                setTechOrder("match");
+                setTechAvail("all");
+                setTechSpecialty("all");
+                setTechSearch("");
+              }}
+            />
             <div className={styles.techOptions}>
+              {list.length === 0 ? <p className={styles.helpText}>No technician matches these filters.</p> : null}
               {list.map((tech) => (
                 <button
                   key={tech.id}
@@ -2580,6 +2886,14 @@ function DispatchFlowModal({
                           : tech.status === "off-shift"
                           ? `Off shift${tech.shift !== NOT_AVAILABLE ? ` · ${tech.shift}` : ""}`
                           : "In Progress"}
+                      </p>
+                      <p>
+                        <span className={styles.specTag}>{tech.specialty || "No specialization"}</span>
+                        {specialtyFit(tech.specialty, ticket.category) === 2 ? (
+                          <span className={styles.matchTag}>Best match</span>
+                        ) : specialtyFit(tech.specialty, ticket.category) === 1 ? (
+                          <span className={styles.generalTag}>General</span>
+                        ) : null}
                       </p>
                     </div>
                   </div>

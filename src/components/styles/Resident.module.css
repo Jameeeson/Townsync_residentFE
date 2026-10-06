@@ -1225,3 +1225,25 @@
   color: var(--text-muted);
   font-size: 0.72rem;
 }
+
+/* Narrow screens: the staff/resident search box fills the card instead of keeping its 360px desktop width, and the
+   small icon buttons get a finger-sized target. */
+@media (max-width: 640px) {
+  .searchBox,
+  .searchBoxWide {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .searchBox input,
+  .searchBoxWide input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .actionBtn,
+  .closeBtn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}

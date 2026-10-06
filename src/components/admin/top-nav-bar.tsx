@@ -1,29 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Megaphone, Menu, Search, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Megaphone, Menu, Search, X } from "lucide-react";
 import { apiGet } from "../../lib/api";
+import NotificationBell from "./notification-bell";
 import styles from "./top-nav-bar.module.css";
 
 type TopNavBarProps = {
   onMenuOpen?: () => void;
   onCreateAlert?: () => void;
   userName?: string | null;
-};
-
-type NotificationItem = {
-  type: string;
-  title: string;
-  detail: string | null;
-  created_at: string | null;
-  href: string;
-};
-
-type NotificationsResponse = {
-  total: number;
-  counts: Record<string, number>;
-  items: NotificationItem[];
 };
 
 type SearchResult = {
@@ -34,8 +21,6 @@ type SearchResult = {
   href: string;
 };
 
-const NOTIFICATION_POLL_MS = 60_000;
-
 function initialsFor(name: string | null | undefined): string {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/);
@@ -44,32 +29,18 @@ function initialsFor(name: string | null | undefined): string {
 }
 
 export default function TopNavBar({ onMenuOpen, onCreateAlert, userName }: TopNavBarProps) {
-  const [notifications, setNotifications] = useState<NotificationsResponse | null>(null);
-  const [bellOpen, setBellOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   // Phones show search behind an icon so the header stays one row.
   const [mobileSearch, setMobileSearch] = useState(false);
-  const bellRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  const loadNotifications = useCallback(() => {
-    apiGet<NotificationsResponse>("/api/v1/admin/operations/notifications")
-      .then(setNotifications)
-      .catch(() => setNotifications(null));
-  }, []);
-
-  useEffect(() => {
-    loadNotifications();
-    const timer = setInterval(loadNotifications, NOTIFICATION_POLL_MS);
-    return () => clearInterval(timer);
-  }, [loadNotifications]);
 
   // Debounced global search.
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) return;
+    // A ticket number can be one digit ("7", "#7", "TC-7"); everything else needs two characters.
+    if (term.length < 2 && !/^\d$/.test(term)) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       apiGet<{ results: SearchResult[] }>(
@@ -92,15 +63,14 @@ export default function TopNavBar({ onMenuOpen, onCreateAlert, userName }: TopNa
   useEffect(() => {
     const onDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (bellRef.current && !bellRef.current.contains(target)) setBellOpen(false);
       if (searchRef.current && !searchRef.current.contains(target)) setSearchOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  const total = notifications?.total ?? 0;
-  const showResults = searchOpen && query.trim().length >= 2 && results !== null;
+  const searchable = query.trim().length >= 2 || /^\d$/.test(query.trim());
+  const showResults = searchOpen && searchable && results !== null;
 
   return (
     <header className={styles.topNav}>
@@ -123,7 +93,7 @@ export default function TopNavBar({ onMenuOpen, onCreateAlert, userName }: TopNa
         <input
           type="search"
           className={styles.searchInput}
-          placeholder="Search residents, tickets, visitors..."
+          placeholder="Search residents, tickets (name or #ID), visitors..."
           aria-label="Global search"
           maxLength={60}
           value={query}
@@ -176,41 +146,7 @@ export default function TopNavBar({ onMenuOpen, onCreateAlert, userName }: TopNa
           <span className={styles.createAlertLabel}>Create Alert</span>
         </button>
         <span className={styles.divider} aria-hidden="true" />
-        <div className={styles.bellWrap} ref={bellRef}>
-          <button
-            type="button"
-            className={styles.iconButton}
-            aria-label={total > 0 ? `Notifications (${total} pending)` : "Notifications"}
-            aria-expanded={bellOpen}
-            onClick={() => {
-              if (!bellOpen) loadNotifications();
-              setBellOpen((open) => !open);
-            }}
-          >
-            <Bell size={20} />
-            {total > 0 ? <span className={styles.badge}>{total > 99 ? "99+" : total}</span> : null}
-          </button>
-          {bellOpen ? (
-            <div className={`${styles.popover} ${styles.popoverRight}`} role="menu">
-              {!notifications || notifications.items.length === 0 ? (
-                <p className={styles.popoverEmpty}>You are all caught up.</p>
-              ) : (
-                notifications.items.map((n, i) => (
-                  <Link
-                    key={`${n.type}-${i}`}
-                    href={n.href}
-                    className={styles.popoverItem}
-                    onClick={() => setBellOpen(false)}
-                  >
-                    <span className={styles.popoverTitle}>{n.title}</span>
-                    {n.detail ? <span className={styles.popoverDetail}>{n.detail}</span> : null}
-                    {n.created_at ? <span className={styles.popoverDetail}>{n.created_at}</span> : null}
-                  </Link>
-                ))
-              )}
-            </div>
-          ) : null}
-        </div>
+        <NotificationBell />
         <div className={styles.avatar} aria-label="User profile" title={userName ?? undefined}>
           {initialsFor(userName)}
         </div>

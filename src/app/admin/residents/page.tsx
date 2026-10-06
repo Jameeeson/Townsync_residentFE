@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Search,
   UserPlus,
-  Plus,
   MoreVertical,
   ArrowLeft,
   X,
@@ -36,6 +35,7 @@ import {
 import DocumentViewer, { type ViewerSource } from "../../../components/admin/document-viewer";
 import ResidentDocumentPicker from "../../../components/admin/resident-document-picker";
 import AdminShell from "../../../components/admin/admin-shell";
+import SpecializationSelect from "../../../components/admin/specialization-select";
 import ShiftFields, { joinShift, shiftLabel, splitShift } from "../../../components/admin/shift-fields";
 import { StaffChatModal } from "../../../components/admin/staff-chat";
 import { formatServerFull } from "../../../lib/datetime";
@@ -62,6 +62,8 @@ type ResidentApiRecord = {
   due_day?: number | null;
   due_day_is_custom?: boolean;
   next_due_date?: string | null;
+  account_deleted?: boolean;
+  deleted_at?: string | null;
 };
 
 type Resident = {
@@ -82,6 +84,7 @@ type Resident = {
   dueDay: number | null;
   dueDayIsCustom: boolean;
   nextDueDate: string | null;
+  accountDeleted: boolean;
 };
 
 type DeactivationRequestItem = {
@@ -112,18 +115,11 @@ type StaffUser = {
   shift?: string | null;
   shift_label?: string | null;
   on_shift?: boolean | null;
+  specialization?: string | null;
+  account_deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_reason?: string | null;
 };
-
-type AccessGroup = {
-  id: number;
-  name: string;
-  description: string | null;
-  permissions: string[];
-  assigned_users: number;
-};
-
-type PermissionInfo = { key: string; label: string; description: string };
-type GroupMember = { user_id: number; email: string; status: string };
 
 export default function DirectoryAndUserManagementPage() {
   const { toast, toastError } = useToast();
@@ -131,7 +127,6 @@ export default function DirectoryAndUserManagementPage() {
 
   // View & Modal States
   const [isAddingResident, setIsAddingResident] = useState(false);
-  const [showAddAccessGroupModal, setShowAddAccessGroupModal] = useState(false);
 
   // Add Resident form state — wired to POST /api/v1/admin/residents/onboard.
   // Document is uploaded to POST /api/v1/admin/residents/upload-documents right after onboarding.
@@ -324,6 +319,7 @@ export default function DirectoryAndUserManagementPage() {
           dueDay: item.due_day ?? null,
           dueDayIsCustom: Boolean(item.due_day_is_custom),
           nextDueDate: item.next_due_date ?? null,
+          accountDeleted: Boolean(item.account_deleted),
         }));
         setResidents(mapped);
         return mapped;
@@ -562,7 +558,8 @@ export default function DirectoryAndUserManagementPage() {
     if (staffSort === "name-asc") rows.sort((a, b) => label(a).localeCompare(label(b)));
     else if (staffSort === "name-desc") rows.sort((a, b) => label(b).localeCompare(label(a)));
     else if (staffSort === "role") rows.sort((a, b) => a.role.localeCompare(b.role) || label(a).localeCompare(label(b)));
-    return rows;
+    // Deleted accounts stay listed, after everyone who is still active.
+    return rows.sort((a, b) => Number(Boolean(a.account_deleted)) - Number(Boolean(b.account_deleted)));
   }, [staffUsers, staffRole, staffSort]);
   const [staffBusyId, setStaffBusyId] = useState<number | null>(null);
 
@@ -731,6 +728,7 @@ export default function DirectoryAndUserManagementPage() {
   const [editingStaffUser, setEditingStaffUser] = useState<StaffUser | null>(null);
   const [editFullName, setEditFullName] = useState("");
   const [editEmployeeId, setEditEmployeeId] = useState("");
+  const [editSpecialization, setEditSpecialization] = useState("");
   const [editShiftStart, setEditShiftStart] = useState("");
   const [editShiftEnd, setEditShiftEnd] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
@@ -741,6 +739,7 @@ export default function DirectoryAndUserManagementPage() {
     setEditingStaffUser(user);
     setEditFullName(user.full_name ?? "");
     setEditEmployeeId(user.employee_id ?? "");
+    setEditSpecialization(user.specialization ?? "");
     const [start, end] = splitShift(user.shift);
     setEditShiftStart(start);
     setEditShiftEnd(end);
@@ -755,12 +754,18 @@ export default function DirectoryAndUserManagementPage() {
       return;
     }
     const newShift = hasShift ? joinShift(editShiftStart, editShiftEnd) : null;
+    const isTech = editingStaffUser.role === "Maintenance";
+    if (isTech && !editSpecialization.trim()) {
+      setEditError("A maintenance technician needs a specialization.");
+      return;
+    }
     setEditSubmitting(true);
     setEditError(null);
     try {
       await apiPatch(`/api/v1/admin/staff/${editingStaffUser.user_id}`, {
         full_name: editFullName,
         employee_id: editEmployeeId,
+        ...(isTech ? { specialization: editSpecialization.trim() } : {}),
         ...(hasShift ? { shift: newShift } : {}),
       });
       toast(`${editFullName || editingStaffUser.email} updated.`, "success");
@@ -770,6 +775,7 @@ export default function DirectoryAndUserManagementPage() {
               ...prev,
               full_name: editFullName,
               employee_id: editEmployeeId,
+              ...(isTech ? { specialization: editSpecialization.trim() } : {}),
               ...(hasShift ? { shift: newShift || null, shift_label: shiftLabel(newShift) } : {}),
             }
           : prev,
@@ -830,14 +836,24 @@ export default function DirectoryAndUserManagementPage() {
 
   const handleDeleteStaffUser = async (user: StaffUser) => {
     setStaffMenuOpenId(null);
-    if (!window.confirm(`Permanently delete ${user.full_name ?? user.email}'s account? This cannot be undone.`)) {
-      return;
-    }
+    const who = user.full_name ?? user.email;
+    const extra =
+      user.role === "Maintenance"
+        ? " Any unfinished tickets go back to the dispatch queue and the residents are told."
+        : "";
+    // Nothing is erased: the account stops working and is marked deleted. A reason is optional.
+    const reason = window.prompt(
+      `Delete ${who}'s account?\n\nThey will not be able to sign in. Their history stays and shows "account deleted".${extra}\n\nReason (optional):`,
+      "",
+    );
+    if (reason === null) return;
     setStaffBusyId(user.user_id);
     setStaffError(null);
     try {
-      await apiDelete(`/api/v1/admin/staff/${user.user_id}`);
-      toast(`${user.full_name ?? user.email} deleted.`, "success");
+      const result = await apiDelete<{ message: string }>(
+        `/api/v1/admin/staff/${user.user_id}${reason.trim() ? `?reason=${encodeURIComponent(reason.trim())}` : ""}`,
+      );
+      toast(result?.message ?? `${who} deleted.`, "success");
       setViewingStaffUser((prev) => (prev && prev.user_id === user.user_id ? null : prev));
       loadStaffUsers();
     } catch (err) {
@@ -848,143 +864,56 @@ export default function DirectoryAndUserManagementPage() {
     }
   };
 
-  // Access Groups: real CRUD via /api/v1/admin/access-groups. Permissions are stored per
-  // group; they are a record only and are not yet enforced by other endpoints.
-  const [accessGroups, setAccessGroups] = useState<AccessGroup[]>([]);
-  const [groupSearch, setGroupSearch] = useState("");
-  const [groupsError, setGroupsError] = useState<string | null>(null);
-  const [permissionCatalog, setPermissionCatalog] = useState<PermissionInfo[]>([]);
-  const [editingGroup, setEditingGroup] = useState<AccessGroup | null>(null);
-  const [groupName, setGroupName] = useState("");
-  const [groupDescription, setGroupDescription] = useState("");
-  const [groupPermissions, setGroupPermissions] = useState<string[]>([]);
-  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
-  const [memberCandidates, setMemberCandidates] = useState<StaffUser[]>([]);
-  const [memberToAdd, setMemberToAdd] = useState("");
-  const [groupSubmitting, setGroupSubmitting] = useState(false);
-  const [groupError, setGroupError] = useState<string | null>(null);
-  const [groupMenuOpenId, setGroupMenuOpenId] = useState<number | null>(null);
-
-  const loadAccessGroups = () => {
-    const query = groupSearch ? `?search=${encodeURIComponent(groupSearch)}` : "";
-    apiGet<AccessGroup[]>(`/api/v1/admin/access-groups/${query}`)
-      .then((data) => {
-        setAccessGroups(data);
-        setGroupsError(null);
-      })
-      .catch((err) => setGroupsError(err instanceof Error ? err.message : "Failed to load access groups"));
-  };
-
-  useEffect(() => {
-    if (activeTab !== "security") return;
-    loadAccessGroups();
-  }, [activeTab, groupSearch]);
-
-  useEffect(() => {
-    if (!showAddAccessGroupModal || permissionCatalog.length > 0) return;
-    apiGet<PermissionInfo[]>("/api/v1/admin/access-groups/permissions")
-      .then(setPermissionCatalog)
-      .catch((err) => setGroupError(err instanceof Error ? err.message : "Failed to load permissions"));
-  }, [showAddAccessGroupModal, permissionCatalog.length]);
-
-  const loadGroupMembers = (groupId: number) => {
-    apiGet<GroupMember[]>(`/api/v1/admin/access-groups/${groupId}/members`)
-      .then(setGroupMembers)
-      .catch((err) => setGroupError(err instanceof Error ? err.message : "Failed to load members"));
-  };
-
-  const openGroupModal = (group: AccessGroup | null) => {
-    setGroupMenuOpenId(null);
-    setEditingGroup(group);
-    setGroupName(group?.name ?? "");
-    setGroupDescription(group?.description ?? "");
-    setGroupPermissions(group?.permissions ?? []);
-    setGroupMembers([]);
-    setMemberToAdd("");
-    setGroupError(null);
-    setShowAddAccessGroupModal(true);
-    if (group) {
-      loadGroupMembers(group.id);
-      apiGet<StaffUser[]>("/api/v1/admin/staff/")
-        .then(setMemberCandidates)
-        .catch(() => setMemberCandidates([]));
-    }
-  };
-
-  const closeGroupModal = () => {
-    setShowAddAccessGroupModal(false);
-    setEditingGroup(null);
-  };
-
-  const submitAccessGroup = async () => {
-    if (!groupName.trim()) {
-      setGroupError("Group name is required.");
-      return;
-    }
-    setGroupSubmitting(true);
-    setGroupError(null);
+  const handleRestoreStaffUser = async (user: StaffUser) => {
+    setStaffMenuOpenId(null);
+    setStaffBusyId(user.user_id);
     try {
-      const body = { name: groupName.trim(), description: groupDescription.trim(), permissions: groupPermissions };
-      if (editingGroup) {
-        await apiPatch(`/api/v1/admin/access-groups/${editingGroup.id}`, body);
-      } else {
-        await apiPost("/api/v1/admin/access-groups/", body);
-      }
-      toast(
-        editingGroup
-          ? `Access group "${body.name}" updated.`
-          : `Access group "${body.name}" created.`,
-        "success",
-      );
-      closeGroupModal();
-      loadAccessGroups();
+      await apiPost(`/api/v1/admin/staff/${user.user_id}/restore`, {});
+      toast(`${user.full_name ?? user.email} restored.`, "success");
+      setViewingStaffUser((prev) => (prev && prev.user_id === user.user_id ? null : prev));
+      loadStaffUsers();
     } catch (err) {
-      toastError(err, "Could not save the access group.");
-      setGroupError(err instanceof Error ? err.message : "Failed to save access group");
+      toastError(err, "Could not restore this account.");
     } finally {
-      setGroupSubmitting(false);
+      setStaffBusyId(null);
     }
   };
 
-  const handleDeleteAccessGroup = async (group: AccessGroup) => {
-    setGroupMenuOpenId(null);
-    if (!window.confirm(`Delete access group "${group.name}"? Its member assignments will be removed.`)) return;
+  const handleDeleteResident = async (resident: Resident) => {
+    setResidentMenuOpenId(null);
+    const reason = window.prompt(
+      `Delete ${resident.name}'s account?\n\nThey will not be able to sign in. Open requests are cancelled and unused visitor passes stop working. ` +
+        `Their bills, past tickets and logs stay and show "account deleted".\n\nReason (optional):`,
+      "",
+    );
+    if (reason === null) return;
+    setResidentBusyId(resident.id);
     try {
-      await apiDelete(`/api/v1/admin/access-groups/${group.id}`);
-      toast(`Access group "${group.name}" deleted.`, "success");
-      loadAccessGroups();
+      const result = await apiDelete<{ message: string }>(
+        `/api/v1/admin/residents/${resident.id}${reason.trim() ? `?reason=${encodeURIComponent(reason.trim())}` : ""}`,
+      );
+      toast(result?.message ?? "Resident account deleted.", "success");
+      setViewingResident((prev) => (prev && prev.id === resident.id ? null : prev));
+      loadResidents();
     } catch (err) {
-      toastError(err, "Could not delete the access group.");
-      setGroupsError(err instanceof Error ? err.message : "Failed to delete access group");
+      toastError(err, "Could not delete this resident.");
+    } finally {
+      setResidentBusyId(null);
     }
   };
 
-  const addGroupMember = async () => {
-    if (!editingGroup || !memberToAdd) return;
-    setGroupError(null);
+  const handleRestoreResident = async (resident: Resident) => {
+    setResidentMenuOpenId(null);
+    setResidentBusyId(resident.id);
     try {
-      await apiPost(`/api/v1/admin/access-groups/${editingGroup.id}/members`, { user_ids: [Number(memberToAdd)] });
-      toast(`Member added to "${editingGroup.name}".`, "success");
-      setMemberToAdd("");
-      loadGroupMembers(editingGroup.id);
-      loadAccessGroups();
+      await apiPost(`/api/v1/admin/residents/${resident.id}/restore`, {});
+      toast(`${resident.name} restored.`, "success");
+      setViewingResident((prev) => (prev && prev.id === resident.id ? null : prev));
+      loadResidents();
     } catch (err) {
-      toastError(err, "Could not add that member.");
-      setGroupError(err instanceof Error ? err.message : "Failed to add member");
-    }
-  };
-
-  const removeGroupMember = async (userId: number) => {
-    if (!editingGroup) return;
-    setGroupError(null);
-    try {
-      await apiDelete(`/api/v1/admin/access-groups/${editingGroup.id}/members/${userId}`);
-      toast(`Member removed from "${editingGroup.name}".`, "success");
-      loadGroupMembers(editingGroup.id);
-      loadAccessGroups();
-    } catch (err) {
-      toastError(err, "Could not remove that member.");
-      setGroupError(err instanceof Error ? err.message : "Failed to remove member");
+      toastError(err, "Could not restore this resident.");
+    } finally {
+      setResidentBusyId(null);
     }
   };
 
@@ -1206,7 +1135,7 @@ export default function DirectoryAndUserManagementPage() {
               onClick={() => setActiveTab("security")}
             >
               <ShieldCheck size={18} />
-              Security & Access Control
+              Security
             </button>
           </nav>
 
@@ -1354,6 +1283,7 @@ export default function DirectoryAndUserManagementPage() {
                                 {item.initials}
                               </span>
                               <span className={styles.userName}>{item.name}</span>
+                              {item.accountDeleted ? <span className={`${styles.badge} ${styles.badgeGray}`}>Account deleted</span> : null}
                             </div>
                           </td>
                           <td>
@@ -1364,14 +1294,16 @@ export default function DirectoryAndUserManagementPage() {
                           <td>
                             <span
                               className={`${styles.badge} ${
-                                item.status === "Pending"
+                                item.accountDeleted
+                                  ? styles.badgeGray
+                                  : item.status === "Pending"
                                   ? styles.badgeOrange
                                   : item.status === "Active"
                                   ? styles.badgeGreen
                                   : styles.badgeGray
                               }`}
                             >
-                              {item.status}
+                              {item.accountDeleted ? "Deleted" : item.status}
                             </span>
                           </td>
                           <td
@@ -1379,7 +1311,16 @@ export default function DirectoryAndUserManagementPage() {
                             style={{ position: "relative" }}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {item.status === "Pending" ? (
+                            {item.accountDeleted ? (
+                              <button
+                                type="button"
+                                className={styles.secondaryOutlineBtn}
+                                disabled={residentBusyId === item.id}
+                                onClick={() => handleRestoreResident(item)}
+                              >
+                                Restore
+                              </button>
+                            ) : item.status === "Pending" ? (
                               <div className={styles.groupActions}>
                                 <button
                                   type="button"
@@ -1435,6 +1376,9 @@ export default function DirectoryAndUserManagementPage() {
                                         Suspend
                                       </button>
                                     )}
+                                    <button type="button" onClick={() => handleDeleteResident(item)}>
+                                      Delete account
+                                    </button>
                                   </div>
                                 ) : null}
                               </>
@@ -1512,6 +1456,7 @@ export default function DirectoryAndUserManagementPage() {
                       <th>ROLE</th>
                       <th>EMAIL</th>
                       <th>EMPLOYEE ID</th>
+                      <th>SPECIALIZATION</th>
                       <th>SHIFT</th>
                       <th>STATUS</th>
                       <th className={styles.textRight}>ACTIONS</th>
@@ -1520,13 +1465,14 @@ export default function DirectoryAndUserManagementPage() {
                   <tbody>
                     {visibleStaff.length === 0 ? (
                       <tr>
-                        <td colSpan={7}>No staff or admin accounts found.</td>
+                        <td colSpan={8}>No staff or admin accounts found.</td>
                       </tr>
                     ) : (
                       visibleStaff.map((user) => (
                         <tr
                           key={user.user_id}
                           className={styles.clickableRow}
+                          style={user.account_deleted ? { opacity: 0.6 } : undefined}
                           onClick={() => setViewingStaffUser(user)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") setViewingStaffUser(user);
@@ -1534,10 +1480,18 @@ export default function DirectoryAndUserManagementPage() {
                           role="button"
                           tabIndex={0}
                         >
-                          <td className={styles.userNameBold}>{user.full_name ?? "—"}</td>
+                          <td className={styles.userNameBold}>
+                            {user.full_name ?? "—"}
+                            {user.account_deleted ? (
+                              <span className={`${styles.badge} ${styles.badgeGray}`} style={{ marginLeft: 8 }}>Account deleted</span>
+                            ) : null}
+                          </td>
                           <td>{user.role}</td>
                           <td className={styles.subTextDark}>{user.email}</td>
                           <td className={styles.subTextDark}>{user.employee_id ?? "—"}</td>
+                          <td className={styles.subTextDark} data-label="Specialization">
+                            {user.role === "Maintenance" ? user.specialization || "Not set" : "—"}
+                          </td>
                           <td className={styles.subTextDark} data-label="Shift">
                             {user.shift_label ?? "—"}
                           </td>
@@ -1551,7 +1505,7 @@ export default function DirectoryAndUserManagementPage() {
                                   : styles.badgeGray
                               }`}
                             >
-                              {user.status}
+                              {user.account_deleted ? "Deleted" : user.status}
                             </span>
                           </td>
                           <td
@@ -1559,7 +1513,16 @@ export default function DirectoryAndUserManagementPage() {
                             style={{ position: "relative" }}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {user.status === "Pending" ? (
+                            {user.account_deleted ? (
+                              <button
+                                type="button"
+                                className={styles.secondaryOutlineBtn}
+                                disabled={staffBusyId === user.user_id}
+                                onClick={() => handleRestoreStaffUser(user)}
+                              >
+                                Restore
+                              </button>
+                            ) : user.status === "Pending" ? (
                               <div className={styles.groupActions}>
                                 <button
                                   type="button"
@@ -1622,7 +1585,7 @@ export default function DirectoryAndUserManagementPage() {
             </div>
           )}
 
-          {/* --- TAB 3: Security & Access Control --- */}
+          {/* --- TAB 3: Security --- */}
           {activeTab === "security" && (
             <div className={styles.tabContent}>
               {/* Global Security Toggles */}
@@ -1664,86 +1627,6 @@ export default function DirectoryAndUserManagementPage() {
                 </div>
               </div>
 
-              {/* Access Groups Directory */}
-              <div className={styles.accessSection}>
-                {groupsError ? <p className={styles.subText}>{groupsError}</p> : null}
-                <div className={styles.toolbar}>
-                  <h3>Access Groups</h3>
-                  <div className={styles.toolbarRight}>
-                    <div className={styles.searchBox}>
-                      <Search size={16} className={styles.searchIcon} />
-                      <input
-                        type="text"
-                        placeholder="Search access groups..."
-                        value={groupSearch}
-                        onChange={(e) => setGroupSearch(e.target.value)}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.primaryBtn}
-                      onClick={() => openGroupModal(null)}
-                    >
-                      <Plus size={16} /> Add Access Group
-                    </button>
-                  </div>
-                </div>
-
-                <div className={styles.tableWrapper}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>GROUP NAME</th>
-                        <th>DESCRIPTION</th>
-                        <th>ASSIGNED USERS</th>
-                        <th className={styles.textRight}>ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {accessGroups.length === 0 ? (
-                        <tr>
-                          <td colSpan={4}>No access groups yet.</td>
-                        </tr>
-                      ) : (
-                        accessGroups.map((group) => (
-                          <tr key={group.id}>
-                            <td className={styles.userNameBold}>{group.name}</td>
-                            <td className={styles.subTextDark}>{group.description || "—"}</td>
-                            <td className={styles.subTextDark}>
-                              {group.assigned_users} {group.assigned_users === 1 ? "User" : "Users"}
-                            </td>
-                            <td className={styles.textRight} style={{ position: "relative" }}>
-                              <div className={styles.groupActions}>
-                                <button
-                                  type="button"
-                                  className={styles.secondaryOutlineBtn}
-                                  onClick={() => openGroupModal(group)}
-                                >
-                                  Edit Permissions
-                                </button>
-                                <button
-                                  type="button"
-                                  className={styles.actionBtn}
-                                  onClick={() => setGroupMenuOpenId(groupMenuOpenId === group.id ? null : group.id)}
-                                >
-                                  <MoreVertical size={18} />
-                                </button>
-                                {groupMenuOpenId === group.id ? (
-                                  <div className={styles.dropdownMenu}>
-                                    <button type="button" onClick={() => handleDeleteAccessGroup(group)}>
-                                      Delete
-                                    </button>
-                                  </div>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -1780,7 +1663,7 @@ export default function DirectoryAndUserManagementPage() {
                           : styles.badgeGray
                       }`}
                     >
-                      {viewingResident.status}
+                      {viewingResident.accountDeleted ? "Account deleted" : viewingResident.status}
                     </span>
                   </p>
                 </div>
@@ -2060,7 +1943,17 @@ export default function DirectoryAndUserManagementPage() {
 
             <div className={`${styles.modalFooter} ${styles.residentModalFooter}`}>
               <div>
-                {viewingResident.status === "Pending" || viewingResident.status === "Suspended" ? (
+                {viewingResident.accountDeleted ? (
+                  <button
+                    type="button"
+                    className={styles.secondaryOutlineBtn}
+                    disabled={residentBusyId === viewingResident.id}
+                    onClick={() => handleRestoreResident(viewingResident)}
+                  >
+                    Restore Account
+                  </button>
+                ) : null}
+                {!viewingResident.accountDeleted && (viewingResident.status === "Pending" || viewingResident.status === "Suspended") ? (
                   <button
                     type="button"
                     className={styles.secondaryOutlineBtn}
@@ -2090,7 +1983,17 @@ export default function DirectoryAndUserManagementPage() {
                     Reject
                   </button>
                 ) : null}
-                {viewingResident.status === "Active" ? (
+                {!viewingResident.accountDeleted ? (
+                  <button
+                    type="button"
+                    className={styles.dangerOutlineBtn}
+                    disabled={residentBusyId === viewingResident.id}
+                    onClick={() => handleDeleteResident(viewingResident)}
+                  >
+                    Delete Account
+                  </button>
+                ) : null}
+                {!viewingResident.accountDeleted && viewingResident.status === "Active" ? (
                   <button
                     type="button"
                     className={styles.dangerOutlineBtn}
@@ -2199,6 +2102,16 @@ export default function DirectoryAndUserManagementPage() {
                   <AlertCircle size={16} /> {staffError}
                 </div>
               ) : null}
+              {viewingStaffUser.account_deleted ? (
+                <div className={styles.infoNote}>
+                  <Info size={15} aria-hidden="true" />
+                  <span>
+                    This account was deleted{viewingStaffUser.deleted_at ? ` on ${formatServerFull(viewingStaffUser.deleted_at)}` : ""}
+                    {viewingStaffUser.deleted_reason ? ` (${viewingStaffUser.deleted_reason})` : ""}. They cannot sign in and their
+                    history is kept. Restore the account to let them back in.
+                  </span>
+                </div>
+              ) : null}
               {!viewingStaffUser.full_name ? (
                 <div className={styles.infoNote}>
                   <Info size={15} aria-hidden="true" />
@@ -2218,6 +2131,12 @@ export default function DirectoryAndUserManagementPage() {
                   <dt>Role</dt>
                   <dd>{viewingStaffUser.role}</dd>
                 </div>
+                {viewingStaffUser.role === "Maintenance" ? (
+                  <div>
+                    <dt>Specialization</dt>
+                    <dd>{viewingStaffUser.specialization || "Not set"}</dd>
+                  </div>
+                ) : null}
                 {viewingStaffUser.role !== "Admin" ? (
                   <div>
                     <dt>Shift</dt>
@@ -2238,14 +2157,25 @@ export default function DirectoryAndUserManagementPage() {
 
             <div className={`${styles.modalFooter} ${styles.residentModalFooter}`}>
               <div>
-                <button
-                  type="button"
-                  className={styles.dangerOutlineBtn}
-                  disabled={staffBusyId === viewingStaffUser.user_id}
-                  onClick={() => handleDeleteStaffUser(viewingStaffUser)}
-                >
-                  Delete
-                </button>
+                {viewingStaffUser.account_deleted ? (
+                  <button
+                    type="button"
+                    className={styles.secondaryOutlineBtn}
+                    disabled={staffBusyId === viewingStaffUser.user_id}
+                    onClick={() => handleRestoreStaffUser(viewingStaffUser)}
+                  >
+                    Restore Account
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.dangerOutlineBtn}
+                    disabled={staffBusyId === viewingStaffUser.user_id}
+                    onClick={() => handleDeleteStaffUser(viewingStaffUser)}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
               <div>
                 {viewingStaffUser.status === "Pending" ? (
@@ -2383,12 +2313,12 @@ export default function DirectoryAndUserManagementPage() {
               </div>
               {registerStaffType === "Maintenance" ? (
                 <div className={styles.formGroup}>
-                  <label>Specialization</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Plumbing, HVAC"
+                  <label htmlFor="register-specialization">Specialization</label>
+                  <SpecializationSelect
+                    id="register-specialization"
                     value={registerSpecialization}
-                    onChange={(e) => setRegisterSpecialization(e.target.value)}
+                    onChange={setRegisterSpecialization}
+                    disabled={registerSubmitting}
                   />
                 </div>
               ) : null}
@@ -2458,6 +2388,17 @@ export default function DirectoryAndUserManagementPage() {
                   onChange={(e) => setEditEmployeeId(e.target.value)}
                 />
               </div>
+              {editingStaffUser.role === "Maintenance" ? (
+                <div className={styles.formGroup}>
+                  <label htmlFor="edit-specialization">Specialization</label>
+                  <SpecializationSelect
+                    id="edit-specialization"
+                    value={editSpecialization}
+                    onChange={setEditSpecialization}
+                    disabled={editSubmitting}
+                  />
+                </div>
+              ) : null}
               {editingStaffUser.role !== "Admin" ? (
                 <ShiftFields
                   idPrefix="edit-shift"
@@ -2623,121 +2564,6 @@ export default function DirectoryAndUserManagementPage() {
         </div>
       )}
 
-      {/* --- MODAL: Add / Edit Access Group --- */}
-      {showAddAccessGroupModal && (
-        <div className={styles.modalOverlay}>
-          <div className={`${styles.modalContent} ${styles.modalContentWide}`}>
-            <div className={styles.modalHeader}>
-              <div>
-                <h2>{editingGroup ? "Edit Access Group" : "Add Access Group"}</h2>
-                <p>Group permissions are recorded here; other endpoints do not enforce them yet.</p>
-              </div>
-              <button type="button" className={styles.closeBtn} onClick={closeGroupModal}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className={styles.modalBody}>
-              {groupError ? <p className={styles.subText}>{groupError}</p> : null}
-              <div className={styles.formGroup}>
-                <label>Group Name</label>
-                <input
-                  type="text"
-                  maxLength={80}
-                  placeholder="e.g. Vendor Access"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                />
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Group Description</label>
-                <textarea
-                  rows={3}
-                  maxLength={500}
-                  value={groupDescription}
-                  onChange={(e) => setGroupDescription(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <div className={styles.permissionsTitle}>
-                  <ShieldCheck size={16} /> PERMISSIONS CHECKLIST
-                </div>
-                <div className={styles.permissionsGrid}>
-                  {permissionCatalog.map((perm) => {
-                    const checked = groupPermissions.includes(perm.key);
-                    return (
-                      <div
-                        key={perm.key}
-                        className={`${styles.permissionCard} ${checked ? styles.permissionCardActive : ""}`}
-                      >
-                        <div className={styles.permissionMeta}>
-                          <strong>{perm.label}</strong>
-                          <span>{perm.description}</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() =>
-                            setGroupPermissions((prev) =>
-                              checked ? prev.filter((k) => k !== perm.key) : [...prev, perm.key],
-                            )
-                          }
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {editingGroup ? (
-                <div>
-                  <div className={styles.permissionsTitle}>
-                    <Users size={16} /> ASSIGNED USERS
-                  </div>
-                  {groupMembers.length === 0 ? (
-                    <p className={styles.subText}>No users assigned to this group.</p>
-                  ) : (
-                    groupMembers.map((m) => (
-                      <div key={m.user_id} style={{ display: "flex", justifyContent: "space-between", padding: "0.25rem 0" }}>
-                        <span>{m.email}</span>
-                        <button type="button" className={styles.cancelBtn} onClick={() => removeGroupMember(m.user_id)}>
-                          Remove
-                        </button>
-                      </div>
-                    ))
-                  )}
-                  <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-                    <select value={memberToAdd} onChange={(e) => setMemberToAdd(e.target.value)} style={{ flex: 1 }}>
-                      <option value="">Select a staff or admin account…</option>
-                      {memberCandidates
-                        .filter((u) => !groupMembers.some((m) => m.user_id === u.user_id))
-                        .map((u) => (
-                          <option key={u.user_id} value={u.user_id}>
-                            {u.full_name ?? u.email} ({u.role})
-                          </option>
-                        ))}
-                    </select>
-                    <button type="button" className={styles.secondaryOutlineBtn} disabled={!memberToAdd} onClick={addGroupMember}>
-                      Add
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className={styles.modalFooter}>
-              <button type="button" className={styles.cancelBtn} onClick={closeGroupModal}>
-                Cancel
-              </button>
-              <button type="button" className={styles.submitBtn} disabled={groupSubmitting} onClick={submitAccessGroup}>
-                {groupSubmitting ? "Saving..." : "Save Access Group"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </AdminShell>
   );
 }

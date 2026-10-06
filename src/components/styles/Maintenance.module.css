@@ -2663,3 +2663,84 @@
     overflow-wrap: anywhere;
   }
 }
+
+
+/* --- Deleted accounts, returned tickets, specialization match --- */
+.deletedTag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.returnedTag {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.returnedNote {
+  margin: 0.5rem 0;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.specTag,
+.matchTag,
+.generalTag {
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.specTag { background: #e0e7ff; color: #3730a3; }
+.matchTag { background: #dcfce7; color: #15803d; }
+.generalTag { background: #f1f5f9; color: #475569; }
+
+/* Dispatch modal on narrow screens: grid children may shrink below their content, otherwise the technician list and
+   the filter panel push past the modal's right edge and get clipped. */
+.dispatchGrid > * {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .dispatchGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.techCard {
+  flex-wrap: wrap;
+}
+
+.techInfo {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.techInfo strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .loadLabel {
+    margin-left: auto;
+  }
+}
