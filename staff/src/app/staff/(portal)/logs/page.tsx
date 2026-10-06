@@ -13,27 +13,50 @@ import {
   getVisitorLogs,
   type VisitorLog,
   type VisitorLogDetail,
+  type VisitorLogFilter,
+  type VisitorLogSort,
 } from "@/lib/services/staff";
+import { ListControls } from "@/components/ListControls";
 import { StatDetailModal, type StatDetailRow } from "@/components/StatDetailModal";
 import { useStaffSession } from "@/contexts/StaffSessionContext";
 import styles from "./logs.module.css";
 import { parseServerDate } from "@/lib/datetime";
 
-type UiStatus = "checked-in" | "departed" | "denied" | "pending";
+type UiStatus = "checked-in" | "departed" | "denied" | "pending" | "upcoming" | "expired";
 
 const STATUS_LABEL: Record<UiStatus, string> = {
-  "checked-in": "Checked In",
+  "checked-in": "Approved",
   departed: "Departed",
   denied: "Denied",
-  pending: "Pending",
+  pending: "Awaiting approval",
+  upcoming: "Upcoming",
+  expired: "Expired",
 };
 
 function toUiStatus(status: string): UiStatus {
   if (status === "Checked In") return "checked-in";
-  if (status === "Departed") return "departed";
+  if (status.startsWith("Departed")) return "departed";
   if (status === "Rejected") return "denied";
-  return "pending";
+  if (status === "Approved") return "upcoming";
+  if (status === "Pending") return "pending";
+  return "expired";
 }
+
+const STATUS_CHIPS: { value: VisitorLogFilter; label: string }[] = [
+  { value: "All", label: "All" },
+  { value: "CheckedIn", label: "Inside now" },
+  { value: "Departed", label: "Departed" },
+  { value: "Upcoming", label: "Upcoming" },
+  { value: "Pending", label: "Awaiting approval" },
+  { value: "Rejected", label: "Denied" },
+];
+
+const SORTS: { value: VisitorLogSort; label: string }[] = [
+  { value: "recent", label: "Most recent first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "name", label: "Visitor name (A-Z)" },
+  { value: "unit", label: "Unit / destination" },
+];
 
 function initialsFor(name: string) {
   if (!name || name === "Unknown Visitor") return "?";
@@ -62,6 +85,10 @@ export default function StaffLogsPage() {
   const router = useRouter();
   const { loading: sessionLoading, canUseLogs } = useStaffSession();
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<VisitorLogFilter>("All");
+  const [sort, setSort] = useState<VisitorLogSort>("recent");
+  // "Upcoming" is judged against the moment the page opened; a stale minute does not matter here.
+  const [loadedAt] = useState(() => Date.now());
   const [logs, setLogs] = useState<VisitorLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +104,7 @@ export default function StaffLogsPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getVisitorLogs(query.trim() || undefined);
+        const data = await getVisitorLogs(query.trim() || undefined, { status: statusFilter, sort });
         if (!cancelled) setLogs(data);
       } catch (e) {
         if (!cancelled) {
@@ -92,7 +119,7 @@ export default function StaffLogsPage() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [query, sessionLoading, canUseLogs]);
+  }, [query, statusFilter, sort, sessionLoading, canUseLogs]);
 
   const [detailFor, setDetailFor] = useState<VisitorLog | null>(null);
   const [detail, setDetail] = useState<VisitorLogDetail | null>(null);
@@ -144,6 +171,9 @@ export default function StaffLogsPage() {
       return Number.isNaN(t) ? -Infinity : t;
     };
 
+    // Time-based orders are grouped by day; name and unit orders are one flat, server-sorted list.
+    if (sort === "name" || sort === "unit") return [["All visitors", logs]] as [string, VisitorLog[]][];
+
     const byDay = new Map<string, VisitorLog[]>();
     for (const log of logs) {
       const key = dayGroupFor(log.timestamp);
@@ -151,15 +181,23 @@ export default function StaffLogsPage() {
       byDay.get(key)!.push(log);
     }
 
+    const direction = sort === "oldest" ? 1 : -1;
     const entries = Array.from(byDay.entries()).map(
       ([label, items]) =>
-        [label, items.sort((a, b) => timeOf(b) - timeOf(a))] as [string, VisitorLog[]],
+        [label, items.sort((a, b) => direction * (timeOf(a) - timeOf(b)))] as [string, VisitorLog[]],
     );
 
-    // Sort groups by their most recent entry, newest first, regardless of API row order.
-    entries.sort(([, a], [, b]) => timeOf(b[0]) - timeOf(a[0]));
-    return entries;
-  }, [logs]);
+    // What already happened comes first (newest first); visits still to come follow, labelled as such.
+    const future = (items: VisitorLog[]) => timeOf(items[0]) > loadedAt;
+    entries.sort(([, a], [, b]) => {
+      if (sort === "recent" && future(a) !== future(b)) return future(a) ? 1 : -1;
+      return direction * (timeOf(a[0]) - timeOf(b[0]));
+    });
+    return entries.map(
+      ([label, items]) =>
+        [sort === "recent" && future(items) ? `${label} · upcoming` : label, items] as [string, VisitorLog[]],
+    );
+  }, [logs, sort, loadedAt]);
 
   return (
     <div className={styles.page}>
@@ -179,11 +217,43 @@ export default function StaffLogsPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search guests…"
-            aria-label="Search guests"
+            placeholder="Search guests or unit…"
+            aria-label="Search guests or unit"
           />
         </label>
       </div>
+
+      <div role="tablist" aria-label="Filter by status" style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem", margin: "0.9rem 0 0.4rem" }}>
+        {STATUS_CHIPS.map((chip) => (
+          <button
+            key={chip.value}
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === chip.value}
+            onClick={() => setStatusFilter(chip.value)}
+            style={{
+              minHeight: 38,
+              padding: "0 0.9rem",
+              borderRadius: 999,
+              border: "1px solid var(--line)",
+              fontSize: "0.82rem",
+              fontWeight: 650,
+              background: statusFilter === chip.value ? "var(--navy-800)" : "var(--surface-raised)",
+              color: statusFilter === chip.value ? "#fff" : "var(--navy-800)",
+            }}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+      <ListControls
+        sort={{ value: sort, options: SORTS, onChange: (v) => setSort(v as VisitorLogSort) }}
+        onReset={() => {
+          setSort("recent");
+          setStatusFilter("All");
+          setQuery("");
+        }}
+      />
 
       <div className={styles.tableWrap}>
         <div className={styles.tableHead} aria-hidden>
@@ -203,7 +273,7 @@ export default function StaffLogsPage() {
           </p>
         ) : groups.length === 0 ? (
           <p className={styles.empty} role="status">
-            No visitor logs match this search.
+            No visitor logs match this search or filter.
           </p>
         ) : (
           groups.map(([label, items]) => (
@@ -260,7 +330,9 @@ export default function StaffLogsPage() {
                               ? styles.badgeOut
                               : status === "denied"
                                 ? styles.badgeDenied
-                                : styles.badgePending
+                                : status === "upcoming"
+                                  ? styles.badgeIn
+                                  : styles.badgePending
                         }`}
                       >
                         {STATUS_LABEL[status]}

@@ -25,6 +25,7 @@ export type TaskDetails = {
   status: "pending" | "progress" | "done";
   description?: string;
   imageUrls?: string[];
+  residentReport?: string | null;
 };
 
 type Props = {
@@ -126,6 +127,15 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
             <section className={styles.section}>
               <h3>Resident&apos;s description</h3>
               <p className={styles.description}>{task.description}</p>
+            </section>
+          ) : null}
+
+          {task.residentReport ? (
+            <section className={styles.section}>
+              <h3>Resident&apos;s own words</h3>
+              <p className={styles.description} style={{ fontStyle: "italic" }}>
+                &ldquo;{task.residentReport}&rdquo;
+              </p>
             </section>
           ) : null}
 

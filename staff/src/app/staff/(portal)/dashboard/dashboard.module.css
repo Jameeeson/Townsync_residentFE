@@ -99,18 +99,8 @@
   text-align: left;
   font: inherit;
   color: inherit;
-  cursor: pointer;
+  cursor: default;
   transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
-}
-
-.stat:hover {
-  border-color: var(--navy-100);
-  box-shadow: var(--shadow-md);
-}
-
-.stat:focus-visible {
-  outline: 3px solid var(--navy-100);
-  outline-offset: 2px;
 }
 
 .statIcon {
@@ -150,21 +140,6 @@
 
 .statGreen .statText strong {
   color: #157a41;
-}
-
-.statHint {
-  grid-column: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--navy-700);
-  opacity: 0.75;
-}
-
-.stat:hover .statHint {
-  opacity: 1;
 }
 
 /* ─── Board ─── */

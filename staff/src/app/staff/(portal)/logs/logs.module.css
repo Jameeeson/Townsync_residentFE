@@ -299,3 +299,12 @@
     font-size: 1.45rem;
   }
 }
+
+/* Touch screens: the visitor name is a button, so give it a finger-sized target. */
+@media (max-width: 640px) {
+  .nameButton {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+  }
+}

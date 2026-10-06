@@ -217,7 +217,7 @@ export default function StaffLoginPage() {
                 <input
                   name="identity"
                   type="email"
-                  placeholder="user@email.com.rivera@townsync.local"
+                  placeholder="user@email.com"
                   autoComplete="username"
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? "login-error" : undefined}

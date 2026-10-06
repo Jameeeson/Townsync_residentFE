@@ -58,6 +58,8 @@ export function getExpectedVisitorBreakdown() {
 
 /** Bell-icon feed: assigned tickets (Maintenance) or today's expected visitors (Staff). */
 export type StaffNotificationItem = {
+  key: string;
+  read: boolean;
   type: string;
   title: string;
   detail: string | null;
@@ -66,13 +68,20 @@ export type StaffNotificationItem = {
 };
 
 export type StaffNotifications = {
+  /** Unread items: the bell badge. */
   total: number;
+  read_count: number;
   counts: Record<string, number>;
   items: StaffNotificationItem[];
 };
 
 export function getStaffNotifications() {
   return api.get<StaffNotifications>("/api/v1/staff/dashboard/notifications");
+}
+
+/** Mark specific items read (`keys`), or every current item (`all`). */
+export function markStaffNotificationsRead(body: { keys?: string[]; all?: boolean }) {
+  return api.post<{ marked: number }>("/api/v1/staff/dashboard/notifications/read", body);
 }
 
 // ----- Tasks (Maintenance staff only) -----
@@ -90,6 +99,8 @@ export type MaintenanceTask = {
   resident_name: string | null;
   initial_image_url: string | null;
   image_urls?: string[];
+  /** The resident's own words, unchanged (description is the AI's English rewrite). */
+  resident_report?: string | null;
   assigned_at: string | null;
   deadline: string | null;
 };
@@ -260,8 +271,18 @@ export type VisitorLog = {
   party_size?: number;
 };
 
-export function getVisitorLogs(search?: string) {
-  const qs = search ? `?search=${encodeURIComponent(search)}` : "";
+export type VisitorLogFilter = "All" | "CheckedIn" | "Departed" | "Upcoming" | "Pending" | "Rejected";
+export type VisitorLogSort = "recent" | "oldest" | "name" | "unit";
+
+export function getVisitorLogs(
+  search?: string,
+  options: { status?: VisitorLogFilter; sort?: VisitorLogSort } = {},
+) {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (options.status && options.status !== "All") params.set("status_filter", options.status);
+  if (options.sort && options.sort !== "recent") params.set("sort", options.sort);
+  const qs = params.toString() ? `?${params.toString()}` : "";
   return api.get<VisitorLog[]>(`/api/v1/staff/logs/visitors${qs}`);
 }
 

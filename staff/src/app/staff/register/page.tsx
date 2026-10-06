@@ -16,6 +16,7 @@ import {
 import { ApiError } from "@/lib/api-client";
 import { registerStaff } from "@/lib/auth";
 import { joinShift } from "@/lib/shift";
+import { SpecializationPicker } from "@/components/SpecializationPicker";
 import styles from "../login/login.module.css";
 
 export default function StaffRegisterPage() {
@@ -183,19 +184,10 @@ export default function StaffRegisterPage() {
               </label>
 
               {role === "Maintenance" ? (
-                <label className={styles.field}>
+                <div className={styles.field}>
                   <span>Specialization</span>
-                  <div className={styles.inputWrap}>
-                    <IconUser size={18} className={styles.inputIcon} />
-                    <input
-                      name="specialization"
-                      type="text"
-                      placeholder="e.g. Plumbing, HVAC, Electrical"
-                      maxLength={80}
-                      required
-                    />
-                  </div>
-                </label>
+                  <SpecializationPicker />
+                </div>
               ) : null}
 
               <div className={styles.shiftRow}>

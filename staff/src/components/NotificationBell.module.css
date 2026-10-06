@@ -1,0 +1,235 @@
+.wrap {
+  position: relative;
+}
+
+.bell {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--navy-800);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  transition: background 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.bell:hover {
+  background: var(--navy-50);
+  transform: translateY(-1px);
+}
+
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e11d48;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 50;
+  width: min(calc(100vw - 1.5rem), 380px);
+  max-height: min(32rem, 76vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: fade-up 0.25s var(--ease) both;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 0.65rem;
+}
+
+.head h2 {
+  font-size: 1rem;
+  color: var(--navy-950);
+}
+
+.head p {
+  margin-top: 0.1rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.markAll {
+  min-height: 34px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--navy-800);
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.markAll:hover:not(:disabled) {
+  background: var(--navy-50);
+}
+
+.markAll:disabled {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.2rem;
+  padding: 0 0.7rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.tab {
+  min-height: 40px;
+  padding: 0 0.7rem;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.tabActive {
+  color: var(--navy-900);
+  border-bottom-color: var(--navy-800);
+}
+
+.count {
+  margin-left: 0.25rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-tint);
+  font-size: 0.7rem;
+}
+
+.tabActive .count {
+  background: var(--navy-100);
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-raised);
+  text-align: left;
+}
+
+.item:hover {
+  background: var(--surface-tint);
+}
+
+.itemUnread {
+  background: var(--info-soft);
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.title {
+  font-size: 0.88rem;
+  color: var(--ink);
+  font-weight: 550;
+}
+
+.itemUnread .title {
+  font-weight: 750;
+}
+
+.time {
+  flex: none;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.detail {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.tag {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dot {
+  flex: none;
+  align-self: center;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--info);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.empty strong {
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+/* Phones: the bell sits left of the profile button, so a right-anchored panel runs off the left edge. Dock it to
+   the screen edges instead. */
+@media (max-width: 560px) {
+  .panel {
+    position: fixed;
+    top: 70px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}

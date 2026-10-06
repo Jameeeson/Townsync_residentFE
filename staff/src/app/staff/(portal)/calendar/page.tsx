@@ -24,6 +24,7 @@ type CalTask = {
   status: UiStatus;
   deadline: string | null;  description?: string;
   imageUrls?: string[];
+  residentReport?: string | null;
 };
 
 function toUiStatus(status: MaintenanceTask["status"]): UiStatus {
@@ -56,6 +57,7 @@ function toCalTask(t: MaintenanceTask): CalTask {
     status: toUiStatus(t.status),
     description: t.description,
     imageUrls: t.image_urls ?? (t.initial_image_url ? [t.initial_image_url] : []),
+    residentReport: t.resident_report ?? null,
     deadline: t.deadline,
   };
 }
