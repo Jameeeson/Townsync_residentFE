@@ -5,7 +5,7 @@ import { Plus, X } from "lucide-react";
 import styles from "./photoPicker.module.css";
 
 const MAX_BYTES = 10 * 1024 * 1024;
-const OK_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const OK_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 type Props = {
   files: File[];
@@ -31,7 +31,7 @@ export default function PhotoPicker({ files, onChange, onReject, max = 5, inputI
         break;
       }
       if (file.type && !OK_TYPES.includes(file.type)) {
-        onReject?.(`${file.name} is not a photo. Use a JPG, PNG or WebP image.`);
+        onReject?.(`${file.name} cannot be used. Use a JPG, PNG or WebP image (on an iPhone, choose a photo saved as JPEG).`);
         continue;
       }
       if (file.size > MAX_BYTES) {
@@ -65,7 +65,7 @@ export default function PhotoPicker({ files, onChange, onReject, max = 5, inputI
           </li>
         ) : null}
       </ul>
-      <input ref={inputRef} id={inputId} className={styles.input} type="file" accept="image/*" multiple onChange={(e) => add(e.target.files)} />
+      <input ref={inputRef} id={inputId} className={styles.input} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => add(e.target.files)} />
       <p className={styles.count}>{files.length} of {max} photos</p>
     </div>
   );

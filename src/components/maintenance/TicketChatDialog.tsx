@@ -83,6 +83,11 @@ export default function TicketChatDialog({ ticketId, onClose }: Props) {
   const streamRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const stickToBottom = useRef(true);
+  // The parent passes a fresh onClose on every render; keeping it in a ref stops the focus and scroll-lock effect re-running.
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,7 +118,7 @@ export default function TicketChatDialog({ ticketId, onClose }: Props) {
     document.body.style.overflow = "hidden";
     fieldRef.current?.focus();
     const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeRef.current();
       if (event.key === "Tab" && dialogRef.current) {
         const items = dialogRef.current.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled), a[href]");
         if (items.length === 0) return;
@@ -134,7 +139,7 @@ export default function TicketChatDialog({ ticketId, onClose }: Props) {
       document.body.style.overflow = previousOverflow;
       opener?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   // The box is disabled until the thread loads, so focus it the moment it can take focus.
   const ready = Boolean(thread);

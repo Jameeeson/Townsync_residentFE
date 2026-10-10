@@ -194,6 +194,8 @@ export interface AiChatTurnResponse {
   suggested_options: string[];
   summary_state: AiSummaryState;
   is_complete: boolean;
+  /** True when the message was not about maintenance and got the fixed "coming soon" reply. */
+  out_of_scope?: boolean;
   ticket_id: number | null;
   /** True if this message matched an emergency keyword server-side. */
   emergency: boolean;
