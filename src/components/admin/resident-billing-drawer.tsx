@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Bell, CheckCircle2, Download, Eye, Pencil, Plus, Trash2, X } from "lucide-react";
-import { apiDelete, apiDownload, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { AlertTriangle, Bell, CheckCircle2, Download, Eye, Pencil, Plus, Trash2, Undo2, X } from "lucide-react";
+import { apiDownload, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import DocumentViewer, { type ViewerSource } from "@/components/admin/document-viewer";
 import styles from "./resident-billing-drawer.module.css";
@@ -34,6 +34,7 @@ type ResidentBilling = {
 };
 
 type Line = { id: number | null; kind: "dues" | "charge" | "penalty"; category: string; label: string; amount: number };
+type Draft = { key: number; category: (typeof CATEGORIES)[number]; label: string; amount: number };
 type Receipt = {
   id: number;
   file_path: string;
@@ -118,6 +119,10 @@ export default function ResidentBillingDrawer({
   const [busy, setBusy] = useState(false);
   const [viewer, setViewer] = useState<ViewerSource | null>(null);
 
+  // Charges are staged here and only sent when the admin presses Save, so the resident gets one notice.
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [removedIds, setRemovedIds] = useState<number[]>([]);
+
   const [showAdd, setShowAdd] = useState(false);
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("Maintenance");
   const [label, setLabel] = useState("");
@@ -183,50 +188,62 @@ export default function ResidentBillingDrawer({
     }
   };
 
-  const addCharge = async (e: React.FormEvent) => {
+  const addCharge = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!detail) return;
     const amount = Number(chargeAmount.replace(/[^0-9.]/g, ""));
     if (!amount || amount <= 0) {
       toast("Enter an amount greater than zero.", "warning");
       return;
     }
-    const payload = { category, label: label.trim() || undefined, amount };
-    if (settled) {
-      // Nothing unpaid to put it on: it goes on the next monthly statement, which is created now.
-      setBusy(true);
-      try {
-        const result = await apiPost<{ created_statement: boolean; invoice: { id: number } }>(
-          `/api/v1/admin/finance/residents/${residentId}/charges`,
-          payload,
-        );
-        toast(
-          result.created_statement
-            ? `${category} charge added on a new statement. The resident was notified.`
-            : `${category} charge added. The resident was notified.`,
-          "success",
-        );
-        if (selectedId === result.invoice.id) {
-          await refresh();
-        } else {
-          setSelectedId(result.invoice.id);
-          await loadBook();
-          onChanged();
-        }
-      } catch (err) {
-        toastError(err, "Could not add the charge.");
-      } finally {
-        setBusy(false);
-      }
-    } else {
-      await run(
-        () => apiPost(`/api/v1/admin/finance/invoices/${detail.id}/charges`, payload),
-        `${category} charge added. The resident was notified.`,
-      );
-    }
+    setDrafts((current) => [...current, { key: Date.now() + current.length, category, label: label.trim() || category, amount }]);
     setLabel("");
     setChargeAmount("");
     setShowAdd(false);
+  };
+
+  const discardChanges = () => {
+    setDrafts([]);
+    setRemovedIds([]);
+  };
+
+  const saveCharges = async () => {
+    if (!detail || (drafts.length === 0 && removedIds.length === 0)) return;
+    setBusy(true);
+    try {
+      const result = await apiPost<{ created_statement: boolean; invoice: { id: number } }>(
+        `/api/v1/admin/finance/residents/${residentId}/charges/save`,
+        {
+          invoice_id: detail.id,
+          add: drafts.map((d) => ({ category: d.category, label: d.label, amount: d.amount })),
+          remove: removedIds,
+        },
+      );
+      toast(
+        result.created_statement
+          ? "Charges saved on a new statement. The resident was notified."
+          : "Charges saved. The resident was notified.",
+        "success",
+      );
+      discardChanges();
+      if (selectedId === result.invoice.id) {
+        await refresh();
+      } else {
+        setSelectedId(result.invoice.id);
+        await loadBook();
+        onChanged();
+      }
+    } catch (err) {
+      toastError(err, "Could not save the charges. Nothing was changed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseStatement = (id: number) => {
+    if (id === selectedId) return;
+    if (hasChanges && !window.confirm("You have unsaved charge changes. Discard them?")) return;
+    discardChanges();
+    setSelectedId(id);
   };
 
   const recordPayment = async (e: React.FormEvent) => {
@@ -268,10 +285,18 @@ export default function ResidentBillingDrawer({
 
   const unpaidCount = book?.invoices.filter((i) => i.status !== "Paid").length ?? 0;
   const settled = detail?.status === "Paid";
+  const hasChanges = drafts.length > 0 || removedIds.length > 0;
+  const pendingDelta =
+    drafts.reduce((sum, d) => sum + d.amount, 0) -
+    (detail?.lines.filter((l) => l.kind === "charge" && l.id != null && removedIds.includes(l.id)).reduce((sum, l) => sum + l.amount, 0) ?? 0);
+  const closeDrawer = () => {
+    if (hasChanges && !window.confirm("You have unsaved charge changes. Close without saving?")) return;
+    onClose();
+  };
   const nextStatement = book?.next_statement ?? null;
 
   return (
-    <div className={styles.overlay} role="presentation" onClick={onClose}>
+    <div className={styles.overlay} role="presentation" onClick={closeDrawer}>
       <div className={styles.panel} role="dialog" aria-modal="true" aria-label="Resident bills" onClick={(e) => e.stopPropagation()}>
         <header className={styles.header}>
           <div className={styles.who}>
@@ -284,7 +309,7 @@ export default function ResidentBillingDrawer({
               <p>{[book?.unit_number, book?.email].filter(Boolean).join(" · ") || " "}</p>
             </div>
           </div>
-          <button type="button" className={styles.close} aria-label="Close" onClick={onClose}>
+          <button type="button" className={styles.close} aria-label="Close" onClick={closeDrawer}>
             <X size={20} />
           </button>
         </header>
@@ -300,7 +325,7 @@ export default function ResidentBillingDrawer({
                 role="tab"
                 aria-selected={inv.id === selectedId}
                 className={`${styles.chip} ${inv.id === selectedId ? styles.chipActive : ""}`}
-                onClick={() => setSelectedId(inv.id)}
+                onClick={() => chooseStatement(inv.id)}
               >
                 <span>{inv.due_date}</span>
                 <span className={`${styles.dot} ${statusClass(inv.status, inv.is_due_today)}`} />
@@ -346,8 +371,10 @@ export default function ResidentBillingDrawer({
                 <h3>Bill breakdown</h3>
                 <table className={styles.lines} data-keep-table>
                   <tbody>
-                    {detail.lines.map((line) => (
-                      <tr key={`${line.kind}-${line.id ?? line.label}`}>
+                    {detail.lines.map((line) => {
+                      const removed = line.kind === "charge" && line.id != null && removedIds.includes(line.id);
+                      return (
+                      <tr key={`${line.kind}-${line.id ?? line.label}`} className={removed ? styles.removedRow : undefined}>
                         <td>
                           {line.label}
                           {line.kind === "charge" && line.category !== line.label ? <em> · {line.category}</em> : null}
@@ -391,12 +418,33 @@ export default function ResidentBillingDrawer({
                               aria-label={`Remove ${line.label}`}
                               disabled={busy}
                               onClick={() =>
-                                run(() => apiDelete(`/api/v1/admin/finance/invoices/${detail.id}/charges/${line.id}`), "Charge removed.")
+                                setRemovedIds((ids) => (removed ? ids.filter((x) => x !== line.id) : [...ids, line.id as number]))
                               }
                             >
-                              <Trash2 size={15} />
+                              {removed ? <Undo2 size={15} /> : <Trash2 size={15} />}
                             </button>
                           ) : null}
+                        </td>
+                      </tr>
+                      );
+                    })}
+                    {drafts.map((d) => (
+                      <tr key={`draft-${d.key}`} className={styles.draftRow}>
+                        <td>
+                          {d.label}
+                          {d.category !== d.label ? <em> · {d.category}</em> : null}
+                          <span className={styles.newTag}>Not saved</span>
+                        </td>
+                        <td className={styles.amount}>{peso(d.amount)}</td>
+                        <td className={styles.rowAction}>
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            aria-label={`Discard ${d.label}`}
+                            onClick={() => setDrafts((current) => current.filter((x) => x.key !== d.key))}
+                          >
+                            <X size={15} />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -419,7 +467,7 @@ export default function ResidentBillingDrawer({
                       aria-label="Amount"
                       required
                     />
-                    <button type="submit" className={styles.primary} disabled={busy}>Add</button>
+                    <button type="submit" className={styles.primary}>Add to list</button>
                     <button type="button" className={styles.ghost} onClick={() => setShowAdd(false)}>Cancel</button>
                   </form>
                 ) : (
@@ -427,6 +475,21 @@ export default function ResidentBillingDrawer({
                     <Plus size={15} /> Add charge (maintenance, utilities, other)
                   </button>
                 )}
+                {hasChanges ? (
+                  <div className={styles.saveBar} role="status">
+                    <span>
+                      {drafts.length > 0 ? `${drafts.length} to add` : ""}
+                      {drafts.length > 0 && removedIds.length > 0 ? " · " : ""}
+                      {removedIds.length > 0 ? `${removedIds.length} to remove` : ""}
+                      {" · "}
+                      <strong>{pendingDelta >= 0 ? "+" : "−"} {peso(Math.abs(pendingDelta))}</strong>
+                    </span>
+                    <button type="button" className={styles.ghost} onClick={discardChanges} disabled={busy}>Discard</button>
+                    <button type="button" className={styles.primary} onClick={saveCharges} disabled={busy}>
+                      {busy ? "Saving…" : "Save changes"}
+                    </button>
+                  </div>
+                ) : null}
                 <p className={styles.alertNote}>
                   <Bell size={13} />
                   <span>
@@ -436,7 +499,7 @@ export default function ResidentBillingDrawer({
                           ? `This statement is paid, so a new charge goes on their next statement (due ${nextStatement.due_date}).`
                           : `This statement is paid, so a new charge creates their next monthly statement (due ${nextStatement.due_date}, with the regular HOA dues).`
                         : "This statement is paid, so a new charge goes on their next monthly statement."
-                      : "The resident is emailed and sees a notice on their Billing page whenever a charge or the HOA dues change."}
+                      : "Charges are not final until you press Save changes. The resident is then emailed once and sees a notice on their Billing page."}
                   </span>
                 </p>
 

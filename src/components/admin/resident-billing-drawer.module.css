@@ -485,3 +485,41 @@
     padding: 0.55rem 0.9rem;
   }
 }
+
+/* Charges staged in the list but not saved yet */
+.removedRow td:not(.rowAction) {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.draftRow td {
+  background: #eff6ff;
+}
+
+.newTag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-style: normal;
+}
+
+.saveBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  font-size: 0.875rem;
+}
+
+.saveBar > span {
+  flex: 1 1 180px;
+}
