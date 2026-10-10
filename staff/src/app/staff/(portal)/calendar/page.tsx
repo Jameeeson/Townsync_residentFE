@@ -18,6 +18,7 @@ type CalTask = {
   id: number;
   title: string;
   priority: "high" | "medium" | "low";
+  priorityText: string;
   location: string;
   meta: string;
   icon: "wrench" | "snow" | "shield";
@@ -25,6 +26,7 @@ type CalTask = {
   deadline: string | null;  description?: string;
   imageUrls?: string[];
   residentReport?: string | null;
+  stage?: string | null;
 };
 
 function toUiStatus(status: MaintenanceTask["status"]): UiStatus {
@@ -51,6 +53,7 @@ function toCalTask(t: MaintenanceTask): CalTask {
     id: t.request_id,
     title: t.category,
     priority: toUiPriority(t.priority_level),
+    priorityText: t.priority_level,
     location: t.unit_number ?? "Common Area",
     meta: t.resident_name ? `Resident: ${t.resident_name}` : t.description,
     icon: iconForCategory(t.category),
@@ -58,6 +61,7 @@ function toCalTask(t: MaintenanceTask): CalTask {
     description: t.description,
     imageUrls: t.image_urls ?? (t.initial_image_url ? [t.initial_image_url] : []),
     residentReport: t.resident_report ?? null,
+    stage: t.stage ?? null,
     deadline: t.deadline,
   };
 }
@@ -157,9 +161,9 @@ export default function StaffCalendarPage() {
   async function finishTask(id: number, assessment: CompletionAssessment) {
     setBusyTaskId(id);
     try {
-      await updateTaskProgress(id, "Completed", "Work completed on-site.", assessment);
+      await updateTaskProgress(id, "Completed", assessment.workDone, assessment, assessment.photos);
       setCompletingId(null);
-      toast("Task marked complete.", "success");
+      toast("Work report sent. The ticket is now Resolved.", "success");
       reload();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not update the task.", "danger");

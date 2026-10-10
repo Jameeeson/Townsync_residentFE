@@ -30,6 +30,11 @@ type LastScan = {
 
 type GateMode = "pass" | "manual";
 
+/** The same code is ignored for this long after it was read, even if the guard resumes with it still in view. */
+const SAME_CODE_BLOCK_MS = 8000;
+/** With no scan for this long the camera switches itself off. */
+const IDLE_STOP_MS = 2 * 60 * 1000;
+
 function nowLabel() {
   return new Date().toLocaleTimeString([], {
     hour: "numeric",
@@ -66,8 +71,15 @@ export default function StaffScannerPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanLoopRef = useRef<number | null>(null);
-  const scanCooldownRef = useRef(false);
+  // After a read the scanner pauses until the guard taps "Scan next pass". Without this the QR still in view is
+  // read again and again, and each read flips the pass between check-in and check-out.
+  const pausedRef = useRef(false);
+  const [paused, setPaused] = useState(false);
+  const inFlightRef = useRef(false);
+  const lastReadRef = useRef<{ token: string; at: number } | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [cameraStatus, setCameraStatus] = useState<"idle" | "starting" | "active" | "error">("idle");
+  const [idleStopped, setIdleStopped] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
@@ -246,8 +258,14 @@ export default function StaffScannerPage() {
       cancelAnimationFrame(scanLoopRef.current);
       scanLoopRef.current = null;
     }
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    pausedRef.current = false;
+    setPaused(false);
     setCameraStatus("idle");
     setTorchSupported(false);
     setTorchOn(false);
@@ -274,19 +292,28 @@ export default function StaffScannerPage() {
       scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
       return;
     }
+    if (pausedRef.current) {
+      scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
+      return;
+    }
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const code = jsQR(frame.data, frame.width, frame.height, { inversionAttempts: "dontInvert" });
 
-    if (code?.data && !scanCooldownRef.current) {
-      scanCooldownRef.current = true;
+    const last = lastReadRef.current;
+    const sameAsJustRead = Boolean(code?.data && last && last.token === code.data && Date.now() - last.at < SAME_CODE_BLOCK_MS);
+    if (code?.data && !pausedRef.current && !inFlightRef.current && !sameAsJustRead) {
+      // Stop reading right away; the guard resumes once the pass has left the frame.
+      pausedRef.current = true;
+      inFlightRef.current = true;
+      setPaused(true);
+      lastReadRef.current = { token: code.data, at: Date.now() };
       setPassId(code.data);
       verifyToken(code.data).finally(() => {
-        setTimeout(() => {
-          scanCooldownRef.current = false;
-        }, 2500);
+        inFlightRef.current = false;
+        lastReadRef.current = { token: code.data, at: Date.now() };
       });
     }
     scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
@@ -296,6 +323,25 @@ export default function StaffScannerPage() {
     tickRef.current = tick;
   }, [tick]);
 
+  // The camera turns itself off after a quiet spell, so a tab left open at the desk is not filming all shift.
+  const stopRef = useRef<() => void>(() => {});
+  const armIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      stopRef.current();
+      setIdleStopped(true);
+    }, IDLE_STOP_MS);
+  }, []);
+  useEffect(() => {
+    stopRef.current = stopCamera;
+  }, [stopCamera]);
+
+  const resumeScan = useCallback(() => {
+    pausedRef.current = false;
+    setPaused(false);
+    armIdleTimer();
+  }, [armIdleTimer]);
+
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraStatus("error");
@@ -304,6 +350,9 @@ export default function StaffScannerPage() {
     }
     setCameraStatus("starting");
     setCameraError(null);
+    setIdleStopped(false);
+    pausedRef.current = false;
+    setPaused(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
@@ -318,6 +367,7 @@ export default function StaffScannerPage() {
       const capabilities = track?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
       setTorchSupported(Boolean(capabilities && "torch" in capabilities));
       setCameraStatus("active");
+      armIdleTimer();
       scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
     } catch (err) {
       setCameraStatus("error");
@@ -327,7 +377,7 @@ export default function StaffScannerPage() {
           : "Could not access the camera. Use manual entry below.",
       );
     }
-  }, []);
+  }, [armIdleTimer]);
 
   async function toggleTorch() {
     const track = streamRef.current?.getVideoTracks()[0];
@@ -422,7 +472,16 @@ export default function StaffScannerPage() {
                 autoPlay
               />
               <canvas ref={canvasRef} style={{ display: "none" }} />
-              {cameraStatus === "active" ? <div className={styles.cameraReticle} aria-hidden /> : null}
+              {cameraStatus === "active" && !paused ? <div className={styles.cameraReticle} aria-hidden /> : null}
+              {cameraStatus === "active" && paused ? (
+                <div className={styles.pausedOverlay} role="status">
+                  <strong>{verifying ? "Checking the pass…" : "Scan recorded"}</strong>
+                  <span>Scanning is paused so the same pass is not read twice.</span>
+                  <button type="button" className={styles.resumeBtn} onClick={resumeScan} disabled={verifying}>
+                    Scan next pass
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -433,15 +492,29 @@ export default function StaffScannerPage() {
             <div className={styles.scanStripCopy}>
               <p>
                 {cameraStatus === "active"
-                  ? "Point the camera at the visitor's QR pass"
+                  ? paused
+                    ? "Paused after a scan"
+                    : "Point the camera at the visitor's QR pass"
                   : cameraStatus === "starting"
                     ? "Starting camera…"
                     : cameraStatus === "error"
                       ? (cameraError ?? "Camera unavailable")
-                      : "Camera is off on this tab"}
+                      : idleStopped
+                        ? "Camera turned off after 2 minutes without a scan"
+                        : "Camera is off"}
               </p>
               <span>Verify a pass or log a visitor manually below.</span>
             </div>
+            {mode === "pass" && cameraStatus !== "error" ? (
+              <button
+                type="button"
+                className={styles.torch}
+                onClick={() => (cameraStatus === "idle" ? void startCamera() : stopCamera())}
+                disabled={cameraStatus === "starting"}
+              >
+                <span>{cameraStatus === "idle" ? "Start camera" : "Stop camera"}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               className={`${styles.torch} ${torchOn ? styles.torchActive : ""}`}

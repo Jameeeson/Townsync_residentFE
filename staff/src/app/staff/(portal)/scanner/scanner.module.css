@@ -540,3 +540,43 @@
     padding: 0.9rem;
   }
 }
+
+/* Shown over the frozen preview after each read, until the guard resumes. */
+.pausedOverlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+  color: #fff;
+  background: rgba(7, 20, 40, 0.78);
+  backdrop-filter: blur(3px);
+}
+
+.pausedOverlay strong {
+  font-size: 1.1rem;
+}
+
+.pausedOverlay span {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.resumeBtn {
+  min-height: 48px;
+  margin-top: 0.4rem;
+  padding: 0 1.5rem;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--navy-800);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.resumeBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

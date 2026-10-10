@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useRef, useState } from "react";
 import { IconCheck, IconDoc, IconExclaim, IconX } from "@/components/icons";
+import { PhotoPicker } from "@/components/PhotoPicker";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
 import type { AssessedPriority } from "@/lib/services/staff";
 import styles from "./MaintenanceModal.module.css";
@@ -13,10 +14,15 @@ const OPTIONS: { id: AssessedPriority; hint: string }[] = [
   { id: "Emergency", hint: "Danger to people or property" },
 ];
 
+/** The technician's work report: what was done, photos of it, and their own priority call. */
 export type CompletionAssessment = {
   priority: AssessedPriority;
   comment: string;
+  workDone: string;
+  photos: File[];
 };
+
+const MIN_WORK_CHARS = 10;
 
 type Props = {
   taskTitle: string;
@@ -31,6 +37,8 @@ type Props = {
 export function CompleteTaskModal({ taskTitle, filedPriority, busy, onClose, onConfirm }: Props) {
   const [priority, setPriority] = useState<AssessedPriority | null>(null);
   const [comment, setComment] = useState("");
+  const [workDone, setWorkDone] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const handleClose = useCallback(() => onClose(), [onClose]);
@@ -38,12 +46,20 @@ export function CompleteTaskModal({ taskTitle, filedPriority, busy, onClose, onC
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (workDone.trim().length < MIN_WORK_CHARS) {
+      setFormError("Describe what you did, in at least a sentence. The administrator and the resident will read it.");
+      return;
+    }
+    if (photos.length === 0) {
+      setFormError("Add at least one photo of the finished work.");
+      return;
+    }
     if (!priority) {
       setFormError("Choose how urgent this job really was.");
       return;
     }
     setFormError(null);
-    onConfirm({ priority, comment: comment.trim() });
+    onConfirm({ priority, comment: comment.trim(), workDone: workDone.trim(), photos });
   }
 
   return (
@@ -58,7 +74,7 @@ export function CompleteTaskModal({ taskTitle, filedPriority, busy, onClose, onC
       >
         <header className={styles.header}>
           <div>
-            <h2 id="complete-title">Complete task</h2>
+            <h2 id="complete-title">Submit work report</h2>
             <p>
               {taskTitle}
               {filedPriority ? ` · filed as ${filedPriority}` : ""}
@@ -70,6 +86,30 @@ export function CompleteTaskModal({ taskTitle, filedPriority, busy, onClose, onC
         </header>
 
         <form className={styles.body} onSubmit={handleSubmit} noValidate>
+          <section className={styles.section}>
+            <label className={styles.sectionLabel} htmlFor="work-done">
+              <IconDoc size={16} /> What did you do? (required)
+            </label>
+            <textarea
+              id="work-done"
+              rows={4}
+              maxLength={2000}
+              value={workDone}
+              onChange={(e) => setWorkDone(e.target.value)}
+              placeholder="e.g. Replaced the worn washer under the sink and tightened the fittings. No more leaking."
+            />
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionLabel} id="work-photos-label">
+              <IconCheck size={16} /> Photos of the finished work (required)
+            </div>
+            <PhotoPicker files={photos} onChange={setPhotos} onReject={setFormError} inputId="work-photos" />
+            <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--muted)" }}>
+              The administrator and the resident see these in the ticket history.
+            </p>
+          </section>
+
           <section className={styles.section}>
             <div className={styles.sectionLabel} id="assessed-label">
               <IconExclaim size={16} /> Now that it&apos;s fixed, how urgent was it really?
@@ -125,7 +165,7 @@ export function CompleteTaskModal({ taskTitle, filedPriority, busy, onClose, onC
 
           <div className={styles.actions}>
             <button type="submit" className={styles.primary} disabled={busy}>
-              {busy ? "Saving…" : "Mark complete"} <IconCheck size={16} />
+              {busy ? "Sending…" : "Submit report"} <IconCheck size={16} />
             </button>
             <button type="button" className={styles.secondary} onClick={handleClose}>
               Cancel

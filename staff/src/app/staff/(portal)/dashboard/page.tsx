@@ -44,6 +44,8 @@ type Task = {
   id: number;
   title: string;
   priority: "high" | "medium" | "low";
+  /** The ticket's own priority word (Low, Medium, High, Emergency), shown as is. */
+  priorityText: string;
   location: string;
   meta: string;
   icon: "wrench" | "snow" | "shield";
@@ -51,6 +53,7 @@ type Task = {
   description?: string;
   imageUrls?: string[];
   residentReport?: string | null;
+  stage?: string | null;
   assignedAt?: string | null;
   deadline?: string | null;
 };
@@ -92,6 +95,7 @@ function toUiTask(t: MaintenanceTask): Task {
     id: t.request_id,
     title: t.category,
     priority: toUiPriority(t.priority_level),
+    priorityText: t.priority_level,
     location: t.unit_number ?? "Common Area",
     meta: t.resident_name ? `Resident: ${t.resident_name}` : t.description,
     icon: iconForCategory(t.category),
@@ -99,6 +103,7 @@ function toUiTask(t: MaintenanceTask): Task {
     description: t.description,
     imageUrls: t.image_urls ?? (t.initial_image_url ? [t.initial_image_url] : []),
     residentReport: t.resident_report ?? null,
+    stage: t.stage ?? null,
     assignedAt: t.assigned_at,
     deadline: t.deadline,
   };
@@ -311,12 +316,12 @@ export default function StaffDashboardPage() {
   async function finishTask(id: number, assessment: CompletionAssessment) {
     setBusyTaskId(id);
     try {
-      await updateTaskProgress(id, "Completed", "Work completed on-site.", assessment);
+      await updateTaskProgress(id, "Completed", assessment.workDone, assessment, assessment.photos);
       setTasks((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, status: "done", meta: "Completed just now" } : t)),
+        prev.map((t) => (t.id === id ? { ...t, status: "done", stage: "Resolved", meta: "Resolved just now" } : t)),
       );
       setCompletingId(null);
-      toast("Task marked complete.", "success");
+      toast("Work report sent. The ticket is now Resolved.", "success");
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not update the task.", "danger");
     } finally {
@@ -544,10 +549,10 @@ export default function StaffDashboardPage() {
                                   : styles.priorityLow
                             }`}
                           >
-                            {task.priority === "high" ? "High" : task.priority === "medium" ? "Medium" : "Low"}
+                            {task.priorityText}
                           </span>
                           <span className={`${styles.statusPill} ${styles[`status_${task.status}`]}`}>
-                            {task.status === "done" ? "Done" : task.status === "progress" ? "In progress" : "Pending"}
+                            {task.status === "done" ? (task.stage ?? "Resolved") : task.status === "progress" ? "In progress" : "Pending"}
                           </span>
                         </div>
                         {task.description ? <p className={styles.taskDesc}>{task.description}</p> : null}

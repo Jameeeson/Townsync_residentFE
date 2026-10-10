@@ -103,7 +103,24 @@ export type MaintenanceTask = {
   resident_report?: string | null;
   assigned_at: string | null;
   deadline: string | null;
+  /** What people see: Assigned, Ongoing, Resolved (waiting for the resident), Closed, Reopened or Cancelled. */
+  stage?: string | null;
 };
+
+export type TaskHistoryEntry = {
+  id: number;
+  kind: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  actor?: string | null;
+  attachments: { id: number; url: string }[];
+};
+
+/** The ticket's history trail: assignments, work reports with photos, the resident's replies, reassignments. */
+export function getTaskTimeline(taskId: number) {
+  return api.get<{ ticket_id: number; timeline: TaskHistoryEntry[] }>(`/api/v1/staff/tasks/${taskId}/timeline`);
+}
 
 export function listTasks(statusFilter?: TaskStatus) {
   const qs = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
@@ -122,6 +139,7 @@ export function updateTaskProgress(
   status: "Ongoing" | "Completed",
   workDone: string,
   assessment?: { priority: AssessedPriority; comment?: string },
+  photos: File[] = [],
 ) {
   const form = new FormData();
   form.set("status", status);
@@ -130,7 +148,9 @@ export function updateTaskProgress(
     form.set("assessed_priority", assessment.priority);
     if (assessment.comment) form.set("priority_comment", assessment.comment);
   }
-  return api.patchForm<{ message: string; status: string }>(
+  // Completing needs one to five photos of the finished work.
+  photos.forEach((photo) => form.append("completion_photos", photo));
+  return api.patchForm<{ message: string; status: string; stage?: string }>(
     `/api/v1/staff/tasks/${taskId}/progress`,
     form,
   );

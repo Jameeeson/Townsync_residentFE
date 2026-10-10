@@ -19,7 +19,7 @@ function toApiPath(stored: string): string {
 type Loaded = { path: string; url: string | null };
 
 /** Photos the resident attached to the ticket, fetched with the staff session. */
-export function TaskPhotos({ paths }: { paths: string[] }) {
+export function TaskPhotos({ paths, title = "Resident photos", emptyText = "No photos were attached to this request." }: { paths: string[]; title?: string; emptyText?: string }) {
   const key = paths.join("|");
   const [images, setImages] = useState<Loaded[]>([]);
   const [open, setOpen] = useState<string | null>(null);
@@ -49,9 +49,9 @@ export function TaskPhotos({ paths }: { paths: string[] }) {
 
   return (
     <section className={styles.wrap}>
-      <h3>Resident photos {paths.length ? `(${paths.length})` : ""}</h3>
+      <h3>{title} {paths.length ? `(${paths.length})` : ""}</h3>
       {paths.length === 0 ? (
-        <p className={styles.empty}>No photos were attached to this request.</p>
+        <p className={styles.empty}>{emptyText}</p>
       ) : (
         <div className={styles.grid}>
           {paths.map((path, i) => {

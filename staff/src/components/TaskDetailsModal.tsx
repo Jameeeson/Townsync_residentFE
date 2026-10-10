@@ -13,12 +13,14 @@ import {
 import { useDialogA11y } from "@/hooks/useDialogA11y";
 import { ChatModal } from "./ChatModal";
 import { TaskPhotos } from "./TaskPhotos";
+import { TaskHistory } from "./TaskHistory";
 import styles from "./TaskDetailsModal.module.css";
 
 export type TaskDetails = {
   id: number;
   title: string;
   priority: "high" | "medium" | "low";
+  priorityText?: string;
   location: string;
   meta: string;
   icon: "wrench" | "snow" | "shield";
@@ -26,6 +28,8 @@ export type TaskDetails = {
   description?: string;
   imageUrls?: string[];
   residentReport?: string | null;
+  /** Resolved (waiting for the resident) or Closed once the work report is in. */
+  stage?: string | null;
 };
 
 type Props = {
@@ -43,7 +47,7 @@ const PRIORITY_LABEL = {
 const STATUS_LABEL = {
   pending: "Pending",
   progress: "In Progress",
-  done: "Completed",
+  done: "Resolved",
 } as const;
 
 export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
@@ -80,7 +84,7 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
                     : styles.priorityLow
               }`}
             >
-              {PRIORITY_LABEL[task.priority]}
+              {task.priorityText ? `${task.priorityText} priority` : PRIORITY_LABEL[task.priority]}
             </span>
             <h2 id="task-details-title">{task.title}</h2>
             <p className={styles.subtitle}>Task details and next action</p>
@@ -109,11 +113,11 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
             </div>
             <div>
               <dt>Status</dt>
-              <dd>{STATUS_LABEL[task.status]}</dd>
+              <dd>{task.status === "done" ? (task.stage ?? "Resolved") : STATUS_LABEL[task.status]}</dd>
             </div>
             <div>
               <dt>Priority</dt>
-              <dd>{PRIORITY_LABEL[task.priority]}</dd>
+              <dd>{task.priorityText ? `${task.priorityText} priority` : PRIORITY_LABEL[task.priority]}</dd>
             </div>
             <div>
               <dt>Timing</dt>
@@ -140,6 +144,7 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
           ) : null}
 
           <TaskPhotos paths={task.imageUrls ?? []} />
+          <TaskHistory taskId={task.id} />
         </div>
 
         <div className={styles.actions}>
@@ -149,11 +154,11 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
               className={styles.primary}
               onClick={() => onPrimaryAction(task.id)}
             >
-              {task.status === "pending" ? "Start Task" : "Mark Complete"}
+              {task.status === "pending" ? "Start Task" : "Submit work report"}
             </button>
           ) : (
             <button type="button" className={styles.primary} disabled>
-              Already Completed
+              {task.stage === "Closed" ? "Closed by the resident" : "Report sent · waiting for the resident"}
             </button>
           )}
           <button type="button" className={styles.secondary} onClick={() => setChatOpen(true)}>
