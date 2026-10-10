@@ -17,6 +17,8 @@ import {
   UserX,
   Users,
   Wrench,
+  RotateCcw,
+  ShieldAlert,
 } from "lucide-react";
 import { apiGet, apiPost } from "../../lib/api";
 import { parseServerDate } from "../../lib/datetime";
@@ -54,6 +56,8 @@ const TYPE_STYLE: Record<string, { icon: typeof Bell; label: string; tone: strin
   overdue: { icon: AlarmClock, label: "Overdue", tone: styles.toneRed },
   stale: { icon: Hourglass, label: "Waiting", tone: styles.toneAmber },
   reassign: { icon: AlertTriangle, label: "Reassign", tone: styles.toneRed },
+  reopened: { icon: RotateCcw, label: "Not fixed", tone: styles.toneRed },
+  conduct: { icon: ShieldAlert, label: "Conduct", tone: styles.toneRed },
 };
 
 function ago(value: string | null): string {

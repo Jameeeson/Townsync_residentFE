@@ -42,6 +42,45 @@
   margin: 0;
 }
 
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid #e2e8f0;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab,
+.tabOn {
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  color: #5b6b82;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: #0b1a2d;
+}
+
+.tabOn {
+  border-bottom-color: #1f4a9e;
+  color: #1f4a9e;
+}
+
 .configGrid {
   display: grid;
   grid-template-columns: 1fr;

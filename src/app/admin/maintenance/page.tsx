@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiGet, apiPost, apiPatch, ApiError } from "@/lib/api";
@@ -36,6 +36,7 @@ import {
   UserRound,
   Scale,
   History,
+  RotateCcw,
 } from "lucide-react";
 
 import styles from "@/components/styles/Maintenance.module.css";
@@ -43,15 +44,18 @@ import AdminShell from "@/components/admin/admin-shell";
 import { parseServerDate } from "@/lib/datetime";
 import AuthImageGallery from "@/components/ui/auth-image-gallery";
 import MaintenanceHistoryView from "@/components/admin/maintenance-history-view";
+import TicketHistoryTrail from "@/components/admin/ticket-history-trail";
+import ConductReportsView from "@/components/admin/conduct-reports-view";
+import TicketChatPane from "@/components/admin/ticket-chat-pane";
 import { StaffChatModal } from "@/components/admin/staff-chat";
 import { specialtyFit } from "@/lib/specialty";
 import ListControls from "@/components/ui/list-controls";
 
 /* ─── Shared domain data (one source of truth) ─── */
 
-type Priority = "high" | "medium" | "low";
+type Priority = "emergency" | "high" | "medium" | "low";
 type StaffStatus = "available" | "on-job" | "on-site" | "break" | "off-shift";
-type DetailView = "pending" | "ongoing" | "staff" | "available" | "calendar" | "history";
+type DetailView = "pending" | "ongoing" | "staff" | "available" | "calendar" | "history" | "conduct";
 type ModalMode = "dispatch" | "decline" | "success" | "decline-success" | null;
 
 type PendingRequest = {
@@ -66,6 +70,14 @@ type PendingRequest = {
   residentDeleted?: boolean;
   /** Set when the ticket came back to the queue because its technician's account was deleted. */
   returnedNote?: string | null;
+  /** Set when the resident said a Resolved ticket is not fixed: the ticket is back in the queue. */
+  reopened?: boolean;
+  reopenMessage?: string | null;
+  reopenedAt?: string | null;
+  /** The technician who last worked on it (for a reopened ticket or one that came back), so they can be picked again. */
+  previousStaffId?: string | null;
+  previousTechName?: string | null;
+  historyPhotos?: number;
   aiLabel: string;
   /** Risk Triage Engine score (0-10ish) and the reasons behind it; absent for tickets it never scored. */
   riskScore: number | null;
@@ -176,6 +188,13 @@ type TriageQueueItem = {
   resident_report?: string | null;
   resident_deleted?: boolean;
   returned_note?: string | null;
+  stage?: string;
+  reopened?: boolean;
+  reopen_message?: string | null;
+  reopened_at?: string | null;
+  previous_staff_id?: string | number | null;
+  previous_tech_name?: string | null;
+  history_photos?: number;
 };
 
 type DispatchBoardItem = {
@@ -242,7 +261,8 @@ const NOT_AVAILABLE = "Not available from backend";
 
 function toPriority(value: string): Priority {
   const v = value.toLowerCase();
-  if (v.includes("high") || v.includes("emergency")) return "high";
+  if (v.includes("emergency")) return "emergency";
+  if (v.includes("high")) return "high";
   if (v.includes("medium")) return "medium";
   return "low";
 }
@@ -300,6 +320,12 @@ function adaptTriageItem(item: TriageQueueItem): PendingRequest {
     residentReport: item.resident_report ?? null,
     residentDeleted: Boolean(item.resident_deleted),
     returnedNote: item.returned_note ?? null,
+    reopened: Boolean(item.reopened),
+    reopenMessage: item.reopen_message ?? null,
+    reopenedAt: item.reopened_at ?? null,
+    previousStaffId: item.previous_staff_id != null ? String(item.previous_staff_id) : null,
+    previousTechName: item.previous_tech_name ?? null,
+    historyPhotos: item.history_photos ?? 0,
     aiLabel: item.ai_priority ?? item.status,
     riskScore: typeof item.risk_score === "number" ? item.risk_score : null,
     riskReasons: item.risk_summary ?? [],
@@ -454,13 +480,20 @@ function ResidentWords({ text }: { text: string | null | undefined }) {
   );
 }
 
+/** High and Emergency are both "needs attention first"; this is the one place that says so. */
+function isCritical(priority: Priority): boolean {
+  return priority === "high" || priority === "emergency";
+}
+
 function priorityClass(priority: Priority) {
+  if (priority === "emergency") return styles.badgeEmergency;
   if (priority === "high") return styles.badgeHigh;
   if (priority === "medium") return styles.badgeMedium;
   return styles.badgeLow;
 }
 
 function priorityLabel(priority: Priority) {
+  if (priority === "emergency") return "Emergency";
   if (priority === "high") return "High Priority";
   if (priority === "medium") return "Medium Priority";
   return "Low Priority";
@@ -546,6 +579,8 @@ function MaintenanceCommand() {
   const deepLinkTicket = searchParams.get("ticket");
   // A finished (completed or cancelled) ticket found by search opens in the history, filtered to that ticket.
   const historyTicket = searchParams.get("history");
+  // The notification bell links here when a resident reports a technician.
+  const openConduct = searchParams.get("conduct");
   const [historySearch, setHistorySearch] = useState("");
 
   const viewingJob = useMemo(
@@ -683,6 +718,14 @@ function MaintenanceCommand() {
   }, [deepLinkTicket, ongoingJobs, pendingRequests, router]);
 
   useEffect(() => {
+    if (!openConduct) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-shot sync from the URL, cleared right below. */
+    setDetailView("conduct");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    router.replace("/admin/maintenance", { scroll: false });
+  }, [openConduct, router]);
+
+  useEffect(() => {
     if (!historyTicket) return;
     /* eslint-disable react-hooks/set-state-in-effect -- one-shot sync from the URL, cleared right below. */
     setHistorySearch(`#${historyTicket}`);
@@ -729,6 +772,19 @@ function MaintenanceCommand() {
           <Link href="/admin/maintenance/learning" className={styles.calendarToggle}>
             <Scale size={15} /> Priority Learning
           </Link>
+          <button
+            type="button"
+            className={`${styles.calendarToggle} ${detailView === "conduct" ? styles.calendarToggleActive : ""}`}
+            aria-pressed={detailView === "conduct"}
+            onClick={() => {
+              setTicketChatId(null);
+              setTechProfileId(null);
+              setViewingJobId(null);
+              setDetailView((v) => (v === "conduct" ? "pending" : "conduct"));
+            }}
+          >
+            <ShieldAlert size={15} /> Conduct Reports
+          </button>
           <button
             type="button"
             className={`${styles.calendarToggle} ${detailView === "history" ? styles.calendarToggleActive : ""}`}
@@ -832,6 +888,28 @@ function MaintenanceCommand() {
               onJobTab={setJobTab}
               onOpenJob={(id) => setViewingJobId(id)}
             />
+          ) : detailView === "conduct" ? (
+            <ConductReportsView
+              onSentBack={(id) => {
+                // The ticket is now Open and Reopened: refresh the lists and jump to it in the dispatch queue.
+                loadAll();
+                setSelectedPendingId(String(id));
+                setDetailView("pending");
+              }}
+              onOpenTicket={(id) => {
+                const key = String(id);
+                if (ongoingJobs.some((j) => j.id === key)) {
+                  setViewingJobId(key);
+                  setDetailView("ongoing");
+                } else if (pendingRequests.some((r) => r.id === key)) {
+                  setSelectedPendingId(key);
+                  setDetailView("pending");
+                } else {
+                  setHistorySearch(`#${id}`);
+                  setDetailView("history");
+                }
+              }}
+            />
           ) : detailView === "history" ? (
             <MaintenanceHistoryView key={historySearch} initialSearch={historySearch} />
           ) : detailView === "calendar" ? (
@@ -922,7 +1000,15 @@ function StatCard({
   );
 }
 
-/** Same tiers the Risk Triage Engine uses: <1.5 Low, <4 Medium, <7 High, otherwise Emergency. */
+/** The ticket's priority as a chip colour. The ticket's own priority is the only label shown as "the" priority. */
+function priorityTone(level: string): string {
+  if (level === "Emergency") return styles.riskEmergency;
+  if (level === "High") return styles.riskHigh;
+  if (level === "Medium") return styles.riskMedium;
+  return styles.riskLow;
+}
+
+/** What the Risk Triage Engine suggested at intake (<1.5 Low, <4 Medium, <7 High, otherwise Emergency). A hint only. */
 function riskTier(score: number): { label: string; tone: string } {
   if (score >= 7) return { label: "Emergency", tone: styles.riskEmergency };
   if (score >= 4) return { label: "High", tone: styles.riskHigh };
@@ -1037,22 +1123,34 @@ function PendingRequestsView({
               <strong>Needs a new technician.</strong> {selected.returnedNote}
             </p>
           ) : null}
+          {selected.reopened ? (
+            <div className={styles.reopenBanner}>
+              <strong>
+                <RotateCcw size={14} aria-hidden="true" /> Reopened by the resident
+              </strong>
+              {selected.reopenMessage ? <p>&ldquo;{selected.reopenMessage}&rdquo;</p> : null}
+              <small>
+                {selected.previousTechName ? `Last worked on by ${selected.previousTechName}. ` : ""}
+                Assign the same technician or someone else. The photos and message are in the history below.
+              </small>
+            </div>
+          ) : null}
           <blockquote className={styles.residentQuote}>
             &ldquo;{shortDesc}&rdquo;
           </blockquote>
           <div className={styles.riskInsight}>
             <div className={styles.riskInsightHead}>
               <span>
-                <ShieldAlert size={14} aria-hidden="true" /> Risk Insight
+                <ShieldAlert size={14} aria-hidden="true" /> Why this priority
               </span>
-              {selectedRisk && selected.riskScore !== null ? (
-                <span className={`${styles.riskChip} ${selectedRisk.tone}`}>
-                  {selectedRisk.label} · {selected.riskScore.toFixed(1)}
-                </span>
-              ) : (
-                <span className={`${styles.riskChip} ${styles.riskLow}`}>Not scored</span>
-              )}
+              <span className={`${styles.riskChip} ${priorityTone(selected.priorityLevel)}`}>{selected.priorityLevel}</span>
             </div>
+            {selectedRisk && selected.riskScore !== null && selectedRisk.label !== selected.priorityLevel ? (
+              <p className={styles.riskEmpty}>
+                The risk check suggested {selectedRisk.label} (score {selected.riskScore.toFixed(1)}); the priority above is what
+                the ticket uses now.
+              </p>
+            ) : null}
             {selected.riskReasons.length ? (
               <ul className={styles.riskReasons}>
                 {selected.riskReasons.slice(0, 4).map((reason) => (
@@ -1085,6 +1183,12 @@ function PendingRequestsView({
               Dispatch
             </button>
           </div>
+          {selected.reopened ? (
+            <div className={styles.trailBlock}>
+              <h4>History</h4>
+              <TicketHistoryTrail ticketId={selected.id} />
+            </div>
+          ) : null}
         </section>
       </aside>
 
@@ -1181,6 +1285,11 @@ function PendingRequestsView({
                         Returned to queue
                       </div>
                     ) : null}
+                    {req.reopened ? (
+                      <div className={styles.reopenedTag} title={req.reopenMessage ?? "The resident says it is not fixed"}>
+                        Reopened
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     <span className={styles.categoryCell}>
@@ -1191,9 +1300,6 @@ function PendingRequestsView({
                     <span className={priorityClass(req.priority)}>
                       {priorityLabel(req.priority)}
                     </span>
-                    <div className={styles.aiTag}>
-                      {req.riskScore !== null ? `Risk ${req.riskScore.toFixed(1)} · ${riskTier(req.riskScore).label}` : "Risk not scored"}
-                    </div>
                     {req.humanRequested ? (
                       <span className={styles.humanRequestedTag}>
                         <UserRound size={11} aria-hidden="true" /> Requested a person
@@ -1323,7 +1429,7 @@ function MaintenanceCalendarView({
                   className={`${styles.monthChip} ${
                     job.isOverdue
                       ? styles.monthChipOverdue
-                      : job.priority === "high"
+                      : isCritical(job.priority)
                         ? styles.monthChipHigh
                         : job.priority === "medium"
                           ? styles.monthChipMedium
@@ -1364,7 +1470,7 @@ function OngoingRepairsView({
   onJobTab: (t: "all" | "critical" | "overdue") => void;
   onOpenJob: (id: string) => void;
 }) {
-  const criticalCount = jobs.filter((j) => j.priority === "high").length;
+  const criticalCount = jobs.filter((j) => isCritical(j.priority)).length;
   const overdueCount = jobs.filter((j) => j.isOverdue).length;
   const [order, setOrder] = useState("newest");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -1375,7 +1481,7 @@ function OngoingRepairsView({
     const term = search.trim().toLowerCase().replace(/^#/, "");
     const tabbed =
       jobTab === "critical"
-        ? jobs.filter((j) => j.priority === "high")
+        ? jobs.filter((j) => isCritical(j.priority))
         : jobTab === "overdue"
           ? jobs.filter((j) => j.isOverdue)
           : jobs;
@@ -1512,8 +1618,8 @@ function OngoingRepairsView({
                     <strong className={styles.linkId}>#{job.id}</strong>
                   </td>
                   <td>
-                    <strong className={job.priority === "high" ? styles.criticalTitle : undefined}>
-                      {job.priority === "high" && <AlertTriangle size={14} />} {job.title}
+                    <strong className={isCritical(job.priority) ? styles.criticalTitle : undefined}>
+                      {isCritical(job.priority) && <AlertTriangle size={14} />} {job.title}
                     </strong>
                     <div className={styles.cellSub}>{job.details}</div>
                   </td>
@@ -1662,6 +1768,10 @@ function OngoingJobDetailView({
             showDeadline
             onSaved={onSaved}
           />
+        </div>
+        <div className={styles.sideCard}>
+          <label className={styles.sectionLabel}>History</label>
+          <TicketHistoryTrail ticketId={job.id} />
         </div>
         <div className={`${styles.sideCard} ${styles.assignedCard}`}>
           <label className={styles.sectionLabel}>Assigned Technician</label>
@@ -2002,14 +2112,6 @@ function StaffRosterView({
 
 const CHAT_POLL_INTERVAL_MS = 4000;
 
-function formatMessageTime(iso: string): string {
-  try {
-    return parseServerDate(iso)?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) ?? "";
-  } catch {
-    return "";
-  }
-}
-
 function TicketDetailView({
   ticket,
   onBack,
@@ -2021,7 +2123,6 @@ function TicketDetailView({
   const [chatError, setChatError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const chatBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -2048,12 +2149,8 @@ function TicketDetailView({
     };
   }, [ticket.id]);
 
-  useEffect(() => {
-    chatBodyRef.current?.scrollTo({ top: chatBodyRef.current.scrollHeight });
-  }, [thread?.messages.length]);
 
-  async function handleSend(event: React.FormEvent) {
-    event.preventDefault();
+  async function handleSend() {
     const trimmed = input.trim();
     if (!trimmed || sending) return;
 
@@ -2073,95 +2170,35 @@ function TicketDetailView({
 
   return (
     <div className={styles.ticketDetailLayout}>
-      <div className={styles.chatColumn}>
-        <div className={styles.chatHeader}>
-          <button type="button" className={styles.backBtn} onClick={onBack}>
-            <ArrowLeft size={18} /> Back
-          </button>
-          <div className={styles.chatUser}>
-            <div className={styles.hostAvatar}>
-              {ticket.resident
-                .split(" ")
-                .map((n) => n[0])
-                .join("")
-                .slice(0, 2)}
-            </div>
-            <div>
-              <strong>{ticket.resident}</strong>
-              <p>
-                Resident — {ticket.unit}
-              </p>
-            </div>
-          </div>
-          <div className={styles.headerIcons}>
-            {ticket.phone && ticket.phone !== NOT_AVAILABLE ? (
-              <a href={`tel:${ticket.phone}`} aria-label="Call">
-                <Phone size={18} />
-              </a>
-            ) : (
-              <button type="button" aria-label="Call" disabled title="No phone number on file for this resident.">
-                <Phone size={18} />
-              </button>
-            )}
-            <button type="button" aria-label="More options" disabled title="No additional actions available yet.">
-              <MoreHorizontal size={18} />
-            </button>
-          </div>
-        </div>
-        <div className={styles.chatBody} ref={chatBodyRef}>
-          <div className={styles.timeMarker}>{ticket.reportedAt}</div>
-          <div className={styles.messageGroup}>
-            <div className={styles.msgResident}>{ticket.description}</div>
-            {thread?.messages.map((message, i) => {
-              const fromResident = message.sender_role === "Resident";
-              return (
-                <div
-                  key={`${message.timestamp}-${i}`}
-                  className={fromResident ? styles.msgResident : styles.msgStaff}
-                >
-                  <div style={{ fontSize: "0.72rem", fontWeight: 600, opacity: 0.75, marginBottom: "0.2rem" }}>
-                    {message.sender_name} · {formatMessageTime(message.timestamp)}
-                  </div>
-                  {message.content}
-                </div>
-              );
-            })}
-          </div>
-          {chatError ? (
-            <p style={{ padding: "0 1rem", color: "#c0392b", fontSize: "0.8rem" }}>{chatError}</p>
-          ) : null}
-        </div>
-        <form className={styles.chatInput} onSubmit={handleSend}>
-          <input
-            type="text"
-            placeholder="Type a message…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={!thread || sending}
-            aria-label="Message"
-          />
-          <button
-            type="submit"
-            className={styles.sendBtn}
-            aria-label="Send"
-            disabled={!thread || sending || !input.trim()}
-          >
-            <Send size={18} />
-          </button>
-        </form>
-      </div>
+      <TicketChatPane
+        residentName={ticket.resident}
+        residentUnit={ticket.unit}
+        residentPhone={ticket.phone && ticket.phone !== NOT_AVAILABLE ? ticket.phone : null}
+        request={{ text: ticket.description, filedAt: ticket.createdAt }}
+        thread={thread}
+        error={chatError}
+        input={input}
+        sending={sending}
+        onInput={setInput}
+        onSend={() => void handleSend()}
+        onBack={onBack}
+      />
       <aside className={styles.ticketSidebar}>
         <div className={styles.sideCard}>
           <div className={styles.sideHeader}>
             <h3>Ticket Details</h3>
             <span className={styles.ticketId}>{ticket.id}</span>
           </div>
-          <div className={styles.statusPill}>{ticket.status ?? "Open"}</div>
+          <div className={styles.statusPill}>{ticket.reopened ? "Reopened" : ticket.status ?? "Open"}</div>
           <div className={styles.sideGroup}>
             <label>Issue Category</label>
             <p>
-              <Wrench size={14} /> {ticket.category} / {ticket.aiLabel}
+              <Wrench size={14} /> {ticket.category}
             </p>
+          </div>
+          <div className={styles.sideGroup}>
+            <label>Priority</label>
+            <p>{ticket.priorityLevel}</p>
           </div>
           <div className={styles.sideGroup}>
             <label>Location</label>
@@ -2174,6 +2211,10 @@ function TicketDetailView({
             <label>Reported</label>
             <p>{ticket.reportedAt}</p>
           </div>
+        </div>
+        <div className={styles.sideCard}>
+          <label className={styles.sectionLabel}>History</label>
+          <TicketHistoryTrail ticketId={ticket.id} />
         </div>
         <div className={`${styles.sideCard} ${styles.assignedCard}`}>
           <label className={styles.sectionLabel}>Assigned Personnel</label>
@@ -2324,7 +2365,7 @@ function TicketEditor({
         />
       </div>
       <div className={styles.inputGroup} style={{ marginTop: "1rem" }}>
-        <label>Severity</label>
+        <label>Risk</label>
         <div className={styles.severityToggle}>
           {PRIORITY_OPTIONS.map((opt) => (
             <button
@@ -2889,6 +2930,11 @@ function DispatchFlowModal({
                       </p>
                       <p>
                         <span className={styles.specTag}>{tech.specialty || "No specialization"}</span>
+                        {ticket.previousStaffId && ticket.previousStaffId === String(tech.id) ? (
+                          <span className={styles.previousTag}>
+                            {ticket.reopened ? "Worked on this before" : "Last technician"}
+                          </span>
+                        ) : null}
                         {specialtyFit(tech.specialty, ticket.category) === 2 ? (
                           <span className={styles.matchTag}>Best match</span>
                         ) : specialtyFit(tech.specialty, ticket.category) === 1 ? (

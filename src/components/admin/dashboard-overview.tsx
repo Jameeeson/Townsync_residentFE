@@ -200,7 +200,7 @@ export default function DashboardOverview({
     {
       label: "Maintenance Summary",
       value: metrics ? `${metrics.open_maintenance_tickets} Open` : "—",
-      detail: metrics ? `${metrics.high_priority_tickets} High Priority` : undefined,
+      detail: metrics ? `${metrics.high_priority_tickets} High or Emergency` : undefined,
       detailTone: "danger" as const,
       icon: Wrench,
       iconTone: "info" as const,

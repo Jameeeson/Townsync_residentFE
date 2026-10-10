@@ -14,6 +14,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { apiDownload, apiGet, apiPost, ApiError } from "@/lib/api";
+import ReportInsights from "./report-insights";
+import ReportTimeline from "./report-timeline";
 import { useToast } from "@/components/ui/toast";
 import styles from "@/components/styles/ConfigureReport.module.css";
 
@@ -50,6 +52,14 @@ type ReportHistoryEntry = {
   date_range?: string | null;
 };
 
+type ReportTab = "overview" | "timeline" | "export";
+
+const TABS: { key: ReportTab; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "timeline", label: "Activity timeline" },
+  { key: "export", label: "Export reports" },
+];
+
 const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.title]));
 
 type ConfigureReportViewProps = {
@@ -58,6 +68,7 @@ type ConfigureReportViewProps = {
 
 export default function ConfigureReportView({ onBack }: ConfigureReportViewProps) {
   const { toast, toastError } = useToast();
+  const [tab, setTab] = useState<ReportTab>("overview");
   const [selectedCategory, setSelectedCategory] = useState("financials");
   const [format, setFormat] = useState<"PDF" | "Excel">("PDF");
   const [startDate, setStartDate] = useState("");
@@ -156,11 +167,41 @@ export default function ConfigureReportView({ onBack }: ConfigureReportViewProps
           <ArrowLeft size={22} />
         </button>
         <div className={styles.titleArea}>
-          <h1>Configure Report</h1>
-          <p>Select parameters to extract detailed analytical insights from the townhouse ecosystem.</p>
+          <h1>Reports</h1>
+          <p>See how requests, technicians and dues are moving, follow what happened, or export a report.</p>
         </div>
       </header>
 
+      <div className={styles.tabs} role="tablist" aria-label="Report sections">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            id={`report-tab-${t.key}`}
+            aria-selected={tab === t.key}
+            aria-controls={`report-panel-${t.key}`}
+            className={tab === t.key ? styles.tabOn : styles.tab}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "overview" ? (
+        <div role="tabpanel" id="report-panel-overview" aria-labelledby="report-tab-overview">
+          <ReportInsights />
+        </div>
+      ) : null}
+      {tab === "timeline" ? (
+        <div role="tabpanel" id="report-panel-timeline" aria-labelledby="report-tab-timeline">
+          <ReportTimeline />
+        </div>
+      ) : null}
+
+      {tab === "export" ? (
+      <div role="tabpanel" id="report-panel-export" aria-labelledby="report-tab-export">
       <div className={styles.configGrid}>
         <section className={styles.configCard}>
           <div className={styles.sectionTitle}>
@@ -342,6 +383,8 @@ export default function ConfigureReportView({ onBack }: ConfigureReportViewProps
           </table>
         </div>
       </section>
+      </div>
+      ) : null}
     </div>
   );
 }

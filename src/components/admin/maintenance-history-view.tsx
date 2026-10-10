@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, ChevronLeft, ChevronRight, Clock, History, Search, User, X, XCircle } from "lucide-react";
 import { apiGet } from "@/lib/api";
-import { formatServerDateTime, formatServerFull } from "@/lib/datetime";
+import { formatServerDateTime } from "@/lib/datetime";
 import AuthImageGallery from "@/components/ui/auth-image-gallery";
+import TicketHistoryTrail from "@/components/admin/ticket-history-trail";
 import styles from "./maintenance-history-view.module.css";
 
-type HistoryStatus = "All" | "Completed" | "Cancelled";
+type HistoryStatus = "All" | "Resolved" | "Closed" | "Cancelled";
 
 export type HistoryTicket = {
   id: number;
@@ -15,7 +16,9 @@ export type HistoryTicket = {
   description: string | null;
   category: string | null;
   priority: string | null;
+  /** Stored value; `stage` is what people see (Resolved, Closed or Cancelled). */
   status: "Completed" | "Cancelled";
+  stage?: "Resolved" | "Closed" | "Cancelled";
   unit_number: string | null;
   resident_name: string | null;
   resident_deleted?: boolean;
@@ -41,7 +44,7 @@ type HistoryResponse = {
   total: number;
   page: number;
   page_size: number;
-  counts: { completed: number; cancelled: number };
+  counts: { completed: number; cancelled: number; resolved: number; closed: number };
 };
 
 const PAGE_SIZE = 15;
@@ -108,7 +111,7 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
   }, [selected]);
 
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
-  const counts = data?.counts ?? { completed: 0, cancelled: 0 };
+  const counts = data?.counts ?? { completed: 0, cancelled: 0, resolved: 0, closed: 0 };
   const filtersActive = Boolean(search || dateFrom || dateTo || status !== "All");
 
   const changeFilter = (fn: () => void) => {
@@ -124,13 +127,14 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
           <h2 id="history-title">
             <History size={18} aria-hidden="true" /> Ticket History
           </h2>
-          <p>Completed and cancelled maintenance tickets, newest first.</p>
+          <p>Resolved, closed and cancelled maintenance tickets, newest first.</p>
         </div>
         <div className={styles.segment} role="radiogroup" aria-label="Ticket status">
           {(
             [
               ["All", `All (${counts.completed + counts.cancelled})`],
-              ["Completed", `Completed (${counts.completed})`],
+              ["Resolved", `Resolved (${counts.resolved})`],
+              ["Closed", `Closed (${counts.closed})`],
               ["Cancelled", `Cancelled (${counts.cancelled})`],
             ] as const
           ).map(([value, label]) => (
@@ -267,9 +271,10 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
                   <td>
                     <span className={t.status === "Completed" ? styles.badgeDone : styles.badgeCancelled}>
                       {t.status === "Completed" ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                      {t.status}
+                      {t.stage ?? t.status}
                     </span>
-                    {t.status === "Completed" && t.resolution_confirmed_at ? (
+                    {t.stage === "Resolved" ? <span className={styles.sub}>Waiting for the resident</span> : null}
+                    {t.stage === "Closed" && t.resolution_confirmed_at ? (
                       <span className={styles.sub}>Confirmed by resident</span>
                     ) : null}
                   </td>
@@ -318,15 +323,6 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
 }
 
 function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose: () => void }) {
-  const timeline = [
-    { label: "Reported", at: t.created_at, by: t.resident_name ?? "Staff" },
-    { label: "Dispatched", at: t.assigned_at, by: t.tech_name ? `${t.tech_name}${t.tech_deleted ? " (account deleted)" : ""}` : t.tech_name },
-    t.status === "Completed"
-      ? { label: "Completed", at: t.completed_at ?? t.closed_at, by: t.tech_name }
-      : { label: "Cancelled", at: t.closed_at, by: null },
-    ...(t.resolution_confirmed_at ? [{ label: "Confirmed fixed", at: t.resolution_confirmed_at, by: t.resident_name }] : []),
-  ];
-
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div
@@ -340,7 +336,7 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
           <div>
             <span className={t.status === "Completed" ? styles.badgeDone : styles.badgeCancelled}>
               {t.status === "Completed" ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-              {t.status}
+              {t.stage ?? t.status}
             </span>
             <h3 id="history-detail-title">
               #{t.id} · {t.subject}
@@ -384,29 +380,15 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
             </div>
           </div>
 
-          <ol className={styles.timeline}>
-            {timeline.map((step) => (
-              <li key={step.label} className={step.at ? styles.stepDone : ""}>
-                <strong>{step.label}</strong>
-                <span>
-                  {step.at ? formatServerFull(step.at) : "—"}
-                  {step.at && step.by ? ` · ${step.by}` : ""}
-                </span>
-              </li>
-            ))}
-          </ol>
+          <section className={styles.block}>
+            <h4>History</h4>
+            <TicketHistoryTrail ticketId={t.id} />
+          </section>
 
           {t.description ? (
             <section className={styles.block}>
               <h4>Resident&apos;s report</h4>
               <p>{t.description}</p>
-            </section>
-          ) : null}
-
-          {t.work_done ? (
-            <section className={styles.block}>
-              <h4>Technician&apos;s work report</h4>
-              <p>{t.work_done}</p>
             </section>
           ) : null}
 
@@ -418,9 +400,6 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
           ) : null}
 
           <AuthImageGallery paths={t.image_urls} label="Photos from resident" emptyText="No resident photos" />
-          {t.completion_image_url ? (
-            <AuthImageGallery paths={[t.completion_image_url]} label="Completion photo" />
-          ) : null}
         </div>
       </div>
     </div>

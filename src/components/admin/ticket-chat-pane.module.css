@@ -1,0 +1,360 @@
+/* Admin ticket chat. Fixed height with its own scroll, so the page around it never grows with the conversation. */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: clamp(540px, 74vh, 780px);
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+/* ---------- header ---------- */
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem 0 0.7rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #0b1a2d;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.back:hover {
+  border-color: #1f4a9e;
+  background: #eff6ff;
+  color: #1f4a9e;
+}
+
+.avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: #dbe6f8;
+  color: #163a80;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.who {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.who strong {
+  overflow: hidden;
+  font-size: 0.95rem;
+  color: #0b1a2d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.who span {
+  overflow: hidden;
+  font-size: 0.78rem;
+  color: #64748b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.techOn,
+.techOff {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 14rem;
+  padding: 0.3rem 0.7rem;
+  overflow: hidden;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.techOn {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.techOff {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.call {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.6rem;
+  color: #475569;
+}
+
+.call:hover {
+  background: #f1f5f9;
+  color: #1f4a9e;
+}
+
+.back:focus-visible,
+.call:focus-visible,
+.send:focus-visible,
+.composer textarea:focus-visible {
+  outline: 2px solid #1f4a9e;
+  outline-offset: 2px;
+}
+
+/* ---------- stream ---------- */
+.stream {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 1.1rem 1.25rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #f8fafc;
+}
+
+.request {
+  align-self: stretch;
+  margin-bottom: 0.4rem;
+  padding: 0.8rem 1rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.7rem;
+  background: #fff;
+}
+
+.request span {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.request p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  margin: 0.4rem 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.5rem;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.empty {
+  margin: auto;
+  padding: 2rem 0;
+  text-align: center;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.day {
+  display: flex;
+  justify-content: center;
+  margin: 0.9rem 0 0.3rem;
+}
+
+.day span {
+  padding: 2px 0.7rem;
+  border-radius: 999px;
+  background: #e8edf3;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* one sender's consecutive messages; the column is the full width so left and right are real edges */
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 78%;
+  margin-top: 0.7rem;
+}
+
+.mine {
+  align-items: flex-end;
+  align-self: flex-end;
+}
+
+.theirs {
+  align-items: flex-start;
+  align-self: flex-start;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0.6rem 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.name em {
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  font-size: 0.68rem;
+  font-style: normal;
+  color: #1f4a9e;
+}
+
+.bubble {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mine .bubble {
+  border-radius: 1rem 1rem 0.25rem 1rem;
+  background: #1f4a9e;
+  color: #fff;
+}
+
+.theirs .bubble {
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem 1rem 1rem 0.25rem;
+  background: #fff;
+  color: #0b1a2d;
+}
+
+.tech .bubble {
+  border-color: #bfd0ee;
+  background: #eef3fc;
+}
+
+.time {
+  margin: 2px 0.6rem 0;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
+}
+
+/* ---------- composer ---------- */
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem 0.3rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.composer textarea {
+  flex: 1;
+  min-height: 2.9rem;
+  max-height: 140px;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.8rem;
+  background: #f8fafc;
+  color: #0b1a2d;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  resize: none;
+}
+
+.send {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  border: 0;
+  border-radius: 50%;
+  background: #1f4a9e;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.send:hover:not(:disabled) {
+  background: #163a80;
+}
+
+.send:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 0;
+  padding: 0 1rem 0.7rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+@media (max-width: 640px) {
+  .pane {
+    height: min(78vh, 700px);
+  }
+
+  .head {
+    flex-wrap: wrap;
+  }
+
+  .techOn,
+  .techOff {
+    order: 5;
+    max-width: 100%;
+  }
+
+  .run {
+    max-width: 92%;
+  }
+
+  .hint {
+    display: none;
+  }
+}

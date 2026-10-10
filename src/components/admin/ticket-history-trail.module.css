@@ -1,0 +1,121 @@
+.trail {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trail::before {
+  content: "";
+  position: absolute;
+  top: 0.9rem;
+  bottom: 0.9rem;
+  left: 0.85rem;
+  width: 2px;
+  background: #e8edf3;
+}
+
+.entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  gap: 0.7rem;
+  padding: 0.5rem 0;
+}
+
+.dot {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+}
+
+.tone_blue .dot { background: #eff6ff; color: #1f4a9e; }
+.tone_green .dot { background: #ecfdf5; color: #047857; }
+.tone_amber .dot { background: #fffbeb; color: #b45309; }
+.tone_red .dot { background: #fef2f2; color: #b91c1c; }
+.tone_slate .dot { background: #f1f5f9; color: #475569; }
+
+.content {
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.1rem 0.75rem;
+}
+
+.head strong {
+  font-size: 0.85rem;
+  color: #0b1a2d;
+}
+
+.head time {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.actor {
+  margin: 0.1rem 0 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #1f4a9e;
+}
+
+.text {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #334155;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0.3rem 0 0;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.4rem;
+  background: #f8fafc;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.empty,
+.error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #5b6b82;
+}
+
+.error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.skeleton {
+  height: 5rem;
+  border-radius: 0.6rem;
+  background: linear-gradient(90deg, #f1f5f9, #e8edf3, #f1f5f9);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
