@@ -160,7 +160,7 @@ export function TicketHistoryPanel() {
                 <span className={styles.historyItemBody}>
                   <span className={styles.historyItemTop}>
                     <span className={styles.historyItemSubject}>{ticket.subject}</span>
-                    <span className={badgeClassName(statusTone(ticket.status))}>{ticket.status}</span>
+                    <span className={badgeClassName(statusTone(ticket.stage ?? ticket.status))}>{ticket.stage ?? ticket.status}</span>
                   </span>
                   <span className={styles.historyItemMeta}>
                     <span>{ticket.category}</span>

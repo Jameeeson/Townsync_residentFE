@@ -1,0 +1,86 @@
+.wrap {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thumb {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(7, 20, 40, 0.72);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* a 44px tap area without a bigger-looking button */
+.remove::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+
+.add {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  aspect-ratio: 1;
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-primary-600);
+  background: var(--color-surface-2);
+  cursor: pointer;
+}
+
+.add small {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.add:hover {
+  border-color: var(--color-primary-600);
+}
+
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.count {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-tertiary);
+}

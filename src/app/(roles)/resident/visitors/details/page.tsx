@@ -406,12 +406,22 @@ function VisitorDetailsInner() {
                 <QRCodeSVG value={pass.qr_token} size={140} />
               </div>
             ) : null}
-            <p className={styles.qrTokenText}>{pass?.qr_token}</p>
-            <div className={styles.downloadBtnWrap}>
-              <button type="button" className={styles.editBtn} onClick={downloadPass}>
-                <Download size={16} /> Download
-              </button>
-            </div>
+            {pass?.qr_token ? (
+              <p className={styles.qrTokenText}>{pass.qr_token}</p>
+            ) : (
+              <p className={styles.qrTokenText}>
+                {pass?.status === "Pending"
+                  ? "Your QR pass will appear here once the administrator approves this request."
+                  : "No QR pass is available for this request."}
+              </p>
+            )}
+            {pass?.qr_token ? (
+              <div className={styles.downloadBtnWrap}>
+                <button type="button" className={styles.editBtn} onClick={downloadPass}>
+                  <Download size={16} /> Download
+                </button>
+              </div>
+            ) : null}
             {!revoked ? (
               <button type="button" className={styles.revokeBtn} onClick={() => void revokeAccess()}>
                 <XCircle size={16} /> Revoke Access

@@ -5,7 +5,12 @@ export type BadgeTone = "neutral" | "info" | "success" | "warning" | "danger";
 export function statusTone(status: string): BadgeTone {
   switch (status) {
     case "Completed":
+    case "Closed":
       return "success";
+    case "Resolved":
+      return "warning";
+    case "Reopened":
+      return "danger";
     case "Ongoing":
       return "info";
     case "Assigned":

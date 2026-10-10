@@ -24,6 +24,16 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 
 // --- Maintenance ---
 
+/** One step in a ticket's history. Technician names are never included. */
+export interface TicketActivity {
+  id: number;
+  kind?: string | null;
+  title: string;
+  description?: string | null;
+  timestamp: string;
+  attachments?: { id: number; url: string }[];
+}
+
 export interface MaintenanceTicket {
   id: number;
   subject: string;
@@ -32,10 +42,35 @@ export interface MaintenanceTicket {
   detailed_description: string;
   status: string;
   created_at: string;
-  activity_timeline?: unknown[];
+  activity_timeline?: TicketActivity[];
   preferred_date?: string | null;
   resolution_confirmed_at?: string | null;
   human_requested?: boolean;
+  /** Open, Assigned, Ongoing, Resolved (waiting for you), Closed, Reopened or Cancelled. */
+  stage?: string | null;
+  awaiting_confirmation?: boolean;
+  /** When a Resolved ticket closes by itself if you do not answer. */
+  auto_close_at?: string | null;
+  /** A technician handled (or is handling) the request, so their conduct can be reported. */
+  can_report_technician?: boolean;
+  technician_reported?: boolean;
+}
+
+export const TECHNICIAN_REPORT_CATEGORIES = [
+  "Rude or unprofessional",
+  "Late or did not show up",
+  "Poor quality of work",
+  "Safety or privacy concern",
+  "Other",
+] as const;
+
+/** Tells the administrator about the technician's conduct. The technician is not told who reported. */
+export async function reportTechnician(
+  ticketId: number,
+  category: string,
+  details: string
+): Promise<{ message: string }> {
+  return apiClient.post(`/api/v1/resident/maintenance/tickets/${ticketId}/report-technician`, { category, details });
 }
 
 
@@ -93,11 +128,23 @@ export async function confirmMaintenanceResolution(
   ticketId: number,
   resolved: boolean,
   feedback?: string
-): Promise<{ message: string; ticket_id: number; status: string; closed: boolean }> {
+): Promise<{ message: string; ticket_id: number; status: string; stage?: string; closed: boolean }> {
   return apiClient.post(`/api/v1/resident/maintenance/tickets/${ticketId}/confirm-resolution`, {
     resolved,
     feedback: feedback ?? null,
   });
+}
+
+/** "It is not fixed": needs a message and at least one photo. The ticket goes back to the administrator. */
+export async function reportNotFixed(
+  ticketId: number,
+  message: string,
+  photos: File[]
+): Promise<{ message: string; ticket_id: number; status: string; stage?: string; closed: boolean }> {
+  const form = new FormData();
+  form.set("message", message);
+  photos.forEach((photo) => form.append("photos", photo));
+  return apiClient.post(`/api/v1/resident/maintenance/tickets/${ticketId}/report-not-fixed`, form);
 }
 
 // --- Ticket chat (resident <-> assigned staff) ---

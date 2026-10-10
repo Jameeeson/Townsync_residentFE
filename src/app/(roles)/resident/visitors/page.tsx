@@ -294,10 +294,9 @@ export default function PassesPage() {
             <div className={styles.successIcon}>
               <Check size={28} />
             </div>
-            <h2>Pass Submitted!</h2>
+            <h2>Request Submitted!</h2>
             <p className={styles.modalDesc}>
-              {lastGeneratedPass.name}&apos;s pass was submitted
-              {lastGeneratedPass.status ? ` (${lastGeneratedPass.status})` : ""}.
+              {lastGeneratedPass.name}&apos;s request is waiting for the administrator. The QR pass appears here once it is approved.
             </p>
             {lastGeneratedPass.companions.length > 0 ? (
               <p className={styles.modalDesc}>
@@ -306,10 +305,6 @@ export default function PassesPage() {
                 {lastGeneratedPass.companions.join(", ")}.
               </p>
             ) : null}
-            <div className={styles.qrBorder} style={{ margin: "0 auto", width: "fit-content" }}>
-              <QRCodeSVG value={lastGeneratedPass.qrToken} size={150} />
-            </div>
-            <div className={styles.modalQrToken}>QR: {lastGeneratedPass.qrToken}</div>
             <button className={styles.closeBtn} onClick={() => setShowSuccess(false)}>
               Done
             </button>
@@ -477,7 +472,13 @@ export default function PassesPage() {
                       aria-label={`Open details for pass ${pass.id}`}
                     >
                       <div className={styles.qrBorder}>
-                        <QRCodeSVG value={pass.qrToken || String(pass.id)} size={80} />
+                        {pass.qrToken ? (
+                          <QRCodeSVG value={pass.qrToken} size={80} />
+                        ) : (
+                          <span style={{ display: "grid", placeItems: "center", width: 80, height: 80, fontSize: "0.7rem", fontWeight: 600, textAlign: "center", color: "var(--color-text-secondary)" }}>
+                            QR after approval
+                          </span>
+                        )}
                       </div>
                     </button>
                   </div>
