@@ -17,6 +17,7 @@ import {
   UserX,
   Users,
   Wrench,
+  BellRing,
   RotateCcw,
   ShieldAlert,
 } from "lucide-react";
@@ -58,6 +59,7 @@ const TYPE_STYLE: Record<string, { icon: typeof Bell; label: string; tone: strin
   reassign: { icon: AlertTriangle, label: "Reassign", tone: styles.toneRed },
   reopened: { icon: RotateCcw, label: "Not fixed", tone: styles.toneRed },
   conduct: { icon: ShieldAlert, label: "Conduct", tone: styles.toneRed },
+  followup: { icon: BellRing, label: "Follow-up", tone: styles.toneRed },
 };
 
 function ago(value: string | null): string {

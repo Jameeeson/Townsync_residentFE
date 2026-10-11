@@ -46,6 +46,16 @@ import AuthImageGallery from "@/components/ui/auth-image-gallery";
 import MaintenanceHistoryView from "@/components/admin/maintenance-history-view";
 import TicketHistoryTrail from "@/components/admin/ticket-history-trail";
 import ConductReportsView from "@/components/admin/conduct-reports-view";
+import DeadlineCalendar from "@/components/admin/deadline-calendar";
+import DeadlinePolicyModal from "@/components/admin/deadline-policy-modal";
+import {
+  deadlineIn,
+  describeHours,
+  FALLBACK_POLICY,
+  isPastLimit,
+  policyKey,
+  type DeadlinePolicy,
+} from "@/lib/deadlinePolicy";
 import TicketChatPane from "@/components/admin/ticket-chat-pane";
 import { StaffChatModal } from "@/components/admin/staff-chat";
 import { specialtyFit } from "@/lib/specialty";
@@ -78,6 +88,8 @@ type PendingRequest = {
   previousStaffId?: string | null;
   previousTechName?: string | null;
   historyPhotos?: number;
+  followUpCount?: number;
+  lastFollowUpAt?: string | null;
   aiLabel: string;
   /** Risk Triage Engine score (0-10ish) and the reasons behind it; absent for tickets it never scored. */
   riskScore: number | null;
@@ -124,6 +136,8 @@ type OngoingJob = {
   residentReport: string | null;
   residentDeleted?: boolean;
   techDeleted?: boolean;
+  followUpCount?: number;
+  lastFollowUpAt?: string | null;
   category: string;
   priority: Priority;
   location: string;
@@ -195,6 +209,8 @@ type TriageQueueItem = {
   previous_staff_id?: string | number | null;
   previous_tech_name?: string | null;
   history_photos?: number;
+  follow_up_count?: number;
+  last_follow_up_at?: string | null;
 };
 
 type DispatchBoardItem = {
@@ -255,6 +271,8 @@ type OngoingJobItem = {
   resident_report?: string | null;
   resident_deleted?: boolean;
   tech_deleted?: boolean;
+  follow_up_count?: number;
+  last_follow_up_at?: string | null;
 };
 
 const NOT_AVAILABLE = "Not available from backend";
@@ -326,6 +344,8 @@ function adaptTriageItem(item: TriageQueueItem): PendingRequest {
     previousStaffId: item.previous_staff_id != null ? String(item.previous_staff_id) : null,
     previousTechName: item.previous_tech_name ?? null,
     historyPhotos: item.history_photos ?? 0,
+    followUpCount: item.follow_up_count ?? 0,
+    lastFollowUpAt: item.last_follow_up_at ?? null,
     aiLabel: item.ai_priority ?? item.status,
     riskScore: typeof item.risk_score === "number" ? item.risk_score : null,
     riskReasons: item.risk_summary ?? [],
@@ -389,6 +409,8 @@ function adaptOngoingJob(item: OngoingJobItem): OngoingJob {
     residentReport: item.resident_report ?? null,
     residentDeleted: Boolean(item.resident_deleted),
     techDeleted: Boolean(item.tech_deleted),
+    followUpCount: item.follow_up_count ?? 0,
+    lastFollowUpAt: item.last_follow_up_at ?? null,
     category: item.category,
     priority: toPriority(item.priority),
     location: item.unit_number ?? NOT_AVAILABLE,
@@ -524,6 +546,9 @@ function MaintenanceCommand() {
   const [ongoingJobs, setOngoingJobs] = useState<OngoingJob[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [policy, setPolicy] = useState<DeadlinePolicy>(FALLBACK_POLICY);
+  const [showPolicy, setShowPolicy] = useState(false);
+
   const loadAll = () => {
     setLoadError(null);
     apiGet<TriageQueueItem[]>("/api/v1/admin/maintenance/triage-queue")
@@ -544,6 +569,9 @@ function MaintenanceCommand() {
         setSummary(null);
         setLoadError("Some maintenance data couldn't be loaded. Try refreshing the page.");
       });
+    apiGet<DeadlinePolicy>("/api/v1/admin/maintenance/deadline-policy")
+      .then(setPolicy)
+      .catch(() => setPolicy(FALLBACK_POLICY));
     apiGet<OngoingJobItem[]>("/api/v1/admin/maintenance/ongoing-jobs")
       .then((data) => setOngoingJobs(data.map(adaptOngoingJob)))
       .catch(() => {
@@ -566,6 +594,7 @@ function MaintenanceCommand() {
   const [dispatchDeadlineDate, setDispatchDeadlineDate] = useState("");
   const [dispatchDeadlineTime, setDispatchDeadlineTime] = useState("12:00");
   const [dispatchDeadlineError, setDispatchDeadlineError] = useState<string | null>(null);
+  const [dispatchLateReason, setDispatchLateReason] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [declineMessage, setDeclineMessage] = useState("");
@@ -613,8 +642,12 @@ function MaintenanceCommand() {
   const openDispatch = (ticketId: string, preferredTechId?: string) => {
     setDispatchTicketId(ticketId);
     setSelectedTechId(preferredTechId ?? staff.find((s) => s.isTech)?.id ?? null);
-    setDispatchDeadlineDate("");
-    setDispatchDeadlineTime("12:00"); // noon by default; the admin can still change it
+    // The usual time for this ticket's priority (Deadline targets); the admin can still change it.
+    const target = pendingRequests.find((r) => r.id === ticketId);
+    const suggested = deadlineIn(policy[policyKey(target?.priority ?? "low")].default_hours);
+    setDispatchDeadlineDate(suggested.date);
+    setDispatchDeadlineTime(suggested.time);
+    setDispatchLateReason("");
     setDispatchDeadlineError(null);
     setDeclineReason("");
     setDeclineMessage("");
@@ -643,6 +676,18 @@ function MaintenanceCommand() {
       toast("A dispatch deadline date and time are required.", "warning");
       return;
     }
+    if (new Date(`${dispatchDeadlineDate}T${dispatchDeadlineTime}`).getTime() < Date.now() - 60_000) {
+      setDispatchDeadlineError("That deadline has already passed. Pick a time from now on.");
+      return;
+    }
+    const limit = policy[policyKey(dispatchTicket.priority)];
+    const pastLimit = isPastLimit(dispatchDeadlineDate, dispatchDeadlineTime, limit.max_hours);
+    if (pastLimit && dispatchLateReason.trim().length < 3) {
+      setDispatchDeadlineError(
+        `That is later than the usual limit for ${policyKey(dispatchTicket.priority)} priority (${describeHours(limit.max_hours)}). Add a short reason.`,
+      );
+      return;
+    }
     setDispatchDeadlineError(null);
     setAssigning(true);
     try {
@@ -650,6 +695,7 @@ function MaintenanceCommand() {
         staff_id: selectedTechId,
         deadline: `${dispatchDeadlineDate} ${dispatchDeadlineTime}`,
       });
+      if (pastLimit) params.set("late_reason", dispatchLateReason.trim());
       // The dispatch dialog warns about an off-shift technician; pressing confirm is the OK.
       if (staff.find((t) => t.id === selectedTechId)?.status === "off-shift") {
         params.set("allow_off_shift", "true");
@@ -769,6 +815,9 @@ function MaintenanceCommand() {
             {loadError ? <p className={styles.errorText}>{loadError}</p> : null}
           </div>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button type="button" className={styles.calendarToggle} onClick={() => setShowPolicy(true)}>
+            <Clock size={15} /> Deadline Targets
+          </button>
           <Link href="/admin/maintenance/learning" className={styles.calendarToggle}>
             <Scale size={15} /> Priority Learning
           </Link>
@@ -930,6 +979,10 @@ function MaintenanceCommand() {
           )}
         </main>
 
+        {showPolicy ? (
+          <DeadlinePolicyModal policy={policy} onClose={() => setShowPolicy(false)} onSaved={setPolicy} />
+        ) : null}
+
         {modalMode && dispatchTicket && (
           <DispatchFlowModal
             mode={modalMode}
@@ -947,6 +1000,9 @@ function MaintenanceCommand() {
             onDeadlineDateChange={setDispatchDeadlineDate}
             deadlineTime={dispatchDeadlineTime}
             onDeadlineTimeChange={setDispatchDeadlineTime}
+            policy={policy}
+            lateReason={dispatchLateReason}
+            onLateReasonChange={setDispatchLateReason}
             declineReason={declineReason}
             onDeclineReasonChange={setDeclineReason}
             declineMessage={declineMessage}
@@ -1290,6 +1346,11 @@ function PendingRequestsView({
                         Reopened
                       </div>
                     ) : null}
+                    {req.followUpCount ? (
+                      <div className={styles.followUpTag} title={`Last asked ${req.lastFollowUpAt ?? ""}`}>
+                        Resident followed up{req.followUpCount > 1 ? ` x${req.followUpCount}` : ""}
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     <span className={styles.categoryCell}>
@@ -1628,6 +1689,11 @@ function OngoingRepairsView({
                       <Home size={14} /> {job.location}
                     </span>
                     {job.residentDeleted ? <span className={styles.deletedTag}>Resident account deleted</span> : null}
+                    {job.followUpCount ? (
+                      <span className={styles.followUpTag} title={`Last asked ${job.lastFollowUpAt ?? ""}`}>
+                        Resident followed up{job.followUpCount > 1 ? ` x${job.followUpCount}` : ""}
+                      </span>
+                    ) : null}
                   </td>
                   <td>
                     <div className={styles.techCell}>
@@ -2285,6 +2351,9 @@ function TicketEditor({
   const [priorityReason, setPriorityReason] = useState("");
   const [notes, setNotes] = useState(adminNotes ?? "");
   const [due, setDue] = useState(toLocalInput(deadline));
+  // Asked for only when the server says the new deadline is later than the priority allows from dispatch.
+  const [lateReason, setLateReason] = useState("");
+  const [needsReason, setNeedsReason] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const { toast, toastError } = useToast();
@@ -2324,7 +2393,10 @@ function TicketEditor({
       body.priority_reason = priorityReason.trim();
     }
     if (notes !== (adminNotes ?? "")) body.admin_notes = notes;
-    if (showDeadline && due !== toLocalInput(deadline)) body.deadline = due.replace("T", " ");
+    if (showDeadline && due !== toLocalInput(deadline)) {
+      body.deadline = due.replace("T", " ");
+      if (needsReason && lateReason.trim()) body.late_reason = lateReason.trim();
+    }
     setSaving(true);
     setMessage(null);
     try {
@@ -2335,6 +2407,7 @@ function TicketEditor({
       onSaved();
     } catch (e) {
       const text = e instanceof ApiError ? e.message : "Could not update the ticket.";
+      if (e instanceof ApiError && /short reason/i.test(e.message)) setNeedsReason(true);
       setMessage({ ok: false, text });
       toastError(e, "Could not update the ticket.");
     } finally {
@@ -2412,6 +2485,22 @@ function TicketEditor({
             value={due}
             onChange={(e) => setDue(e.target.value)}
           />
+          {needsReason ? (
+            <>
+              <label htmlFor={`ticket-late-${requestId}`} style={{ marginTop: "0.75rem" }}>
+                Why is this later than usual? <span className={styles.requiredMark}>*</span>
+              </label>
+              <input
+                id={`ticket-late-${requestId}`}
+                type="text"
+                className={styles.textField}
+                maxLength={300}
+                value={lateReason}
+                onChange={(e) => setLateReason(e.target.value)}
+                placeholder="e.g. Part is on order until Thursday"
+              />
+            </>
+          ) : null}
         </div>
       ) : null}
       <div className={styles.inputGroup} style={{ marginTop: "1rem" }}>
@@ -2453,6 +2542,9 @@ function DispatchFlowModal({
   onDeadlineDateChange,
   deadlineTime,
   onDeadlineTimeChange,
+  policy,
+  lateReason,
+  onLateReasonChange,
   deadlineError,
   assigning,
   declineReason,
@@ -2476,6 +2568,9 @@ function DispatchFlowModal({
   onDeadlineDateChange: (value: string) => void;
   deadlineTime: string;
   onDeadlineTimeChange: (value: string) => void;
+  policy: DeadlinePolicy;
+  lateReason: string;
+  onLateReasonChange: (value: string) => void;
   deadlineError: string | null;
   assigning: boolean;
   declineReason: string;
@@ -2818,22 +2913,14 @@ function DispatchFlowModal({
                 <label htmlFor="dispatch-deadline-date">
                   Dispatch Deadline Date <span className={styles.requiredMark}>*</span>
                 </label>
-                <div
-                  className={`${styles.iconInput} ${
-                    deadlineError && !deadlineDate ? styles.iconInputInvalid : ""
-                  }`}
-                >
-                  <Calendar size={16} />
-                  <input
-                    id="dispatch-deadline-date"
-                    type="date"
-                    required
-                    aria-required="true"
-                    aria-invalid={Boolean(deadlineError && !deadlineDate)}
-                    value={deadlineDate}
-                    onChange={(e) => onDeadlineDateChange(e.target.value)}
-                  />
-                </div>
+                <DeadlineCalendar
+                  id="dispatch-deadline-date"
+                  value={deadlineDate}
+                  onChange={onDeadlineDateChange}
+                  usualDate={deadlineIn(policy[policyKey(ticket.priority)].default_hours).date}
+                  latestDate={deadlineIn(policy[policyKey(ticket.priority)].max_hours).date}
+                  invalid={Boolean(deadlineError && !deadlineDate)}
+                />
               </div>
               <div className={styles.inputGroup}>
                 <label htmlFor="dispatch-deadline-time">
@@ -2857,6 +2944,37 @@ function DispatchFlowModal({
                 </div>
               </div>
             </div>
+            {(() => {
+              const key = policyKey(ticket.priority);
+              const tier = policy[key];
+              const past = isPastLimit(deadlineDate, deadlineTime, tier.max_hours);
+              return (
+                <>
+                  <p className={styles.deadlineHint}>
+                    {key} priority: usually {describeHours(tier.default_hours)}
+                    {tier.max_hours !== tier.default_hours ? `, up to ${describeHours(tier.max_hours)}` : ""}.
+                  </p>
+                  {past ? (
+                    <div className={`${styles.inputGroup} ${styles.lateReason}`}>
+                      <label htmlFor="dispatch-late-reason">
+                        Why is this later than usual? <span className={styles.requiredMark}>*</span>
+                      </label>
+                      <div className={styles.iconInput}>
+                        <MessageSquare size={16} />
+                        <input
+                          id="dispatch-late-reason"
+                          type="text"
+                          maxLength={300}
+                          value={lateReason}
+                          onChange={(e) => onLateReasonChange(e.target.value)}
+                          placeholder="e.g. Part is on order until Thursday"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
             {deadlineError ? (
               <p className={styles.fieldError} role="alert">
                 {deadlineError}
