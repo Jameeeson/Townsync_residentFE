@@ -54,6 +54,14 @@ export interface MaintenanceTicket {
   /** A technician handled (or is handling) the request, so their conduct can be reported. */
   can_report_technician?: boolean;
   technician_reported?: boolean;
+  /** When the request was promised (UTC) and whether it is past that time. */
+  expected_by?: string | null;
+  is_overdue?: boolean;
+  /** The resident may ask management for an update (late, and not asked in the last 24 hours). */
+  can_follow_up?: boolean;
+  follow_up_count?: number;
+  /** When the next follow-up may be sent; empty when one can be sent now. */
+  follow_up_available_at?: string | null;
 }
 
 export const TECHNICIAN_REPORT_CATEGORIES = [
@@ -73,6 +81,11 @@ export async function reportTechnician(
   return apiClient.post(`/api/v1/resident/maintenance/tickets/${ticketId}/report-technician`, { category, details });
 }
 
+
+/** Asks management for an update on a late request. Allowed once every 24 hours. */
+export async function followUpOnTicket(ticketId: number, note?: string): Promise<{ message: string }> {
+  return apiClient.post(`/api/v1/resident/maintenance/tickets/${ticketId}/follow-up`, note ? { note } : {});
+}
 
 export async function listMaintenanceTickets(status?: string): Promise<MaintenanceTicket[]> {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";

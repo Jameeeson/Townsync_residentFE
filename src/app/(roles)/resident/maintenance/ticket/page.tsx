@@ -7,6 +7,7 @@ import styles from "@/styles/ticketdetail.module.css";
 import {
   ArrowLeft,
   BadgeCheck,
+  BellRing,
   CircleHelp,
   ClipboardCheck,
   FilePlus2,
@@ -29,6 +30,7 @@ import {
   getMaintenanceTicket,
 } from "@/lib/api/resident";
 import AuthPhotos from "@/components/maintenance/AuthPhotos";
+import FollowUpPanel from "@/components/maintenance/FollowUpPanel";
 import ResolutionPanel from "@/components/maintenance/ResolutionPanel";
 import ReportTechnicianDialog from "@/components/maintenance/ReportTechnicianDialog";
 import TicketChatDialog from "@/components/maintenance/TicketChatDialog";
@@ -85,6 +87,7 @@ const KIND_ICONS: Record<string, LucideIcon> = {
   closed: BadgeCheck,
   closed_auto: TimerOff,
   cancelled: XCircle,
+  follow_up: BellRing,
 };
 
 function whenLong(value: string | null | undefined): string {
@@ -167,6 +170,16 @@ function TicketDetail() {
             : "Could not cancel ticket."
       );
       setCancelling(false);
+    }
+  }
+
+  /** A follow-up was sent: reload so the history and the 24-hour wait are current. */
+  async function handleFollowedUp() {
+    if (!ticket) return;
+    try {
+      setTicket(await getMaintenanceTicket(ticket.id));
+    } catch {
+      // the page still shows the earlier state; the next visit shows the new one
     }
   }
 
@@ -275,6 +288,16 @@ function TicketDetail() {
         />
       ) : null}
 
+      {ticket.is_overdue ? (
+        <FollowUpPanel
+          ticketId={ticket.id}
+          expectedBy={ticket.expected_by}
+          availableAt={ticket.follow_up_available_at}
+          count={ticket.follow_up_count ?? 0}
+          onSent={() => void handleFollowedUp()}
+        />
+      ) : null}
+
       {awaitingConfirmation ? (
         <ResolutionPanel ticketId={ticket.id} autoCloseAt={ticket.auto_close_at} onAnswered={(next) => void handleAnswered(next)} />
       ) : null}
@@ -297,6 +320,12 @@ function TicketDetail() {
                 <dt>Filed</dt>
                 <dd>{whenLong(ticket.created_at)}</dd>
               </div>
+              {ticket.expected_by && !awaitingConfirmation ? (
+                <div>
+                  <dt>Expected by</dt>
+                  <dd>{whenLong(ticket.expected_by)}</dd>
+                </div>
+              ) : null}
               {ticket.preferred_date ? (
                 <div>
                   <dt>Preferred visit</dt>
