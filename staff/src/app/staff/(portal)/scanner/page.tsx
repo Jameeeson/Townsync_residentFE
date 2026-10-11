@@ -71,10 +71,10 @@ export default function StaffScannerPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanLoopRef = useRef<number | null>(null);
-  // After a read the scanner pauses until the guard taps "Scan next pass". Without this the QR still in view is
+  // After a read the camera is switched off until the guard taps "Scan next pass". Without this the QR still in view is
   // read again and again, and each read flips the pass between check-in and check-out.
   const pausedRef = useRef(false);
-  const [paused, setPaused] = useState(false);
+  const [scanDone, setScanDone] = useState(false);
   const inFlightRef = useRef(false);
   const lastReadRef = useRef<{ token: string; at: number } | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -265,7 +265,6 @@ export default function StaffScannerPage() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     pausedRef.current = false;
-    setPaused(false);
     setCameraStatus("idle");
     setTorchSupported(false);
     setTorchOn(false);
@@ -305,19 +304,21 @@ export default function StaffScannerPage() {
     const last = lastReadRef.current;
     const sameAsJustRead = Boolean(code?.data && last && last.token === code.data && Date.now() - last.at < SAME_CODE_BLOCK_MS);
     if (code?.data && !pausedRef.current && !inFlightRef.current && !sameAsJustRead) {
-      // Stop reading right away; the guard resumes once the pass has left the frame.
+      // Turn the camera off right away; the guard starts it again for the next pass.
       pausedRef.current = true;
       inFlightRef.current = true;
-      setPaused(true);
       lastReadRef.current = { token: code.data, at: Date.now() };
       setPassId(code.data);
       verifyToken(code.data).finally(() => {
         inFlightRef.current = false;
         lastReadRef.current = { token: code.data, at: Date.now() };
       });
+      setScanDone(true);
+      stopCamera();
+      return;
     }
     scanLoopRef.current = requestAnimationFrame(() => tickRef.current());
-  }, [verifyToken]);
+  }, [verifyToken, stopCamera]);
 
   useEffect(() => {
     tickRef.current = tick;
@@ -336,12 +337,6 @@ export default function StaffScannerPage() {
     stopRef.current = stopCamera;
   }, [stopCamera]);
 
-  const resumeScan = useCallback(() => {
-    pausedRef.current = false;
-    setPaused(false);
-    armIdleTimer();
-  }, [armIdleTimer]);
-
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraStatus("error");
@@ -352,7 +347,7 @@ export default function StaffScannerPage() {
     setCameraError(null);
     setIdleStopped(false);
     pausedRef.current = false;
-    setPaused(false);
+    setScanDone(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
@@ -472,12 +467,12 @@ export default function StaffScannerPage() {
                 autoPlay
               />
               <canvas ref={canvasRef} style={{ display: "none" }} />
-              {cameraStatus === "active" && !paused ? <div className={styles.cameraReticle} aria-hidden /> : null}
-              {cameraStatus === "active" && paused ? (
+              {cameraStatus === "active" ? <div className={styles.cameraReticle} aria-hidden /> : null}
+              {scanDone && cameraStatus === "idle" ? (
                 <div className={styles.pausedOverlay} role="status">
                   <strong>{verifying ? "Checking the pass…" : "Scan recorded"}</strong>
-                  <span>Scanning is paused so the same pass is not read twice.</span>
-                  <button type="button" className={styles.resumeBtn} onClick={resumeScan} disabled={verifying}>
+                  <span>The camera turned off so the same pass is not read twice.</span>
+                  <button type="button" className={styles.resumeBtn} onClick={() => void startCamera()} disabled={verifying}>
                     Scan next pass
                   </button>
                 </div>
@@ -492,16 +487,16 @@ export default function StaffScannerPage() {
             <div className={styles.scanStripCopy}>
               <p>
                 {cameraStatus === "active"
-                  ? paused
-                    ? "Paused after a scan"
-                    : "Point the camera at the visitor's QR pass"
+                  ? "Point the camera at the visitor's QR pass"
                   : cameraStatus === "starting"
                     ? "Starting camera…"
                     : cameraStatus === "error"
                       ? (cameraError ?? "Camera unavailable")
-                      : idleStopped
-                        ? "Camera turned off after 2 minutes without a scan"
-                        : "Camera is off"}
+                      : scanDone
+                        ? "Camera turned off after the scan"
+                        : idleStopped
+                          ? "Camera turned off after 2 minutes without a scan"
+                          : "Camera is off"}
               </p>
               <span>Verify a pass or log a visitor manually below.</span>
             </div>
