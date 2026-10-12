@@ -8,7 +8,6 @@ import { AIPresence } from "./AIPresence";
 import { EmptyState } from "./EmptyState";
 import { ConversationStream } from "./ConversationStream";
 import { ChatComposer } from "./ChatComposer";
-import { CaseFile } from "./CaseFile";
 import { ReviewBrief } from "./ReviewBrief";
 import { SuccessPanel } from "./SuccessPanel";
 import { HelpfulResource } from "./HelpfulResource";
@@ -96,8 +95,7 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
         <HelpfulResource category={chat.summaryState?.category ?? null} />
 
         {chat.isComplete ? (
-          // The case file (with its own Review button) sits below the chat on
-          // narrower screens; this keeps the next step in view without scrolling.
+          // The next step stays in view as soon as everything has been gathered.
           <button type="button" className={styles.inlineReviewBtn} onClick={chat.beginReview}>
             <ClipboardCheck size={16} aria-hidden="true" /> All details gathered — Review &amp; submit
           </button>
@@ -112,13 +110,6 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
           onPickSuggestedOption={chat.sendSuggestedOption}
         />
       </div>
-
-      <CaseFile
-        summaryState={chat.summaryState}
-        isComplete={chat.isComplete}
-        attachments={chat.attachments}
-        onReviewSubmit={chat.beginReview}
-      />
     </div>
   );
 }

@@ -412,10 +412,7 @@
 
 @media (min-width: 1080px) {
   .conversationGrid {
-    max-width: 1400px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-    align-items: start;
+    max-width: 960px;
   }
 }
 

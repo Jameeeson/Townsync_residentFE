@@ -41,7 +41,7 @@ export interface RequestDraft {
 }
 
 const FALLBACK_MESSAGE =
-  "I couldn't reach the assistant right now. You can still continue by completing the maintenance request manually.";
+  "I couldn't reach the assistant right now.";
 
 const MAX_ATTACHMENTS = 4;
 
