@@ -6,6 +6,31 @@ import styles from "./PhotoPicker.module.css";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const OK_TYPES = ["image/jpeg", "image/png", "image/webp"];
+// Phone photos are often 5 to 10 MB each. Anything bigger than this is shrunk before it is uploaded, which keeps a
+// five-photo work report small enough to send on a weak connection.
+const SHRINK_ABOVE_BYTES = 1.5 * 1024 * 1024;
+const MAX_EDGE = 1920;
+
+/** Returns a smaller JPEG of the photo, or the original when it is already small or cannot be shrunk. */
+async function shrink(file: File): Promise<File> {
+  if (file.size <= SHRINK_ABOVE_BYTES) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg", lastModified: Date.now() });
+  } catch {
+    return file;
+  }
+}
 
 type Props = {
   files: File[];
@@ -22,23 +47,23 @@ export function PhotoPicker({ files, onChange, onReject, max = 5, inputId = "pho
   const previews = useMemo(() => files.map((file) => ({ file, url: URL.createObjectURL(file) })), [files]);
   useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.url)), [previews]);
 
-  function add(list: FileList | null) {
+  async function add(list: FileList | null) {
     if (!list) return;
     const next = [...files];
-    for (const file of Array.from(list)) {
+    for (const picked of Array.from(list)) {
       if (next.length >= max) {
         onReject?.(`You can add up to ${max} photos.`);
         break;
       }
-      if (file.type && !OK_TYPES.includes(file.type)) {
-        onReject?.(`${file.name} cannot be used. Use a JPG, PNG or WebP image (on an iPhone, choose a photo saved as JPEG).`);
+      if (picked.type && !OK_TYPES.includes(picked.type)) {
+        onReject?.(`${picked.name} cannot be used. Use a JPG, PNG or WebP image (on an iPhone, choose a photo saved as JPEG).`);
         continue;
       }
-      if (file.size > MAX_BYTES) {
-        onReject?.(`${file.name} is larger than 10 MB.`);
+      if (picked.size > MAX_BYTES) {
+        onReject?.(`${picked.name} is larger than 10 MB.`);
         continue;
       }
-      next.push(file);
+      next.push(await shrink(picked));
     }
     onChange(next);
     if (inputRef.current) inputRef.current.value = "";
@@ -65,7 +90,7 @@ export function PhotoPicker({ files, onChange, onReject, max = 5, inputId = "pho
           </li>
         ) : null}
       </ul>
-      <input ref={inputRef} id={inputId} className={styles.input} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => add(e.target.files)} />
+      <input ref={inputRef} id={inputId} className={styles.input} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => void add(e.target.files)} />
       <p className={styles.count}>{files.length} of {max} photos</p>
     </div>
   );

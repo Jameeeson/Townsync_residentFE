@@ -91,6 +91,10 @@ async function parseErrorMessage(res: Response): Promise<string> {
   return `Request failed (${res.status}).`;
 }
 
+/** Plain requests give up after 20 seconds; an upload with photos gets longer, since phone photos are large. */
+const REQUEST_TIMEOUT_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 120_000;
+
 type RequestOptions = {
   method?: string;
   body?: unknown;
@@ -122,9 +126,16 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
       headers: finalHeaders,
       body: requestBody,
       credentials: "include",
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(form ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
     });
-  } catch {
+  } catch (err) {
+    if (form && err instanceof DOMException && err.name === "TimeoutError") {
+      // The server may still have received the upload, so say so instead of inviting a blind retry.
+      throw new ApiError(
+        0,
+        "The upload is taking too long on this connection. It may still have gone through, so refresh and check the task before sending again.",
+      );
+    }
     throw new ApiError(0, "Could not reach the server. Check your connection and try again.");
   }
 
