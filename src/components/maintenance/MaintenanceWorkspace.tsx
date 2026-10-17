@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { ClipboardCheck, RotateCw } from "lucide-react";
 import styles from "@/styles/maintenance.module.css";
 import { useMaintenanceChat } from "@/hooks/useMaintenanceChat";
@@ -94,12 +95,7 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
 
         <HelpfulResource category={chat.summaryState?.category ?? null} />
 
-        {chat.isComplete ? (
-          // The next step stays in view as soon as everything has been gathered.
-          <button type="button" className={styles.inlineReviewBtn} onClick={chat.beginReview}>
-            <ClipboardCheck size={16} aria-hidden="true" /> All details gathered — Review &amp; submit
-          </button>
-        ) : null}
+        {chat.isComplete ? <ReviewButton onClick={chat.beginReview} /> : null}
 
         <ChatComposer
           value={chat.input}
@@ -111,6 +107,19 @@ function renderPhase(chat: ReturnType<typeof useMaintenanceChat>) {
         />
       </div>
     </div>
+  );
+}
+
+/** The next step once everything is gathered. It scrolls into view when it appears, so it is not missed on a phone. */
+function ReviewButton({ onClick }: { onClick: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+  return (
+    <button ref={ref} type="button" className={styles.inlineReviewBtn} onClick={onClick}>
+      <ClipboardCheck size={16} aria-hidden="true" /> All details gathered — Review &amp; submit
+    </button>
   );
 }
 

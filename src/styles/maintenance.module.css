@@ -2705,7 +2705,7 @@ button.helpfulResourceHeader {
   }
 }
 
-/* In-chat "Review & submit" — only where the case file isn't beside the chat. */
+/* In-chat "Review & submit", shown on every screen size once all the details are gathered. */
 .inlineReviewBtn {
   flex-shrink: 0;
   display: inline-flex;
@@ -2733,12 +2733,6 @@ button.helpfulResourceHeader {
 .inlineReviewBtn:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
-}
-
-@media (min-width: 1080px) {
-  .inlineReviewBtn {
-    display: none;
-  }
 }
 
 /* Phones: history filters stay on one swipeable line (they were wrapping
