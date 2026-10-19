@@ -12,6 +12,15 @@ export const FALLBACK_POLICY: DeadlinePolicy = {
   Low: { default_hours: 168, max_hours: 168 },
 };
 
+/** True when `value` has the four priorities with usable hours; anything else (an error body, an old server) is ignored. */
+export function isDeadlinePolicy(value: unknown): value is DeadlinePolicy {
+  if (!value || typeof value !== "object") return false;
+  return POLICY_PRIORITIES.every((name) => {
+    const tier = (value as Record<string, DeadlineTier | undefined>)[name];
+    return Boolean(tier) && Number(tier?.default_hours) > 0 && Number(tier?.max_hours) >= Number(tier?.default_hours);
+  });
+}
+
 export function policyKey(priority: string): PolicyPriority {
   const v = priority.toLowerCase();
   if (v.includes("emergency")) return "Emergency";

@@ -2843,3 +2843,57 @@
   font-size: 0.68rem;
   font-weight: 700;
 }
+
+/* Dispatch: the technician list scrolls inside its own box, so the warnings under it stay in view instead of being
+   pushed far below a long list. Cards are one compact, left-aligned row each. */
+.techOptions {
+  max-height: clamp(200px, 30vh, 340px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  gap: 0.5rem;
+  scrollbar-gutter: stable;
+}
+
+.techOptions .techCard {
+  padding: 0.6rem 0.8rem;
+  gap: 0.6rem;
+  text-align: left;
+  flex-wrap: nowrap;
+}
+
+.techOptions .techInfo {
+  flex: 1 1 auto;
+  gap: 10px;
+}
+
+.techOptions .techInfo > div:last-child {
+  min-width: 0;
+}
+
+.techOptions .techInfo strong {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.techOptions .techInfo p {
+  margin: 1px 0 0;
+  font-size: 0.75rem;
+}
+
+.techOptions .loadLabel {
+  flex: none;
+  margin-left: 0;
+}
+
+@media (max-width: 640px) {
+  .techOptions {
+    max-height: clamp(240px, 46vh, 380px);
+  }
+
+  .techOptions .techCard {
+    flex-wrap: wrap;
+  }
+}

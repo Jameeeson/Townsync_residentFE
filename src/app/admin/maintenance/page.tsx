@@ -47,11 +47,13 @@ import MaintenanceHistoryView from "@/components/admin/maintenance-history-view"
 import TicketHistoryTrail from "@/components/admin/ticket-history-trail";
 import ConductReportsView from "@/components/admin/conduct-reports-view";
 import DeadlineCalendar from "@/components/admin/deadline-calendar";
+import { cleanPersonName } from "@/lib/names";
 import DeadlinePolicyModal from "@/components/admin/deadline-policy-modal";
 import {
   deadlineIn,
   describeHours,
   FALLBACK_POLICY,
+  isDeadlinePolicy,
   isPastLimit,
   policyKey,
   type DeadlinePolicy,
@@ -370,10 +372,11 @@ function formatMinutes(minutes: number): string {
 
 function adaptStaffItem(item: DispatchBoardItem): StaffMember {
   const status = toStaffStatus(item.status);
+  const name = cleanPersonName(item.name);
   return {
     id: item.id,
-    name: item.name,
-    initials: initialsFor(item.name),
+    name,
+    initials: initialsFor(name),
     specialty: item.specialty,
     skills: [item.specialty],
     status,
@@ -414,8 +417,8 @@ function adaptOngoingJob(item: OngoingJobItem): OngoingJob {
     category: item.category,
     priority: toPriority(item.priority),
     location: item.unit_number ?? NOT_AVAILABLE,
-    tech: item.tech_name ?? "Unassigned",
-    techInitials: item.tech_name ? initialsFor(item.tech_name) : "—",
+    tech: item.tech_name ? cleanPersonName(item.tech_name) : "Unassigned",
+    techInitials: item.tech_name ? initialsFor(cleanPersonName(item.tech_name)) : "—",
     status: item.status,
     assignedAt: item.assigned_at ?? NOT_AVAILABLE,
     deadline: item.deadline,
@@ -570,7 +573,7 @@ function MaintenanceCommand() {
         setLoadError("Some maintenance data couldn't be loaded. Try refreshing the page.");
       });
     apiGet<DeadlinePolicy>("/api/v1/admin/maintenance/deadline-policy")
-      .then(setPolicy)
+      .then((data) => setPolicy(isDeadlinePolicy(data) ? data : FALLBACK_POLICY))
       .catch(() => setPolicy(FALLBACK_POLICY));
     apiGet<OngoingJobItem[]>("/api/v1/admin/maintenance/ongoing-jobs")
       .then((data) => setOngoingJobs(data.map(adaptOngoingJob)))
@@ -3014,6 +3017,19 @@ function DispatchFlowModal({
                 setTechSearch("");
               }}
             />
+            {/* The warning sits above the list so it is never pushed out of view by a long list. */}
+            {selectedIsOffShift ? (
+              <p className={styles.fieldError} role="alert">
+                {selected?.name} is off shift right now ({selected?.shift}). Dispatch only if this can&apos;t
+                wait for someone on shift.
+              </p>
+            ) : null}
+            {selectedIsOverloaded ? (
+              <p className={styles.fieldError} role="alert">
+                {selected?.name} already has {selected?.activeTaskCount} active jobs. Confirm only
+                if this is urgent enough to add another.
+              </p>
+            ) : null}
             <div className={styles.techOptions}>
               {list.length === 0 ? <p className={styles.helpText}>No technician matches these filters.</p> : null}
               {list.map((tech) => (
@@ -3067,18 +3083,6 @@ function DispatchFlowModal({
                 </button>
               ))}
             </div>
-            {selectedIsOffShift ? (
-              <p className={styles.fieldError} role="alert">
-                {selected?.name} is off shift right now ({selected?.shift}). Dispatch only if this can&apos;t
-                wait for someone on shift.
-              </p>
-            ) : null}
-            {selectedIsOverloaded ? (
-              <p className={styles.fieldError} role="alert">
-                {selected?.name} already has {selected?.activeTaskCount} active jobs. Confirm only
-                if this is urgent enough to add another.
-              </p>
-            ) : null}
           </div>
         </div>
 
