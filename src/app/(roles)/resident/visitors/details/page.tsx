@@ -12,6 +12,7 @@ import {
   XCircle,
   Check,
   Users,
+  MessageSquare,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ApiClientError } from "@/lib/apiClient";
@@ -20,6 +21,7 @@ import {
   VisitorPass,
   cancelVisitorPass,
   getVisitorPass,
+  requestPassChange,
   updateVisitorPass,
 } from "@/lib/api/resident";
 import { parseServerDate } from "@/lib/datetime";
@@ -78,6 +80,10 @@ function VisitorDetailsInner() {
   const [scheduledAtInput, setScheduledAtInput] = useState("");
   const [scheduledAtError, setScheduledAtError] = useState("");
   const [savedNote, setSavedNote] = useState("");
+  // An approved pass is locked: a change goes to the administrator as a message.
+  const [changeOpen, setChangeOpen] = useState(false);
+  const [changeText, setChangeText] = useState("");
+  const [changeBusy, setChangeBusy] = useState(false);
   const [fetchError, setError] = useState("");
   const [fetching, setLoading] = useState(true);
   const invalidId = !Number.isFinite(passId);
@@ -161,6 +167,42 @@ function VisitorDetailsInner() {
             ? err.message
             : "Could not update pass."
       );
+      // The administrator may have approved the pass while it was being edited: show it as it is now, locked.
+      if (err instanceof ApiClientError && err.status === 409) {
+        setEditing(false);
+        try {
+          setPass(await getVisitorPass(pass.id));
+        } catch {
+          // the message above already explains; the next visit shows the current state
+        }
+      }
+    }
+  }
+
+  async function sendChangeRequest() {
+    if (!pass) return;
+    const text = changeText.trim();
+    if (text.length < 5) {
+      setError("Tell the administrator what should change, in a few words.");
+      return;
+    }
+    setChangeBusy(true);
+    setError("");
+    try {
+      const result = await requestPassChange(pass.id, text);
+      setChangeText("");
+      setChangeOpen(false);
+      setSavedNote(result.message || "Sent. The administrator will update the pass or reply to you.");
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not send your request."
+      );
+    } finally {
+      setChangeBusy(false);
     }
   }
 
@@ -298,6 +340,10 @@ function VisitorDetailsInner() {
           >
             <Check size={16} /> Save Pass
           </button>
+        ) : pass?.status === "Approved" ? (
+          <button type="button" className={styles.editBtn} onClick={() => setChangeOpen((open) => !open)} aria-expanded={changeOpen}>
+            <MessageSquare size={16} /> Request a change
+          </button>
         ) : (
           <button
             type="button"
@@ -307,12 +353,42 @@ function VisitorDetailsInner() {
               setScheduledAtError("");
               setEditing(true);
             }}
-            disabled={revoked}
+            disabled={revoked || pass?.status !== "Pending"}
           >
             <Edit3 size={16} /> Edit Pass
           </button>
         )}
       </header>
+
+      {pass?.status === "Approved" ? (
+        <section className={styles.changePanel} aria-label="Change an approved pass">
+          <p>
+            This pass is approved, so its details are locked. If something changes (the day, the time or the guests), message the
+            administrator and they will update it for you.
+          </p>
+          {changeOpen ? (
+            <div className={styles.changeForm}>
+              <label htmlFor="pass-change-text">What should change?</label>
+              <textarea
+                id="pass-change-text"
+                rows={3}
+                maxLength={1000}
+                value={changeText}
+                onChange={(e) => setChangeText(e.target.value)}
+                placeholder="For example: please move the visit to 3 PM, or add one more guest."
+              />
+              <div className={styles.changeActions}>
+                <button type="button" className={styles.editBtn} onClick={() => void sendChangeRequest()} disabled={changeBusy}>
+                  {changeBusy ? "Sending…" : "Send to administrator"}
+                </button>
+                <button type="button" className={styles.changeCancel} onClick={() => setChangeOpen(false)} disabled={changeBusy}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {savedNote ? <p className={styles.savedNote}>{savedNote}</p> : null}
       {error ? <p className={styles.errorNote} role="alert">{error}</p> : null}

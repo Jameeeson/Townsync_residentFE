@@ -7,6 +7,21 @@ export interface ReportFieldDef {
   collected: boolean;
 }
 
+/**
+ * Last line of defence for the review text: the server already writes plain sentences, but if a semicolon-joined
+ * list ever reaches the screen (an older backend, an old saved chat) it is shown as separate sentences instead.
+ */
+export function plainSentences(value: string | null | undefined): string {
+  const text = (value ?? "").trim();
+  if (!text.includes(";")) return text;
+  return text
+    .split(/\s*;\s*/)
+    .map((piece) => piece.trim().replace(/[.,\s]+$/, ""))
+    .filter(Boolean)
+    .map((piece) => `${piece.charAt(0).toUpperCase()}${piece.slice(1)}.`)
+    .join(" ");
+}
+
 function titleCase(value: string): string {
   return value
     .replace(/[_-]+/g, " ")

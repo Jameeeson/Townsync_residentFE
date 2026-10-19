@@ -11,6 +11,7 @@ import {
   type MaintenanceTicket,
 } from "@/lib/api/resident";
 import { ApiClientError } from "@/lib/apiClient";
+import { plainSentences } from "@/lib/maintenanceReport";
 
 export type ChatRole = "ai" | "user";
 
@@ -157,7 +158,7 @@ export function useMaintenanceChat() {
       subject: summaryState?.subject ?? "",
       category: summaryState?.category ?? "",
       location: summaryState?.location ?? "",
-      description: summaryState?.gathered_detail ?? "",
+      description: plainSentences(summaryState?.gathered_detail),
       urgency: summaryState?.urgency_level ?? "Medium",
       preferredDate: "",
       entryPermission: false,
@@ -259,7 +260,7 @@ export function useMaintenanceChat() {
     setEscalateError("");
 
     const gathered =
-      summaryState?.gathered_detail ||
+      plainSentences(summaryState?.gathered_detail) ||
       messages.filter((m) => m.role === "user").map((m) => m.text).join(" ") ||
       "Resident requested a person before AI triage could gather full details.";
     const location = summaryState?.location;

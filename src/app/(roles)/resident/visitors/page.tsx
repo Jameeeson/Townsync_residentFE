@@ -37,8 +37,27 @@ type UiPass = {
   scheduledAt: string;
   status: string;
   qrToken: string;
+  qrAvailable: boolean;
   companions: string[];
 };
+
+/** What the card says under the date: the QR is only ready once the administrator approved the pass. */
+function qrStateLabel(pass: UiPass): string {
+  if (pass.qrAvailable) return "QR ready";
+  switch (pass.status) {
+    case "Pending":
+      return "Waiting for admin approval";
+    case "Rejected":
+    case "Declined":
+      return "Not approved";
+    case "Cancelled":
+      return "Cancelled";
+    case "Expired":
+      return "Expired";
+    default:
+      return "QR not available";
+  }
+}
 
 function normalizePasses(data: unknown): { passes: UiPass[]; usage: string } {
   if (Array.isArray(data)) {
@@ -102,6 +121,8 @@ function mapPass(p: ApiVisitorPass): UiPass {
     scheduledAt: p.scheduled_at,
     status: p.status,
     qrToken: p.qr_token,
+    // An older backend does not send the flag: a token that was sent means the pass was approved.
+    qrAvailable: p.qr_available ?? Boolean(p.qr_token),
     companions: Array.isArray(p.companions) ? p.companions : [],
   };
 }
@@ -266,6 +287,7 @@ export default function PassesPage() {
         scheduledAt: formatScheduledAt(startDate, arrivalTime),
         status: "Pending",
         qrToken: result.qr_token,
+        qrAvailable: Boolean(result.qr_token),
         companions: result.companions ?? companions,
       };
       setLastGeneratedPass(created);
@@ -455,7 +477,7 @@ export default function PassesPage() {
                       <Calendar size={14} /> {pass.scheduledAt}
                     </div>
                     <div className={styles.cardDetail}>
-                      <Clock size={14} /> QR ready
+                      <Clock size={14} /> {qrStateLabel(pass)}
                     </div>
                     {pass.companions.length > 0 ? (
                       <div className={styles.cardDetail} title={pass.companions.join(", ")}>

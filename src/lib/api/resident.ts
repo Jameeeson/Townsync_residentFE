@@ -238,6 +238,8 @@ export interface VisitorPass {
   companions?: string[];
   /** The named visitor plus companions. */
   party_size?: number;
+  /** True only once an administrator approved the pass; until then there is no QR to show. */
+  qr_available?: boolean;
 }
 
 export interface VisitorPassListResponse {
@@ -294,6 +296,11 @@ export async function updateVisitorPass(
   }>
 ): Promise<VisitorPass> {
   return apiClient.patch<VisitorPass>(`/api/v1/resident/visitor-passes/${passId}`, body);
+}
+
+/** An approved pass is locked. This sends the administrator a message that names the pass and what should change. */
+export async function requestPassChange(passId: number, message: string): Promise<{ message: string; id: number }> {
+  return apiClient.post(`/api/v1/resident/visitor-passes/${passId}/change-request`, { message });
 }
 
 export async function cancelVisitorPass(passId: number): Promise<{ message: string }> {
