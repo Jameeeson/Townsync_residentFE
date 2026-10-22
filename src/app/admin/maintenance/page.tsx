@@ -963,7 +963,16 @@ function MaintenanceCommand() {
               }}
             />
           ) : detailView === "history" ? (
-            <MaintenanceHistoryView key={historySearch} initialSearch={historySearch} />
+            <MaintenanceHistoryView
+              key={historySearch}
+              initialSearch={historySearch}
+              onReopened={(id) => {
+                // The ticket is Open and Reopened now: refresh the lists and jump to it in the dispatch queue.
+                loadAll();
+                setSelectedPendingId(String(id));
+                setDetailView("pending");
+              }}
+            />
           ) : detailView === "calendar" ? (
             <MaintenanceCalendarView jobs={ongoingJobs} onOpenJob={(id) => setViewingJobId(id)} />
           ) : (
@@ -1185,12 +1194,12 @@ function PendingRequestsView({
           {selected.reopened ? (
             <div className={styles.reopenBanner}>
               <strong>
-                <RotateCcw size={14} aria-hidden="true" /> Reopened by the resident
+                <RotateCcw size={14} aria-hidden="true" /> Reopened, waiting for a technician
               </strong>
               {selected.reopenMessage ? <p>&ldquo;{selected.reopenMessage}&rdquo;</p> : null}
               <small>
                 {selected.previousTechName ? `Last worked on by ${selected.previousTechName}. ` : ""}
-                Assign the same technician or someone else. The photos and message are in the history below.
+                Assign the same technician or someone else. The resident&apos;s report and photos, if there are any, are in the history below.
               </small>
             </div>
           ) : null}
@@ -1345,7 +1354,7 @@ function PendingRequestsView({
                       </div>
                     ) : null}
                     {req.reopened ? (
-                      <div className={styles.reopenedTag} title={req.reopenMessage ?? "The resident says it is not fixed"}>
+                      <div className={styles.reopenedTag} title={req.reopenMessage ?? "Reopened by management"}>
                         Reopened
                       </div>
                     ) : null}

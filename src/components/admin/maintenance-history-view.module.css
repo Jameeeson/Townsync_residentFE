@@ -465,3 +465,109 @@
 .messageBtn:hover {
   background: #172e6e;
 }
+
+.reportedTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 0.25rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.reportBox {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.reportBox h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.reportBox p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.reportBox span {
+  font-size: 0.78rem;
+  color: #7f1d1d;
+}
+
+.decision {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.9rem 1.5rem 1.1rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.decision label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.decision textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.88rem;
+  resize: vertical;
+}
+
+.decisionActions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.decisionHint {
+  flex: 1 1 220px;
+  font-size: 0.76rem;
+  color: #5b6b82;
+}
+
+.ghostBtn {
+  min-height: 34px;
+  padding: 0 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ghostBtn:hover {
+  background: #f1f5f9;
+}
+
+.messageBtn:disabled,
+.ghostBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

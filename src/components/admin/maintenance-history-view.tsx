@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, Clock, History, MessageSquare, Search, User, X, XCircle } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, History, MessageSquare, RotateCcw, Search, User, X, XCircle } from "lucide-react";
+import { apiGet, apiPost } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { formatServerDateTime } from "@/lib/datetime";
 import AuthImageGallery from "@/components/ui/auth-image-gallery";
 import TicketHistoryTrail from "@/components/admin/ticket-history-trail";
@@ -38,6 +39,10 @@ export type HistoryTicket = {
   admin_notes: string | null;
   turnaround_hours: number | null;
   met_deadline: boolean | null;
+  /** The resident said this Resolved ticket is not fixed; only an administrator can reopen it. */
+  not_fixed_pending?: boolean;
+  not_fixed_at?: string | null;
+  not_fixed_message?: string | null;
 };
 
 type HistoryResponse = {
@@ -45,7 +50,7 @@ type HistoryResponse = {
   total: number;
   page: number;
   page_size: number;
-  counts: { completed: number; cancelled: number; resolved: number; closed: number };
+  counts: { completed: number; cancelled: number; resolved: number; closed: number; not_fixed?: number };
 };
 
 const PAGE_SIZE = 15;
@@ -58,7 +63,14 @@ function formatHours(hours: number | null): string {
 }
 
 /** Past maintenance tickets (completed or cancelled) with search, filters and a detail panel. */
-export default function MaintenanceHistoryView({ initialSearch = "" }: { initialSearch?: string }) {
+export default function MaintenanceHistoryView({
+  initialSearch = "",
+  onReopened,
+}: {
+  initialSearch?: string;
+  /** Called after an administrator reopened a ticket, so the page can show it in the dispatch queue. */
+  onReopened?: (ticketId: number) => void;
+}) {
   const [status, setStatus] = useState<HistoryStatus>("All");
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [search, setSearch] = useState(initialSearch);
@@ -69,6 +81,7 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<HistoryTicket | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Debounce typing so every keystroke doesn't hit the API.
   useEffect(() => {
@@ -100,7 +113,7 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
     return () => {
       cancelled = true;
     };
-  }, [status, search, dateFrom, dateTo, page]);
+  }, [status, search, dateFrom, dateTo, page, reloadKey]);
 
   useEffect(() => {
     if (!selected) return;
@@ -274,7 +287,11 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
                       {t.status === "Completed" ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
                       {t.stage ?? t.status}
                     </span>
-                    {t.stage === "Resolved" ? <span className={styles.sub}>Waiting for the resident</span> : null}
+                    {t.stage === "Resolved" && t.not_fixed_pending ? (
+                      <span className={styles.reportedTag}><AlertTriangle size={11} aria-hidden="true" /> Resident says not fixed</span>
+                    ) : t.stage === "Resolved" ? (
+                      <span className={styles.sub}>Waiting for the resident</span>
+                    ) : null}
                     {t.stage === "Closed" && t.resolution_confirmed_at ? (
                       <span className={styles.sub}>Confirmed by resident</span>
                     ) : null}
@@ -318,13 +335,54 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
         </div>
       ) : null}
 
-      {selected ? <HistoryDetail ticket={selected} onClose={() => setSelected(null)} /> : null}
+      {selected ? (
+        <HistoryDetail
+          ticket={selected}
+          onClose={() => setSelected(null)}
+          onChanged={(reopenedId) => {
+            setSelected(null);
+            setReloadKey((k) => k + 1);
+            if (reopenedId !== null) onReopened?.(reopenedId);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
 
-function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose: () => void }) {
+function HistoryDetail({
+  ticket: t,
+  onClose,
+  onChanged,
+}: {
+  ticket: HistoryTicket;
+  onClose: () => void;
+  /** The ticket changed; the id is set when it was reopened. */
+  onChanged: (reopenedId: number | null) => void;
+}) {
   const [chatOpen, setChatOpen] = useState(false);
+  const [deciding, setDeciding] = useState<null | "reopen" | "decline">(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const { toast, toastError } = useToast();
+
+  async function decide() {
+    if (!deciding || busy) return;
+    if (deciding === "decline" && note.trim().length < 5) {
+      toast("Tell the resident why the ticket stays as it is.", "danger");
+      return;
+    }
+    setBusy(true);
+    try {
+      const path = deciding === "reopen" ? "reopen" : "decline-not-fixed";
+      const res = await apiPost<{ message: string }>(`/api/v1/admin/maintenance/tickets/${t.id}/${path}`, { note: note.trim() || undefined });
+      toast(res.message, "success");
+      onChanged(deciding === "reopen" ? t.id : null);
+    } catch (err) {
+      toastError(err, deciding === "reopen" ? "Could not reopen the ticket." : "Could not save your answer.");
+      setBusy(false);
+    }
+  }
   // A Resolved ticket is still waiting for the resident, so the conversation stays open; Closed and Cancelled end it.
   const canMessage = t.stage === "Resolved";
   return (
@@ -391,6 +449,14 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
             </div>
           </div>
 
+          {t.not_fixed_pending ? (
+            <section className={styles.reportBox} aria-label="The resident says this is not fixed">
+              <h4><AlertTriangle size={14} aria-hidden="true" /> The resident says it is not fixed</h4>
+              {t.not_fixed_message ? <p>&ldquo;{t.not_fixed_message}&rdquo;</p> : null}
+              <span>Reported {formatServerDateTime(t.not_fixed_at ?? null)}. Their photos are in the history below. The ticket stays Resolved until you decide.</span>
+            </section>
+          ) : null}
+
           <section className={styles.block}>
             <h4>History</h4>
             <TicketHistoryTrail ticketId={t.id} />
@@ -412,6 +478,50 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
 
           <AuthImageGallery paths={t.image_urls} label="Photos from resident" emptyText="No resident photos" />
         </div>
+
+        {t.stage === "Resolved" ? (
+          <footer className={styles.decision}>
+            {deciding ? (
+              <>
+                <label htmlFor="decision-note">
+                  {deciding === "reopen"
+                    ? "Message to the resident (optional)"
+                    : "Why does the ticket stay as it is? The resident will read this."}
+                </label>
+                <textarea
+                  id="decision-note"
+                  rows={3}
+                  maxLength={1000}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder={deciding === "reopen" ? "e.g. We will send a technician tomorrow morning." : "e.g. Our inspector checked on site and the leak is gone."}
+                />
+                <div className={styles.decisionActions}>
+                  <button type="button" className={styles.messageBtn} onClick={() => void decide()} disabled={busy}>
+                    {busy ? "Saving…" : deciding === "reopen" ? "Reopen and send to dispatch" : "Decline the report"}
+                  </button>
+                  <button type="button" className={styles.ghostBtn} onClick={() => { setDeciding(null); setNote(""); }} disabled={busy}>
+                    Back
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className={styles.decisionActions}>
+                <button type="button" className={styles.messageBtn} onClick={() => setDeciding("reopen")}>
+                  <RotateCcw size={15} aria-hidden="true" /> Reopen ticket
+                </button>
+                {t.not_fixed_pending ? (
+                  <button type="button" className={styles.ghostBtn} onClick={() => setDeciding("decline")}>
+                    Decline the report
+                  </button>
+                ) : null}
+                <span className={styles.decisionHint}>
+                  Only you can reopen a ticket. It goes back to the dispatch queue for the same technician or another.
+                </span>
+              </div>
+            )}
+          </footer>
+        ) : null}
       </div>
       {chatOpen ? (
         <TicketChatDialog

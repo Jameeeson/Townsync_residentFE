@@ -35,6 +35,8 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   filed: { icon: FilePlus2, tone: "blue" },
   assigned: { icon: UserCheck, tone: "blue" },
   work_report: { icon: ClipboardCheck, tone: "amber" },
+  not_fixed: { icon: RotateCcw, tone: "red" },
+  not_fixed_declined: { icon: BadgeCheck, tone: "slate" },
   reopened: { icon: RotateCcw, tone: "red" },
   reassigned: { icon: Shuffle, tone: "blue" },
   closed: { icon: BadgeCheck, tone: "green" },
@@ -86,7 +88,7 @@ export default function TicketHistoryTrail({ ticketId, refreshKey = 0 }: { ticke
               {entry.attachments.length > 0 ? (
                 <AuthImageGallery
                   paths={entry.attachments.map((a) => a.url)}
-                  label={entry.kind === "reopened" ? "Photos from the resident" : "Photos from the technician"}
+                  label={entry.kind === "not_fixed" ? "Photos from the resident" : "Photos from the technician"}
                 />
               ) : null}
             </div>
