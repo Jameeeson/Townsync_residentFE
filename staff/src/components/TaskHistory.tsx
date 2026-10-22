@@ -31,7 +31,7 @@ export function TaskHistory({ taskId }: { taskId: number }) {
       {current?.rows && current.rows.length > 0 ? (
         <ol className={styles.list}>
           {current.rows.map((entry) => (
-            <li key={entry.id} className={`${styles.item} ${entry.kind === "reopened" ? styles.alert : ""}`}>
+            <li key={entry.id} className={`${styles.item} ${(entry.kind === "reopened" || entry.kind === "not_fixed") ? styles.alert : ""}`}>
               <div className={styles.head}>
                 <strong>{entry.title}</strong>
                 <time dateTime={entry.timestamp}>{formatServerDateTime(entry.timestamp)}</time>
@@ -40,7 +40,7 @@ export function TaskHistory({ taskId }: { taskId: number }) {
               {entry.attachments.length > 0 ? (
                 <TaskPhotos
                   paths={entry.attachments.map((a) => a.url)}
-                  title={entry.kind === "reopened" ? "Photos from the resident" : "Photos from the technician"}
+                  title={(entry.kind === "reopened" || entry.kind === "not_fixed") ? "Photos from the resident" : "Photos from the technician"}
                 />
               ) : null}
             </li>
