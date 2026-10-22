@@ -1,12 +1,12 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
-import { IconSend, IconX } from "@/components/icons";
-import { useDialogA11y } from "@/hooks/useDialogA11y";
+import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api-client";
-import { getTicketChat, sendTicketChatMessage, type TicketChatThread } from "@/lib/services/staff";
-import styles from "./ChatModal.module.css";
 import { parseServerDate } from "@/lib/datetime";
+import { getTicketChat, sendTicketChatMessage, type TicketChatThread } from "@/lib/services/staff";
+import { ChatDialog } from "@/components/chat-kit/ChatDialog";
+import { ChatPanel } from "@/components/chat-kit/ChatPanel";
+import { initialsOf, type ChatLine } from "@/components/chat-kit/chatKit";
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -15,20 +15,18 @@ type Props = {
   onClose: () => void;
 };
 
-function formatTime(iso: string): string {
-  try {
-    return parseServerDate(iso)?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) ?? "";
-  } catch {
-    return "";
-  }
+type Message = TicketChatThread["messages"][number];
+
+/** The technician's view: their own messages on the right; the resident and management are named. */
+function toLine(message: Message, index: number): ChatLine {
+  const base = { key: `${message.timestamp}-${index}`, text: message.content, at: parseServerDate(message.timestamp) };
+  // Admin can also post in this thread, so "mine" is the staff or maintenance role only.
+  if (message.sender_role === "Staff" || message.sender_role === "Maintenance") return { ...base, side: "mine", name: "You", badge: null };
+  if (message.sender_role === "Resident") return { ...base, side: "theirs", name: message.sender_name, badge: "Resident" };
+  return { ...base, side: "theirs", name: "Management", badge: "Management" };
 }
 
 export function ChatModal({ ticketId, onClose }: Props) {
-  const modalRef = useRef<HTMLDivElement>(null);
-  const streamRef = useRef<HTMLDivElement>(null);
-  const handleClose = useCallback(() => onClose(), [onClose]);
-  useDialogA11y(true, handleClose, modalRef);
-
   const [thread, setThread] = useState<TicketChatThread | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -36,7 +34,6 @@ export function ChatModal({ ticketId, onClose }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       try {
         const data = await getTicketChat(ticketId);
@@ -48,8 +45,7 @@ export function ChatModal({ ticketId, onClose }: Props) {
         if (!cancelled) setError(e instanceof ApiError ? e.message : "Could not load conversation.");
       }
     }
-
-    load();
+    void load();
     const timer = setInterval(load, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
@@ -57,20 +53,15 @@ export function ChatModal({ ticketId, onClose }: Props) {
     };
   }, [ticketId]);
 
-  useEffect(() => {
-    streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
-  }, [thread?.messages.length]);
+  const lines = useMemo(() => (thread?.messages ?? []).map(toLine), [thread?.messages]);
 
-  async function handleSend(event: FormEvent) {
-    event.preventDefault();
+  async function handleSend() {
     const trimmed = input.trim();
     if (!trimmed || sending) return;
-
     setSending(true);
     setInput("");
     try {
-      const data = await sendTicketChatMessage(ticketId, trimmed);
-      setThread(data);
+      setThread(await sendTicketChatMessage(ticketId, trimmed));
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not send message.");
@@ -80,90 +71,30 @@ export function ChatModal({ ticketId, onClose }: Props) {
     }
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSend(event as unknown as FormEvent);
-    }
-  }
-
   return (
-    <div className={styles.overlay} role="presentation" onClick={handleClose}>
-      <div
-        ref={modalRef}
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="chat-modal-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className={styles.header}>
-          <div className={styles.headerMain}>
-            <h2 id="chat-modal-title">{thread ? thread.subject : "Conversation"}</h2>
-            <p className={styles.subtitle}>
-              Ticket #{ticketId}
-              {thread ? ` · ${thread.resident_name}` : ""}
-            </p>
-          </div>
-          <button type="button" className={styles.close} onClick={handleClose} aria-label="Close">
-            <IconX size={20} />
-          </button>
-        </header>
-
-        {error ? (
-          <p className={styles.errorBanner} role="alert">
-            {error}
-          </p>
-        ) : null}
-
-        <div className={styles.stream} ref={streamRef}>
-          {!thread ? (
-            <p className={styles.streamEmpty} aria-busy="true">
-              Loading…
-            </p>
-          ) : thread.messages.length === 0 ? (
-            <p className={styles.streamEmpty}>No messages yet. Say hello to the resident.</p>
-          ) : (
-            thread.messages.map((message, i) => {
-              // Admin can also post in this thread, so "mine" must check for the
-              // viewer's own role specifically — not just "anyone who isn't the resident".
-              const mine = message.sender_role === "Staff" || message.sender_role === "Maintenance";
-              return (
-                <div
-                  key={`${message.timestamp}-${i}`}
-                  className={`${styles.moment} ${mine ? styles.momentMine : styles.momentTheirs}`}
-                >
-                  <div className={styles.momentLabel}>
-                    {mine ? "You" : message.sender_name} · {formatTime(message.timestamp)}
-                  </div>
-                  <p className={styles.momentText}>{message.content}</p>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <form className={styles.composerForm} onSubmit={handleSend}>
-          <input
-            className={styles.composerField}
-            placeholder="Type a message…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={!thread || sending}
-            aria-label="Message"
-          />
-          <button
-            type="submit"
-            className={styles.composerSendBtn}
-            aria-label="Send message"
-            disabled={!thread || sending || !input.trim()}
-          >
-            <IconSend size={16} />
-          </button>
-        </form>
-      </div>
-    </div>
+    <ChatDialog onClose={onClose} label="Conversation about this task">
+      <ChatPanel
+        variant="dialog"
+        label="Conversation about this task"
+        header={{
+          avatar: initialsOf(thread?.resident_name ?? "Resident"),
+          title: thread ? thread.subject : "Conversation",
+          subtitle: `Ticket #${ticketId}${thread ? ` · ${thread.resident_name}` : ""}`,
+          onClose,
+        }}
+        lines={lines}
+        ready={Boolean(thread)}
+        error={error}
+        empty={<p>No messages yet. Say hello to the resident.</p>}
+        input={input}
+        onInput={setInput}
+        onSend={() => void handleSend()}
+        placeholder={`Message ${(thread?.resident_name ?? "the resident").split(" ")[0]}`}
+        sending={sending}
+        readOnly={Boolean(thread?.read_only)}
+        autoFocus
+      />
+    </ChatDialog>
   );
 }
 

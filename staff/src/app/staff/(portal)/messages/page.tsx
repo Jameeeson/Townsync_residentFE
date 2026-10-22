@@ -1,22 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { IconChatBubble, IconSend } from "@/components/icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChatPanel } from "@/components/chat-kit/ChatPanel";
+import { IconChat } from "@/components/chat-kit/ChatIcons";
+import type { ChatLine } from "@/components/chat-kit/chatKit";
 import { ApiError } from "@/lib/api-client";
 import { parseServerDate } from "@/lib/datetime";
 import { getAdminThread, sendAdminMessage, type AdminChatMessage } from "@/lib/services/staff";
 import styles from "./messages.module.css";
 
 const POLL_MS = 4000;
-const MAX_LENGTH = 2000;
-
-function timeLabel(value: string): string {
-  const d = parseServerDate(value);
-  if (!d) return "";
-  return d.toDateString() === new Date().toDateString()
-    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-}
 
 /** The staff member's conversation with the admin team. */
 export default function StaffMessagesPage() {
@@ -26,7 +19,6 @@ export default function StaffMessagesPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const lastId = useRef(0);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const append = useCallback((incoming: AdminChatMessage[]) => {
     if (!incoming.length) return;
@@ -59,9 +51,19 @@ export default function StaffMessagesPage() {
     };
   }, [append]);
 
-  useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [messages.length]);
+  // The staff member's view: their own messages on the right, the admin team named on the left.
+  const lines = useMemo<ChatLine[]>(
+    () =>
+      messages.map((m) => ({
+        key: String(m.id),
+        side: m.sender_side === "staff" ? "mine" : "theirs",
+        name: m.sender_side === "staff" ? "You" : m.sender_name,
+        badge: m.sender_side === "staff" ? null : "Management",
+        text: m.body,
+        at: parseServerDate(m.created_at),
+      })),
+    [messages],
+  );
 
   async function send() {
     const body = draft.trim();
@@ -88,59 +90,20 @@ export default function StaffMessagesPage() {
         </p>
       </header>
 
-      <section className={styles.chat} aria-label="Conversation with the admin team">
-        <div className={styles.messages} ref={listRef} aria-live="polite">
-          {!loaded && !error ? <p className={styles.empty}>Loading messages…</p> : null}
-          {loaded && messages.length === 0 ? (
-            <div className={styles.empty}>
-              <IconChatBubble size={26} />
-              <p>No messages yet. Send the admin team a message and their reply will appear here.</p>
-            </div>
-          ) : null}
-          {messages.map((m) => (
-            <div key={m.id} className={`${styles.row} ${m.sender_side === "staff" ? styles.mine : ""}`}>
-              <div className={styles.bubble}>
-                <p>{m.body}</p>
-                <span>
-                  {m.sender_side === "staff" ? "You" : m.sender_name} · {timeLabel(m.created_at)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {error ? (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        ) : null}
-
-        <form
-          className={styles.composer}
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
-        >
-          <textarea
-            value={draft}
-            rows={2}
-            maxLength={MAX_LENGTH}
-            placeholder="Write a message to the admin team…"
-            aria-label="Message"
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-          />
-          <button type="submit" disabled={!draft.trim() || sending} aria-label="Send message">
-            <IconSend size={18} />
-          </button>
-        </form>
-      </section>
+      <ChatPanel
+        variant="pane"
+        label="Conversation with the admin team"
+        header={{ avatar: <IconChat size={20} />, title: "Admin Team", subtitle: "Any administrator on duty can reply here" }}
+        lines={lines}
+        ready={loaded || Boolean(error)}
+        error={error}
+        empty={<p>No messages yet. Send the admin team a message and their reply will appear here.</p>}
+        input={draft}
+        onInput={setDraft}
+        onSend={() => void send()}
+        placeholder="Write a message to the admin team"
+        sending={sending}
+      />
     </div>
   );
 }

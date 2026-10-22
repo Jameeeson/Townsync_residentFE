@@ -161,16 +161,18 @@ export function TaskDetailsModal({ task, onClose, onPrimaryAction }: Props) {
               {task.stage === "Closed" ? "Closed by the resident" : "Report sent · waiting for the resident"}
             </button>
           )}
-          <button type="button" className={styles.secondary} onClick={() => setChatOpen(true)}>
-            <IconChatBubble size={18} /> Message Resident
-          </button>
+          {task.stage !== "Closed" ? (
+            <button type="button" className={styles.secondary} onClick={() => setChatOpen(true)}>
+              <IconChatBubble size={18} /> Message Resident
+            </button>
+          ) : null}
           <button type="button" className={styles.secondary} onClick={handleClose}>
             Close
           </button>
         </div>
       </div>
 
-      {chatOpen ? <ChatModal ticketId={task.id} onClose={() => setChatOpen(false)} /> : null}
+      {chatOpen && task.stage !== "Closed" ? <ChatModal ticketId={task.id} onClose={() => setChatOpen(false)} /> : null}
     </div>
   );
 }
