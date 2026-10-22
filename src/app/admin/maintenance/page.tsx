@@ -159,6 +159,8 @@ type StaffMember = {
   skills: string[];
   status: StaffStatus;
   shift: string;
+  /** False when the technician is outside their shift, even if they are busy on a job. */
+  onShift?: boolean | null;
   location: string;
   isTech: boolean;
   load?: string;
@@ -287,6 +289,11 @@ function toPriority(value: string): Priority {
   return "low";
 }
 
+/** Outside their shift right now. A technician busy on a job is still off shift, and can still be dispatched to. */
+function isOffShift(member: { status: StaffStatus; onShift?: boolean | null } | undefined | null): boolean {
+  return Boolean(member && (member.status === "off-shift" || member.onShift === false));
+}
+
 function toStaffStatus(value: string): StaffStatus {
   // Backend (dispatch-board) returns "On-Duty", "Busy" or "Off-Shift".
   const v = value.toLowerCase();
@@ -381,6 +388,7 @@ function adaptStaffItem(item: DispatchBoardItem): StaffMember {
     skills: [item.specialty],
     status,
     shift: item.shift_label ?? NOT_AVAILABLE,
+    onShift: item.on_shift ?? null,
     location: item.location ?? NOT_AVAILABLE,
     isTech: true,
     activeTask: item.current_task_id ?? undefined,
@@ -599,6 +607,8 @@ function MaintenanceCommand() {
   const [dispatchDeadlineError, setDispatchDeadlineError] = useState<string | null>(null);
   const [dispatchLateReason, setDispatchLateReason] = useState("");
   const [assigning, setAssigning] = useState(false);
+  /** The server said this technician is off shift (the board was out of date); the next confirm dispatches anyway. */
+  const [offShiftTechId, setOffShiftTechId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [declineMessage, setDeclineMessage] = useState("");
   const [declineSubmitting, setDeclineSubmitting] = useState(false);
@@ -644,6 +654,7 @@ function MaintenanceCommand() {
 
   const openDispatch = (ticketId: string, preferredTechId?: string) => {
     setDispatchTicketId(ticketId);
+    setOffShiftTechId(null);
     setSelectedTechId(preferredTechId ?? staff.find((s) => s.isTech)?.id ?? null);
     // The usual time for this ticket's priority (Deadline targets); the admin can still change it.
     const target = pendingRequests.find((r) => r.id === ticketId);
@@ -700,7 +711,8 @@ function MaintenanceCommand() {
       });
       if (pastLimit) params.set("late_reason", dispatchLateReason.trim());
       // The dispatch dialog warns about an off-shift technician; pressing confirm is the OK.
-      if (staff.find((t) => t.id === selectedTechId)?.status === "off-shift") {
+      const chosen = staff.find((t) => t.id === selectedTechId);
+      if (isOffShift(chosen) || offShiftTechId === selectedTechId) {
         params.set("allow_off_shift", "true");
       }
       await apiPost(
@@ -716,8 +728,14 @@ function MaintenanceCommand() {
       setModalMode("success");
       loadAll();
     } catch (e) {
-      toastError(e, "Could not dispatch this ticket. Please try again.");
-      setModalMode(null);
+      if (e instanceof ApiError && e.status === 409 && /off shift/i.test(e.message)) {
+        // The shift changed since the board loaded: stay in the dialog, show the warning, and let the next confirm go through.
+        setOffShiftTechId(selectedTechId);
+        toast("That technician is off shift right now. Press Dispatch Anyway to send it to them regardless.", "warning");
+      } else {
+        toastError(e, "Could not dispatch this ticket. Please try again.");
+        setModalMode(null);
+      }
     } finally {
       setAssigning(false);
     }
@@ -835,7 +853,7 @@ function MaintenanceCommand() {
               setDetailView((v) => (v === "conduct" ? "pending" : "conduct"));
             }}
           >
-            <ShieldAlert size={15} /> Conduct Reports
+            <ShieldAlert size={15} /> Reports
           </button>
           <button
             type="button"
@@ -1005,6 +1023,7 @@ function MaintenanceCommand() {
             onClose={() => setModalMode(null)}
             onDecline={() => setModalMode("decline")}
             onConfirm={handleAssign}
+            offShiftTechId={offShiftTechId}
             onBackToDispatch={() => setModalMode("dispatch")}
             deadlineError={dispatchDeadlineError}
             assigning={assigning}
@@ -2557,6 +2576,7 @@ function DispatchFlowModal({
   policy,
   lateReason,
   onLateReasonChange,
+  offShiftTechId,
   deadlineError,
   assigning,
   declineReason,
@@ -2583,6 +2603,7 @@ function DispatchFlowModal({
   policy: DeadlinePolicy;
   lateReason: string;
   onLateReasonChange: (value: string) => void;
+  offShiftTechId: string | null;
   deadlineError: string | null;
   assigning: boolean;
   declineReason: string;
@@ -2634,7 +2655,7 @@ function DispatchFlowModal({
   // only drives a confirmation warning so the dispatcher sees the risk.
   const OVERLOAD_THRESHOLD = 3;
   const selectedIsOverloaded = Boolean(selected && selected.activeTaskCount >= OVERLOAD_THRESHOLD);
-  const selectedIsOffShift = selected?.status === "off-shift";
+  const selectedIsOffShift = isOffShift(selected) || Boolean(selected && offShiftTechId === selected.id);
   const loadLabel = (count: number) => {
     if (count <= 0) return "Free";
     if (count < OVERLOAD_THRESHOLD) return `Load: ${count} active`;
@@ -3067,8 +3088,8 @@ function DispatchFlowModal({
                       <p>
                         {tech.status === "available"
                           ? "Available Now"
-                          : tech.status === "off-shift"
-                          ? `Off shift${tech.shift !== NOT_AVAILABLE ? ` · ${tech.shift}` : ""}`
+                          : isOffShift(tech)
+                          ? `${tech.status === "off-shift" ? "Off shift" : "In progress · off shift"}${tech.shift !== NOT_AVAILABLE ? ` · ${tech.shift}` : ""}`
                           : "In Progress"}
                       </p>
                       <p>

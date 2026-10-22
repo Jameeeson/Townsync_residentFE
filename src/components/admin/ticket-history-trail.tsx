@@ -37,6 +37,7 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   work_report: { icon: ClipboardCheck, tone: "amber" },
   not_fixed: { icon: RotateCcw, tone: "red" },
   not_fixed_declined: { icon: BadgeCheck, tone: "slate" },
+  report_reply: { icon: BadgeCheck, tone: "slate" },
   reopened: { icon: RotateCcw, tone: "red" },
   reassigned: { icon: Shuffle, tone: "blue" },
   closed: { icon: BadgeCheck, tone: "green" },
