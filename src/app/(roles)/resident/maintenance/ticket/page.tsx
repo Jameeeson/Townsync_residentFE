@@ -228,6 +228,10 @@ function TicketDetail() {
   const view = stageView(stage);
   const StageIcon = view.icon;
   const cancellable = !awaitingConfirmation && !["Cancelled", "Closed", "Resolved"].includes(stage);
+  // Once a request is closed or cancelled there is nothing left to ask management about; only reporting the technician remains.
+  const finished = stage === "Closed" || stage === "Cancelled";
+  const reportable = Boolean(ticket.can_report_technician);
+  const showHelp = !finished || reportable;
   const timeline = ticket.activity_timeline ?? [];
 
   return (
@@ -276,7 +280,7 @@ function TicketDetail() {
         ) : null}
       </section>
 
-      {chatOpen ? <TicketChatDialog ticketId={ticket.id} onClose={() => setChatOpen(false)} /> : null}
+      {chatOpen && !finished ? <TicketChatDialog ticketId={ticket.id} onClose={() => setChatOpen(false)} /> : null}
       {reportOpen ? (
         <ReportTechnicianDialog
           ticketId={ticket.id}
@@ -335,46 +339,53 @@ function TicketDetail() {
             </dl>
           </section>
 
-          <section className={`${styles.card} ${styles.help}`} aria-labelledby="help-title">
-            <h2 id="help-title">What happens next</h2>
-            <p className={styles.next}>{view.next}</p>
-            <div className={styles.actions}>
-              <button type="button" className={styles.primary} onClick={() => setChatOpen(true)}>
-                <MessageSquare size={17} aria-hidden="true" /> Message management
-              </button>
-              {ticket.can_report_technician ? (
-                ticket.technician_reported || reportSent ? (
-                  <span className={styles.reported}>
-                    <BadgeCheck size={17} aria-hidden="true" /> You reported this technician
-                  </span>
-                ) : (
-                  <button type="button" className={styles.secondary} onClick={() => setReportOpen(true)}>
-                    <ShieldAlert size={17} aria-hidden="true" /> Report technician
+          {showHelp ? (
+            <section className={`${styles.card} ${styles.help}`} aria-labelledby="help-title">
+              <h2 id="help-title">{finished ? "Need anything else?" : "What happens next"}</h2>
+              <p className={styles.next}>{view.next}</p>
+              <div className={styles.actions}>
+                {!finished ? (
+                  <button type="button" className={styles.primary} onClick={() => setChatOpen(true)}>
+                    <MessageSquare size={17} aria-hidden="true" /> Message management
                   </button>
-                )
-              ) : null}
-              {cancellable ? (
-                <button type="button" className={styles.cancel} onClick={() => void handleCancel()} disabled={cancelling}>
-                  {cancelling ? "Cancelling…" : "Cancel request"}
-                </button>
-              ) : null}
-            </div>
-            <p className={styles.helper}>
-              <CircleHelp size={14} aria-hidden="true" />
-              {ticket.can_report_technician
-                ? ticket.technician_reported || reportSent
-                  ? "Management is reviewing your report. You will get a notification when it is done."
-                  : "Reporting a technician is private. Only the administrator sees it."
-                : "Messages go to management, who can reach your technician."}
-            </p>
-          </section>
+                ) : null}
+                {reportable ? (
+                  ticket.technician_reported || reportSent ? (
+                    <span className={styles.reported}>
+                      <BadgeCheck size={17} aria-hidden="true" /> You reported this technician
+                    </span>
+                  ) : (
+                    <button type="button" className={styles.secondary} onClick={() => setReportOpen(true)}>
+                      <ShieldAlert size={17} aria-hidden="true" /> Report technician
+                    </button>
+                  )
+                ) : null}
+                {cancellable ? (
+                  <button type="button" className={styles.cancel} onClick={() => void handleCancel()} disabled={cancelling}>
+                    {cancelling ? "Cancelling…" : "Cancel request"}
+                  </button>
+                ) : null}
+              </div>
+              <p className={styles.helper}>
+                <CircleHelp size={14} aria-hidden="true" />
+                {reportable
+                  ? ticket.technician_reported || reportSent
+                    ? "Management is reviewing your report. You will get a notification when it is done."
+                    : "Reporting a technician is private. Only the administrator sees it."
+                  : "Messages go to management, who can reach your technician."}
+              </p>
+            </section>
+          ) : null}
         </div>
 
         <aside className={styles.history} aria-labelledby="history-title">
-          <h2 id="history-title">History</h2>
+          <h2 id="history-title">
+            History{timeline.length > 0 ? <span className={styles.historyCount}>{timeline.length}</span> : null}
+          </h2>
           {timeline.length === 0 ? (
             <p className={styles.empty}>Nothing has happened yet.</p>
           ) : (
+            <div className={styles.eventsScroll} tabIndex={0} role="region" aria-label="Request history, scrollable">
             <ol className={styles.events}>
               {timeline.map((event, index) => {
                 const Icon = KIND_ICONS[event.kind ?? ""] ?? HardHat;
@@ -399,6 +410,7 @@ function TicketDetail() {
                 );
               })}
             </ol>
+            </div>
           )}
         </aside>
       </div>

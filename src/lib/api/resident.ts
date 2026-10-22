@@ -177,6 +177,8 @@ export interface TicketChatThread {
   resident_name: string;
   staff_name: string | null;
   staff_assigned: boolean;
+  /** A closed or cancelled request keeps its conversation but takes no new messages. */
+  read_only?: boolean;
   messages: TicketChatMessage[];
 }
 

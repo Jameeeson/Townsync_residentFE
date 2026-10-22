@@ -304,15 +304,15 @@
 @media (min-width: 1000px) {
   .columns {
     grid-template-columns: minmax(0, 1fr) minmax(340px, 30%);
-    align-items: stretch;
+    align-items: start;
     gap: var(--space-6);
   }
 }
 
-/* the left column is two cards; the second grows so both columns end on the same line */
+/* the left column is two cards, each only as tall as its content */
 .main {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto;
   gap: var(--space-5);
   min-width: 0;
 }
@@ -629,5 +629,38 @@
 
   .cancel {
     margin-left: 0;
+  }
+}
+
+/* A long history scrolls inside its own box instead of making the whole page long. */
+.eventsScroll {
+  max-height: min(64vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: var(--space-2);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.eventsScroll:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.historyCount {
+  margin-left: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+@media (max-width: 999px) {
+  .eventsScroll {
+    max-height: min(52vh, 440px);
   }
 }
