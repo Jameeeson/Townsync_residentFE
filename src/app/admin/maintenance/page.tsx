@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiGet, apiPost, apiPatch, ApiError } from "@/lib/api";
@@ -601,6 +601,11 @@ function MaintenanceCommand() {
   const [techProfileId, setTechProfileId] = useState<string | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [dispatchTicketId, setDispatchTicketId] = useState<string | null>(null);
+  // The ticket as it was when the dialog opened. Once it is dispatched it leaves the pending list, and the success
+  // screen must still show that same ticket, not whichever one is first in the list.
+  const [dispatchSnapshot, setDispatchSnapshot] = useState<PendingRequest | null>(null);
+  // The priority saved together with the dispatch, until the refreshed list catches up.
+  const [dispatchPriority, setDispatchPriority] = useState<string | null>(null);
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
   const [dispatchDeadlineDate, setDispatchDeadlineDate] = useState("");
   const [dispatchDeadlineTime, setDispatchDeadlineTime] = useState("12:00");
@@ -636,8 +641,15 @@ function MaintenanceCommand() {
   );
 
   const dispatchTicket = useMemo(
-    () => pendingRequests.find((r) => r.id === dispatchTicketId) ?? pendingRequests[0],
-    [dispatchTicketId, pendingRequests],
+    () => {
+      const base =
+        pendingRequests.find((r) => r.id === dispatchTicketId) ??
+        (dispatchSnapshot && dispatchSnapshot.id === dispatchTicketId ? dispatchSnapshot : undefined);
+      return base && dispatchPriority
+        ? { ...base, priorityLevel: dispatchPriority, priority: toPriority(dispatchPriority) }
+        : base;
+    },
+    [dispatchTicketId, dispatchSnapshot, dispatchPriority, pendingRequests],
   );
 
   const ticketForChat = useMemo(() => {
@@ -654,6 +666,8 @@ function MaintenanceCommand() {
 
   const openDispatch = (ticketId: string, preferredTechId?: string) => {
     setDispatchTicketId(ticketId);
+    setDispatchSnapshot(pendingRequests.find((r) => r.id === ticketId) ?? null);
+    setDispatchPriority(null);
     setOffShiftTechId(null);
     setSelectedTechId(preferredTechId ?? staff.find((s) => s.isTech)?.id ?? null);
     // The usual time for this ticket's priority (Deadline targets); the admin can still change it.
@@ -677,8 +691,18 @@ function MaintenanceCommand() {
     if (view === "staff") setRosterFilter("all");
   };
 
-  const handleAssign = async () => {
+  const handleAssign = async (draft: EditorDraft | null) => {
     if (!dispatchTicket) return;
+    // Edits made in the dialog (title, description, risk, notes) are saved with the dispatch; before this they were
+    // only kept by the separate Save button, so dispatching quietly dropped them.
+    const edits = draft && Object.keys(draft.body).length > 0 ? draft : null;
+    if (edits?.error) {
+      setDispatchDeadlineError(edits.error);
+      toast(edits.error, "warning");
+      return;
+    }
+    const effectivePriority = edits?.priority ?? dispatchTicket.priorityLevel;
+
     if (!selectedTechId) {
       toast("Pick a technician before dispatching.", "warning");
       return;
@@ -694,17 +718,21 @@ function MaintenanceCommand() {
       setDispatchDeadlineError("That deadline has already passed. Pick a time from now on.");
       return;
     }
-    const limit = policy[policyKey(dispatchTicket.priority)];
+    const limit = policy[policyKey(effectivePriority)];
     const pastLimit = isPastLimit(dispatchDeadlineDate, dispatchDeadlineTime, limit.max_hours);
     if (pastLimit && dispatchLateReason.trim().length < 3) {
       setDispatchDeadlineError(
-        `That is later than the usual limit for ${policyKey(dispatchTicket.priority)} priority (${describeHours(limit.max_hours)}). Add a short reason.`,
+        `That is later than the usual limit for ${policyKey(effectivePriority)} priority (${describeHours(limit.max_hours)}). Add a short reason.`,
       );
       return;
     }
     setDispatchDeadlineError(null);
     setAssigning(true);
     try {
+      if (edits) {
+        await apiPatch(`/api/v1/admin/maintenance/tickets/${dispatchTicket.id}`, edits.body);
+        if (edits.body.priority_level) setDispatchPriority(edits.body.priority_level);
+      }
       const params = new URLSearchParams({
         staff_id: selectedTechId,
         deadline: `${dispatchDeadlineDate} ${dispatchDeadlineTime}`,
@@ -1022,7 +1050,7 @@ function MaintenanceCommand() {
             onSelectTech={setSelectedTechId}
             onClose={() => setModalMode(null)}
             onDecline={() => setModalMode("decline")}
-            onConfirm={handleAssign}
+            onConfirm={(draft) => void handleAssign(draft)}
             offShiftTechId={offShiftTechId}
             onBackToDispatch={() => setModalMode("dispatch")}
             deadlineError={dispatchDeadlineError}
@@ -2357,6 +2385,9 @@ function toLocalInput(value: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** What the editor would save: only the fields that changed, and why it cannot be saved yet (if it cannot). */
+export type EditorDraft = { body: Record<string, string>; error: string | null; priority: string };
+
 function TicketEditor({
   requestId,
   subject,
@@ -2366,6 +2397,8 @@ function TicketEditor({
   deadline,
   showDeadline,
   onSaved,
+  onDraft,
+  hideSave,
 }: {
   requestId: string;
   subject: string;
@@ -2375,6 +2408,10 @@ function TicketEditor({
   deadline?: string | null;
   showDeadline?: boolean;
   onSaved: () => void;
+  /** Called with the current unsaved edits (the dispatch dialog saves them together with the dispatch). */
+  onDraft?: (draft: EditorDraft) => void;
+  /** Hide the Save button: the edits are saved by whoever reads the draft. */
+  hideSave?: boolean;
 }) {
   const [title, setTitle] = useState(subject);
   const [desc, setDesc] = useState(description);
@@ -2388,6 +2425,27 @@ function TicketEditor({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const { toast, toastError } = useToast();
+
+  const draftBody: Record<string, string> = {};
+  if (title !== subject) draftBody.subject = title.trim();
+  if (desc !== description) draftBody.description = desc.trim();
+  if (priority !== priorityLevel) {
+    draftBody.priority_level = priority;
+    draftBody.priority_reason = priorityReason.trim();
+  }
+  if (notes !== (adminNotes ?? "")) draftBody.admin_notes = notes;
+  const draftError =
+    !title.trim() || !desc.trim()
+      ? "Title and description cannot be empty."
+      : priority !== priorityLevel && priorityReason.trim().length < MIN_PRIORITY_REASON
+        ? `Explain why this ticket is ${priority} priority (at least ${MIN_PRIORITY_REASON} characters).`
+        : null;
+  const draftKey = JSON.stringify([draftBody, draftError, priority]);
+  useEffect(() => {
+    onDraft?.({ body: draftBody, error: draftError, priority });
+    // draftKey stands for the three values; onDraft is read from the latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
 
   const dirty =
     title !== subject ||
@@ -2546,9 +2604,13 @@ function TicketEditor({
         />
       </div>
       <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.75rem", alignItems: "center" }}>
-        <button type="button" className={styles.secondaryBtn} disabled={!dirty || saving} onClick={save}>
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
+        {hideSave ? (
+          dirty ? <span className={styles.helpText}>These changes are saved when you dispatch.</span> : null
+        ) : (
+          <button type="button" className={styles.secondaryBtn} disabled={!dirty || saving} onClick={save}>
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        )}
         {message ? (
           <span className={message.ok ? styles.helpText : styles.errorText}>{message.text}</span>
         ) : null}
@@ -2594,7 +2656,7 @@ function DispatchFlowModal({
   onSelectTech: (id: string) => void;
   onClose: () => void;
   onDecline: () => void;
-  onConfirm: () => void;
+  onConfirm: (draft: EditorDraft | null) => void;
   onBackToDispatch: () => void;
   deadlineDate: string;
   onDeadlineDateChange: (value: string) => void;
@@ -2614,6 +2676,21 @@ function DispatchFlowModal({
   onConfirmDecline: () => void;
   onTicketSaved: () => void;
 }) {
+  const [draft, setDraft] = useState<EditorDraft | null>(null);
+  const suggestedFor = useRef(policyKey(ticket.priorityLevel));
+  // The risk chosen in the editor decides the usual deadline, so a ticket raised to Emergency is not left with a High deadline.
+  const effectivePriority = draft?.priority ?? ticket.priorityLevel;
+  const handleDraft = (next: EditorDraft) => {
+    setDraft(next);
+    const key = policyKey(next.priority);
+    if (key !== suggestedFor.current) {
+      suggestedFor.current = key;
+      const suggested = deadlineIn(policy[key].default_hours);
+      onDeadlineDateChange(suggested.date);
+      onDeadlineTimeChange(suggested.time);
+      onLateReasonChange("");
+    }
+  };
   const [techOrder, setTechOrder] = useState("match");
   const [techAvail, setTechAvail] = useState("all");
   const [techSpecialty, setTechSpecialty] = useState("all");
@@ -2903,6 +2980,8 @@ function DispatchFlowModal({
               priorityLevel={ticket.priorityLevel}
               adminNotes={ticket.adminNotes}
               onSaved={onTicketSaved}
+              onDraft={handleDraft}
+              hideSave
             />
 
             <div className={styles.residentContact}>
@@ -2950,8 +3029,8 @@ function DispatchFlowModal({
                   id="dispatch-deadline-date"
                   value={deadlineDate}
                   onChange={onDeadlineDateChange}
-                  usualDate={deadlineIn(policy[policyKey(ticket.priority)].default_hours).date}
-                  latestDate={deadlineIn(policy[policyKey(ticket.priority)].max_hours).date}
+                  usualDate={deadlineIn(policy[policyKey(effectivePriority)].default_hours).date}
+                  latestDate={deadlineIn(policy[policyKey(effectivePriority)].max_hours).date}
                   invalid={Boolean(deadlineError && !deadlineDate)}
                 />
               </div>
@@ -2978,7 +3057,7 @@ function DispatchFlowModal({
               </div>
             </div>
             {(() => {
-              const key = policyKey(ticket.priority);
+              const key = policyKey(effectivePriority);
               const tier = policy[key];
               const past = isPastLimit(deadlineDate, deadlineTime, tier.max_hours);
               return (
@@ -3126,7 +3205,7 @@ function DispatchFlowModal({
           <button
             type="button"
             className={styles.confirmBtn}
-            onClick={onConfirm}
+            onClick={() => onConfirm(draft)}
             disabled={assigning || !deadlineDate || !deadlineTime || !selectedTechId}
             title={
               !deadlineDate || !deadlineTime
