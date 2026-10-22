@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, MessageSquare, Search } from "lucide-react";
+import { MessageSquare, Search } from "lucide-react";
 import AdminShell from "@/components/admin/admin-shell";
 import { StaffChat } from "@/components/admin/staff-chat";
 import { apiGet } from "@/lib/api";
@@ -128,24 +128,17 @@ function StaffMessagesInbox() {
         <section className={styles.conversation}>
           {selected ? (
             <>
-              <header className={styles.convHead}>
-                <button
-                  type="button"
-                  className={styles.backBtn}
-                  aria-label="Back to conversations"
-                  onClick={() => setSelectedId(null)}
-                >
-                  <ArrowLeft size={18} />
-                </button>
-                <span className={styles.avatar}>{initials(selected.staff_name)}</span>
-                <div>
-                  <h2>{selected.staff_name}</h2>
-                  <p>
-                    {selected.staff_type ?? "Staff"} · {selected.staff_email}
-                  </p>
-                </div>
-              </header>
-              <StaffChat key={selected.staff_user_id} staffUserId={selected.staff_user_id} onActivity={loadThreads} />
+              <StaffChat
+                key={selected.staff_user_id}
+                staffUserId={selected.staff_user_id}
+                onActivity={loadThreads}
+                header={{
+                  title: selected.staff_name,
+                  subtitle: `${selected.staff_type ?? "Staff"} · ${selected.staff_email}`,
+                  onBack: () => setSelectedId(null),
+                  backOnNarrowOnly: true,
+                }}
+              />
             </>
           ) : (
             <div className={styles.placeholder}>

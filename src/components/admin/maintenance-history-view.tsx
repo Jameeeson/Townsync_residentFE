@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, Clock, History, Search, User, X, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock, History, MessageSquare, Search, User, X, XCircle } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { formatServerDateTime } from "@/lib/datetime";
 import AuthImageGallery from "@/components/ui/auth-image-gallery";
 import TicketHistoryTrail from "@/components/admin/ticket-history-trail";
+import TicketChatDialog from "@/components/admin/ticket-chat-dialog";
 import styles from "./maintenance-history-view.module.css";
 
 type HistoryStatus = "All" | "Resolved" | "Closed" | "Cancelled";
@@ -323,6 +324,9 @@ export default function MaintenanceHistoryView({ initialSearch = "" }: { initial
 }
 
 function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose: () => void }) {
+  const [chatOpen, setChatOpen] = useState(false);
+  // A Resolved ticket is still waiting for the resident, so the conversation stays open; Closed and Cancelled end it.
+  const canMessage = t.stage === "Resolved";
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div
@@ -347,9 +351,16 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
               {t.resident_name ? ` · ${t.resident_name}${t.resident_deleted ? " (account deleted)" : ""}` : ""}
             </p>
           </div>
-          <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>
-            <X size={18} />
-          </button>
+          <div className={styles.headActions}>
+            {canMessage ? (
+              <button type="button" className={styles.messageBtn} onClick={() => setChatOpen(true)}>
+                <MessageSquare size={15} aria-hidden="true" /> Message resident
+              </button>
+            ) : null}
+            <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>
+              <X size={18} />
+            </button>
+          </div>
         </header>
 
         <div className={styles.dialogBody}>
@@ -402,6 +413,15 @@ function HistoryDetail({ ticket: t, onClose }: { ticket: HistoryTicket; onClose:
           <AuthImageGallery paths={t.image_urls} label="Photos from resident" emptyText="No resident photos" />
         </div>
       </div>
+      {chatOpen ? (
+        <TicketChatDialog
+          ticketId={t.id}
+          residentName={t.resident_name ?? "Resident"}
+          residentUnit={t.unit_number ?? ""}
+          request={{ text: t.description ?? t.subject, filedAt: t.created_at }}
+          onClose={() => setChatOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

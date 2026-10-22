@@ -169,6 +169,12 @@
   min-width: 0;
 }
 
+/* The shared chat panel takes the whole column. */
+.conversation > section {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .convHead {
   display: flex;
   align-items: center;

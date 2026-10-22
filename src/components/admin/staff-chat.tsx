@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, Send, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost } from "@/lib/api";
 import { parseServerDate } from "@/lib/datetime";
-import styles from "./staff-chat.module.css";
+import { ChatDialog } from "@/components/chat-kit/ChatDialog";
+import { ChatPanel } from "@/components/chat-kit/ChatPanel";
+import { initialsOf, type ChatLine } from "@/components/chat-kit/chatKit";
 
 export type StaffChatMessage = {
   id: number;
@@ -23,18 +24,16 @@ type StaffThread = {
   unread: number;
 };
 
-const POLL_MS = 4000;
-const MAX_LENGTH = 2000;
+type ChatHeaderOptions = {
+  title: string;
+  subtitle?: string;
+  onBack?: () => void;
+  /** Show the back button only on narrow screens (the list and the conversation take turns there). */
+  backOnNarrowOnly?: boolean;
+  onClose?: () => void;
+};
 
-function timeLabel(value: string): string {
-  const d = parseServerDate(value);
-  if (!d) return "";
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  return sameDay
-    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-}
+const POLL_MS = 4000;
 
 /**
  * The admin team's conversation with one staff/maintenance account. Polls for
@@ -44,11 +43,15 @@ export function StaffChat({
   staffUserId,
   onActivity,
   autoFocus = false,
+  header,
+  variant = "fill",
 }: {
   staffUserId: number;
   /** Called after messages are read or sent, so a parent can refresh unread counts. */
   onActivity?: () => void;
   autoFocus?: boolean;
+  header?: ChatHeaderOptions;
+  variant?: "pane" | "dialog" | "fill";
 }) {
   const [thread, setThread] = useState<StaffThread | null>(null);
   const [messages, setMessages] = useState<StaffChatMessage[]>([]);
@@ -56,7 +59,6 @@ export function StaffChat({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const lastId = useRef(0);
-  const listRef = useRef<HTMLDivElement>(null);
   const onActivityRef = useRef(onActivity);
   useEffect(() => {
     onActivityRef.current = onActivity;
@@ -79,9 +81,7 @@ export function StaffChat({
 
     const poll = async (initial: boolean) => {
       try {
-        const data = await apiGet<StaffThread>(
-          `/api/v1/admin/staff-messages/${staffUserId}?after_id=${lastId.current}`,
-        );
+        const data = await apiGet<StaffThread>(`/api/v1/admin/staff-messages/${staffUserId}?after_id=${lastId.current}`);
         if (cancelled) return;
         if (initial) setThread(data);
         append(data.messages);
@@ -100,10 +100,6 @@ export function StaffChat({
     };
   }, [staffUserId, append]);
 
-  useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [messages.length]);
-
   const send = async () => {
     const body = draft.trim();
     if (!body || sending) return;
@@ -120,62 +116,54 @@ export function StaffChat({
     }
   };
 
+  // The administrator's view: the admin team on the right, the staff member named on the left.
+  const staffBadge = thread?.staff_type ?? "Staff";
+  const lines = useMemo<ChatLine[]>(
+    () =>
+      messages.map((m) => ({
+        key: String(m.id),
+        side: m.sender_side === "admin" ? "mine" : "theirs",
+        name: m.sender_side === "admin" ? "Management" : m.sender_name,
+        badge: m.sender_side === "admin" ? null : staffBadge,
+        text: m.body,
+        at: parseServerDate(m.created_at),
+      })),
+    [messages, staffBadge],
+  );
+
+  const staffName = thread?.staff_name ?? header?.title ?? "staff";
+
   return (
-    <div className={styles.chat}>
-      <div className={styles.messages} ref={listRef} aria-live="polite">
-        {!thread && !error ? <p className={styles.empty}>Loading conversation…</p> : null}
-        {thread && messages.length === 0 ? (
-          <div className={styles.empty}>
-            <MessageSquare size={22} aria-hidden="true" />
-            <p>
-              No messages with {thread.staff_name} yet. Anything you send appears in their staff portal under
-              Messages.
-            </p>
-          </div>
-        ) : null}
-        {messages.map((m) => (
-          <div key={m.id} className={`${styles.bubbleRow} ${m.sender_side === "admin" ? styles.mine : ""}`}>
-            <div className={styles.bubble}>
-              <p>{m.body}</p>
-              <span>
-                {m.sender_name} · {timeLabel(m.created_at)}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-      {error ? (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      ) : null}
-      <form
-        className={styles.composer}
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <textarea
-          value={draft}
-          maxLength={MAX_LENGTH}
-          rows={2}
-          placeholder={thread ? `Message ${thread.staff_name}…` : "Write a message…"}
-          aria-label="Message"
-          autoFocus={autoFocus}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void send();
+    <ChatPanel
+      variant={variant}
+      label={`Conversation with ${staffName}`}
+      header={
+        header
+          ? {
+              avatar: initialsOf(header.title),
+              title: header.title,
+              subtitle: header.subtitle,
+              onBack: header.onBack,
+              backOnNarrowOnly: header.backOnNarrowOnly,
+              onClose: header.onClose,
             }
-          }}
-        />
-        <button type="submit" disabled={!draft.trim() || sending} aria-label="Send message">
-          <Send size={16} />
-        </button>
-      </form>
-    </div>
+          : undefined
+      }
+      lines={lines}
+      ready={Boolean(thread) || Boolean(error)}
+      error={error}
+      empty={
+        <p>
+          No messages with {thread?.staff_name ?? "this person"} yet. Anything you send appears in their staff portal under Messages.
+        </p>
+      }
+      input={draft}
+      onInput={setDraft}
+      onSend={() => void send()}
+      placeholder={thread ? `Message ${thread.staff_name}` : "Write a message"}
+      sending={sending}
+      autoFocus={autoFocus}
+    />
   );
 }
 
@@ -191,34 +179,9 @@ export function StaffChatModal({
   subtitle?: string;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   return (
-    <div className={styles.overlay} onClick={onClose}>
-      <div
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="staff-chat-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className={styles.dialogHead}>
-          <div>
-            <h2 id="staff-chat-title">{staffName}</h2>
-            {subtitle ? <p>{subtitle}</p> : null}
-          </div>
-          <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </header>
-        <StaffChat staffUserId={staffUserId} autoFocus />
-      </div>
-    </div>
+    <ChatDialog onClose={onClose} label={`Conversation with ${staffName}`}>
+      <StaffChat staffUserId={staffUserId} autoFocus variant="dialog" header={{ title: staffName, subtitle, onClose }} />
+    </ChatDialog>
   );
 }
