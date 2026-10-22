@@ -51,7 +51,17 @@ type StageView = {
   next: string;
 };
 
-function stageView(stage: string): StageView {
+function stageView(stage: string, reported = false): StageView {
+  if (stage === "Resolved" && reported) {
+    return {
+      step: 3,
+      tone: "attention",
+      icon: Hourglass,
+      headline: "Management is reviewing your report",
+      detail: "You told us the problem is still there. Management will decide on the next step and update this page.",
+      next: "Management looks at your message and photos, then sends a technician back or tells you what they found.",
+    };
+  }
   switch (stage) {
     case "Assigned":
       return { step: 1, tone: "info", icon: UserCheck, headline: "A technician is assigned", detail: "They will take it from here. You can message management at any time.", next: "The technician visits and starts the repair. When they finish they send a work report with photos, and you will be asked to confirm it." };
@@ -65,12 +75,12 @@ function stageView(stage: string): StageView {
         icon: Hourglass,
         headline: "Waiting for your answer",
         detail: "The technician says the work is done. Your answer closes this request or sends it back.",
-        next: "Confirm the fix to close this request. If the problem is still there, say so with a photo and management sends a technician back.",
+        next: "Confirm the fix to close this request. If the problem is still there, say so with a photo and management decides on another visit.",
       };
     case "Closed":
       return { step: 4, tone: "done", icon: BadgeCheck, headline: "All done", detail: "This request is closed. If the problem comes back, file a new request.", next: "Nothing more is needed. If the same problem returns, start a new request and mention this ticket number." };
     case "Reopened":
-      return { step: 0, tone: "alert", icon: RotateCcw, headline: "Back with management", detail: "You told us it is not fixed. They will send a technician back and update this page.", next: "Management picks a technician to send back, the same one or another. You will see it here as soon as they do." };
+      return { step: 0, tone: "alert", icon: RotateCcw, headline: "Another visit is being arranged", detail: "Management reviewed your report and will send a technician back. This page updates when they do.", next: "Management picks a technician to send back, the same one or another. You will see it here as soon as they do." };
     case "Cancelled":
       return { step: -1, tone: "muted", icon: XCircle, headline: "Request cancelled", detail: "Nothing more will happen on this request.", next: "If you still need the repair, file a new request from the maintenance page." };
     default:
@@ -82,6 +92,8 @@ const KIND_ICONS: Record<string, LucideIcon> = {
   filed: FilePlus2,
   assigned: UserCheck,
   work_report: ClipboardCheck,
+  not_fixed: RotateCcw,
+  not_fixed_declined: BadgeCheck,
   reopened: RotateCcw,
   reassigned: Shuffle,
   closed: BadgeCheck,
@@ -184,15 +196,13 @@ function TicketDetail() {
   }
 
   /** The resident answered a Resolved ticket: show the new stage, then reload so the history includes the answer. */
-  async function handleAnswered(stage: "Closed" | "Reopened") {
+  async function handleAnswered(result: "Closed" | "Reported") {
     if (!ticket) return;
-    setTicket({
-      ...ticket,
-      stage,
-      awaiting_confirmation: false,
-      status: stage === "Closed" ? "Completed" : "Open",
-      resolution_confirmed_at: stage === "Closed" ? new Date().toISOString() : null,
-    });
+    setTicket(
+      result === "Closed"
+        ? { ...ticket, stage: "Closed", awaiting_confirmation: false, status: "Completed", resolution_confirmed_at: new Date().toISOString() }
+        : { ...ticket, not_fixed_reported: true, auto_close_at: null },
+    );
     try {
       setTicket(await getMaintenanceTicket(ticket.id));
     } catch {
@@ -225,7 +235,8 @@ function TicketDetail() {
     ticket.stage ??
     (ticket.status === "Completed" ? (ticket.resolution_confirmed_at ? "Closed" : "Resolved") : ticket.status);
   const awaitingConfirmation = ticket.awaiting_confirmation ?? stage === "Resolved";
-  const view = stageView(stage);
+  const reported = Boolean(ticket.not_fixed_reported);
+  const view = stageView(stage, reported);
   const StageIcon = view.icon;
   const cancellable = !awaitingConfirmation && !["Cancelled", "Closed", "Resolved"].includes(stage);
   // Once a request is closed or cancelled there is nothing left to ask management about; only reporting the technician remains.
@@ -303,7 +314,7 @@ function TicketDetail() {
       ) : null}
 
       {awaitingConfirmation ? (
-        <ResolutionPanel ticketId={ticket.id} autoCloseAt={ticket.auto_close_at} onAnswered={(next) => void handleAnswered(next)} />
+        <ResolutionPanel ticketId={ticket.id} autoCloseAt={ticket.auto_close_at} reported={reported} onAnswered={(next) => void handleAnswered(next)} />
       ) : null}
 
       <div className={styles.columns}>
@@ -389,7 +400,7 @@ function TicketDetail() {
             <ol className={styles.events}>
               {timeline.map((event, index) => {
                 const Icon = KIND_ICONS[event.kind ?? ""] ?? HardHat;
-                const alert = event.kind === "reopened";
+                const alert = event.kind === "not_fixed" || event.kind === "reopened";
                 return (
                   <li key={event.id} className={`${styles.event} ${alert ? styles.eventAlert : ""} ${index === 0 ? styles.eventLatest : ""}`}>
                     <span className={styles.eventDot}><Icon size={14} aria-hidden="true" /></span>
@@ -402,7 +413,7 @@ function TicketDetail() {
                       {event.attachments && event.attachments.length > 0 ? (
                         <AuthPhotos
                           paths={event.attachments.map((a) => a.url)}
-                          label={event.kind === "reopened" ? "Your photo" : "Work photo"}
+                          label={event.kind === "not_fixed" ? "Your photo" : "Work photo"}
                         />
                       ) : null}
                     </div>

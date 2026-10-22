@@ -13,8 +13,10 @@ const MIN_CHARS = 10;
 type Props = {
   ticketId: number;
   autoCloseAt?: string | null;
-  /** Called after the server accepted the answer; the argument is the ticket's new stage. */
-  onAnswered: (stage: "Closed" | "Reopened") => void;
+  /** The resident already said it is not fixed; management decides what happens next. */
+  reported?: boolean;
+  /** Called after the server accepted the answer: the ticket is Closed, or the report reached management. */
+  onAnswered: (result: "Closed" | "Reported") => void;
 };
 
 function errorText(err: unknown, fallback: string): string {
@@ -22,7 +24,7 @@ function errorText(err: unknown, fallback: string): string {
 }
 
 /** Shown while the technician's work is Resolved and waiting for the resident: confirm it, or say it is not fixed. */
-export default function ResolutionPanel({ ticketId, autoCloseAt, onAnswered }: Props) {
+export default function ResolutionPanel({ ticketId, autoCloseAt, reported = false, onAnswered }: Props) {
   const [mode, setMode] = useState<"ask" | "confirm" | "notFixed">("ask");
   const [message, setMessage] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
@@ -57,11 +59,28 @@ export default function ResolutionPanel({ ticketId, autoCloseAt, onAnswered }: P
     setError("");
     try {
       await reportNotFixed(ticketId, message.trim(), photos);
-      onAnswered("Reopened");
+      onAnswered("Reported");
     } catch (err) {
       setError(errorText(err, "Could not send your report."));
       setBusy(false);
     }
+  }
+
+  if (reported) {
+    return (
+      <section className={styles.panel} aria-labelledby="resolution-title">
+        <div className={styles.head}>
+          <span className={styles.icon}><Hourglass size={18} aria-hidden="true" /></span>
+          <div>
+            <h2 id="resolution-title">Management is reviewing your report</h2>
+            <p>
+              We told management the problem is still there. They will decide whether to send a technician back and update this page.
+              This request will not close in the meantime.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -126,7 +145,7 @@ export default function ResolutionPanel({ ticketId, autoCloseAt, onAnswered }: P
               Back
             </button>
           </div>
-          <p className={styles.note}>Management will be alerted and will send a technician back.</p>
+          <p className={styles.note}>Management will be notified and will decide on the next step.</p>
         </form>
       ) : null}
     </section>

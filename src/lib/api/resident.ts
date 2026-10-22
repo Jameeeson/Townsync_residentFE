@@ -49,6 +49,8 @@ export interface MaintenanceTicket {
   /** Open, Assigned, Ongoing, Resolved (waiting for you), Closed, Reopened or Cancelled. */
   stage?: string | null;
   awaiting_confirmation?: boolean;
+  /** You said it is not fixed; management has not answered yet. */
+  not_fixed_reported?: boolean;
   /** When a Resolved ticket closes by itself if you do not answer. */
   auto_close_at?: string | null;
   /** A technician handled (or is handling) the request, so their conduct can be reported. */
