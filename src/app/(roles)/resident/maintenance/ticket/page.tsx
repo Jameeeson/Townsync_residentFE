@@ -16,7 +16,7 @@ import {
   MessageSquare,
   RotateCcw,
   Shuffle,
-  ShieldAlert,
+  MessageSquareWarning,
   TimerOff,
   UserCheck,
   Wrench,
@@ -32,7 +32,7 @@ import {
 import AuthPhotos from "@/components/maintenance/AuthPhotos";
 import FollowUpPanel from "@/components/maintenance/FollowUpPanel";
 import ResolutionPanel from "@/components/maintenance/ResolutionPanel";
-import ReportTechnicianDialog from "@/components/maintenance/ReportTechnicianDialog";
+import ReportProblemDialog from "@/components/maintenance/ReportProblemDialog";
 import TicketChatDialog from "@/components/maintenance/TicketChatDialog";
 import { parseServerDate } from "@/lib/datetime";
 
@@ -74,7 +74,7 @@ function stageView(stage: string, reported = false): StageView {
         tone: "attention",
         icon: Hourglass,
         headline: "Waiting for your answer",
-        detail: "The technician says the work is done. Your answer closes this request or sends it back.",
+        detail: "The technician says the work is done. Confirm it to close this request, or tell management it is not fixed.",
         next: "Confirm the fix to close this request. If the problem is still there, say so with a photo and management decides on another visit.",
       };
     case "Closed":
@@ -94,6 +94,7 @@ const KIND_ICONS: Record<string, LucideIcon> = {
   work_report: ClipboardCheck,
   not_fixed: RotateCcw,
   not_fixed_declined: BadgeCheck,
+  report_reply: MessageSquareWarning,
   reopened: RotateCcw,
   reassigned: Shuffle,
   closed: BadgeCheck,
@@ -129,7 +130,8 @@ function TicketDetail() {
   const error = invalidId ? "Missing ticket id. Open a ticket from the maintenance page." : fetchError;
   const loading = invalidId ? false : fetching;
   const [cancelling, setCancelling] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
+  // One dialog for everything that can go wrong; `start` opens a form straight away.
+  const [reportOpen, setReportOpen] = useState<{ start?: "notFixed" | "technician" } | null>(null);
   // Messages open as a pop-up over the ticket; old /chat links arrive here with ?chat=1.
   const [chatOpen, setChatOpen] = useState(searchParams.get("chat") === "1");
   const [reportSent, setReportSent] = useState(false);
@@ -195,7 +197,7 @@ function TicketDetail() {
     }
   }
 
-  /** The resident answered a Resolved ticket: show the new stage, then reload so the history includes the answer. */
+  /** The resident confirmed the fix: show the new stage, then reload so the history includes the answer. */
   async function handleAnswered(result: "Closed" | "Reported") {
     if (!ticket) return;
     setTicket(
@@ -242,6 +244,11 @@ function TicketDetail() {
   // Once a request is closed or cancelled there is nothing left to ask management about; only reporting the technician remains.
   const finished = stage === "Closed" || stage === "Cancelled";
   const reportable = Boolean(ticket.can_report_technician);
+  const technicianReported = Boolean(ticket.technician_reported) || reportSent;
+  const canReportNotFixed = stage === "Resolved" && !reported;
+  const canReportTechnician = reportable && !technicianReported;
+  // Management's one-way answer to a report (or to a "not fixed" report it declined). The resident cannot reply to it.
+  const managementReply = (ticket.activity_timeline ?? []).find((e) => e.kind === "report_reply" || e.kind === "not_fixed_declined") ?? null;
   const showHelp = !finished || reportable;
   const timeline = ticket.activity_timeline ?? [];
 
@@ -293,12 +300,16 @@ function TicketDetail() {
 
       {chatOpen && !finished ? <TicketChatDialog ticketId={ticket.id} onClose={() => setChatOpen(false)} /> : null}
       {reportOpen ? (
-        <ReportTechnicianDialog
+        <ReportProblemDialog
           ticketId={ticket.id}
-          onClose={() => setReportOpen(false)}
-          onSent={() => {
-            setReportOpen(false);
-            setReportSent(true);
+          canReportNotFixed={canReportNotFixed}
+          canReportTechnician={canReportTechnician}
+          startWith={reportOpen.start}
+          onClose={() => setReportOpen(null)}
+          onSent={(kind) => {
+            setReportOpen(null);
+            if (kind === "technician") setReportSent(true);
+            else void handleAnswered("Reported");
           }}
         />
       ) : null}
@@ -314,7 +325,21 @@ function TicketDetail() {
       ) : null}
 
       {awaitingConfirmation ? (
-        <ResolutionPanel ticketId={ticket.id} autoCloseAt={ticket.auto_close_at} reported={reported} onAnswered={(next) => void handleAnswered(next)} />
+        <ResolutionPanel
+          ticketId={ticket.id}
+          autoCloseAt={ticket.auto_close_at}
+          reported={reported}
+          onClosed={() => void handleAnswered("Closed")}
+          onReportNotFixed={() => setReportOpen({ start: "notFixed" })}
+        />
+      ) : null}
+
+      {managementReply ? (
+        <section className={styles.reply} aria-labelledby="reply-title">
+          <h2 id="reply-title"><MessageSquareWarning size={16} aria-hidden="true" /> {managementReply.title}</h2>
+          <p>{managementReply.description}</p>
+          <small>{whenLong(managementReply.timestamp)}. This is management&apos;s answer; it cannot be replied to here.</small>
+        </section>
       ) : null}
 
       <div className={styles.columns}>
@@ -360,16 +385,15 @@ function TicketDetail() {
                     <MessageSquare size={17} aria-hidden="true" /> Message management
                   </button>
                 ) : null}
-                {reportable ? (
-                  ticket.technician_reported || reportSent ? (
-                    <span className={styles.reported}>
-                      <BadgeCheck size={17} aria-hidden="true" /> You reported this technician
-                    </span>
-                  ) : (
-                    <button type="button" className={styles.secondary} onClick={() => setReportOpen(true)}>
-                      <ShieldAlert size={17} aria-hidden="true" /> Report technician
-                    </button>
-                  )
+                {canReportNotFixed || canReportTechnician ? (
+                  <button type="button" className={styles.secondary} onClick={() => setReportOpen({})}>
+                    <MessageSquareWarning size={17} aria-hidden="true" /> Something went wrong
+                  </button>
+                ) : null}
+                {reportable && technicianReported ? (
+                  <span className={styles.reported}>
+                    <BadgeCheck size={17} aria-hidden="true" /> You reported this technician
+                  </span>
                 ) : null}
                 {cancellable ? (
                   <button type="button" className={styles.cancel} onClick={() => void handleCancel()} disabled={cancelling}>
@@ -379,11 +403,13 @@ function TicketDetail() {
               </div>
               <p className={styles.helper}>
                 <CircleHelp size={14} aria-hidden="true" />
-                {reportable
-                  ? ticket.technician_reported || reportSent
-                    ? "Management is reviewing your report. You will get a notification when it is done."
-                    : "Reporting a technician is private. Only the administrator sees it."
-                  : "Messages go to management, who can reach your technician."}
+                {reportable && technicianReported
+                  ? managementReply
+                    ? "Management has answered your report. That reply is final."
+                    : "Management is reviewing your report. You will get one reply here and in your notifications."
+                  : reportable
+                    ? "Reports are private. Only management sees them, and the technician is never told who reported."
+                    : "Messages go to management, who can reach your technician."}
               </p>
             </section>
           ) : null}

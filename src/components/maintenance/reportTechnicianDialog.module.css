@@ -193,3 +193,44 @@
     flex: 1 1 100%;
   }
 }
+
+.choices {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 56px;
+  padding: 0.85rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice:hover {
+  border-color: #1f4a9e;
+  background: #f8fafc;
+}
+
+.choice:focus-visible {
+  outline: 2px solid #1f4a9e;
+  outline-offset: 2px;
+}
+
+.choice span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.choice small {
+  color: #5b6b82;
+  font-size: 0.82rem;
+}

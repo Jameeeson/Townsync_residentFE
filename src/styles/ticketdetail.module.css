@@ -664,3 +664,33 @@
     max-height: min(52vh, 440px);
   }
 }
+
+/* Management's one-way answer to a report. */
+.reply {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border, #dbe3ef);
+  border-left: 4px solid var(--color-primary-600, #1f4a9e);
+  border-radius: var(--radius-md);
+  background: var(--color-surface, #ffffff);
+}
+
+.reply h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 1rem;
+}
+
+.reply p {
+  margin: 0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.reply small {
+  color: var(--color-text-muted, #5b6b82);
+}

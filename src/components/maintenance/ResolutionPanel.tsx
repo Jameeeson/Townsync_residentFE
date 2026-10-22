@@ -1,22 +1,21 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { CheckCircle2, Hourglass, RotateCcw } from "lucide-react";
 import { ApiClientError } from "@/lib/apiClient";
-import { confirmMaintenanceResolution, reportNotFixed } from "@/lib/api/resident";
+import { confirmMaintenanceResolution } from "@/lib/api/resident";
 import { parseServerDate } from "@/lib/datetime";
-import PhotoPicker from "./PhotoPicker";
 import styles from "./resolutionPanel.module.css";
-
-const MIN_CHARS = 10;
 
 type Props = {
   ticketId: number;
   autoCloseAt?: string | null;
   /** The resident already said it is not fixed; management decides what happens next. */
   reported?: boolean;
-  /** Called after the server accepted the answer: the ticket is Closed, or the report reached management. */
-  onAnswered: (result: "Closed" | "Reported") => void;
+  /** Called after the server accepted the confirmation: the ticket is Closed. */
+  onClosed: () => void;
+  /** "No, it is not fixed": the page opens the report form. */
+  onReportNotFixed: () => void;
 };
 
 function errorText(err: unknown, fallback: string): string {
@@ -24,10 +23,8 @@ function errorText(err: unknown, fallback: string): string {
 }
 
 /** Shown while the technician's work is Resolved and waiting for the resident: confirm it, or say it is not fixed. */
-export default function ResolutionPanel({ ticketId, autoCloseAt, reported = false, onAnswered }: Props) {
-  const [mode, setMode] = useState<"ask" | "confirm" | "notFixed">("ask");
-  const [message, setMessage] = useState("");
-  const [photos, setPhotos] = useState<File[]>([]);
+export default function ResolutionPanel({ ticketId, autoCloseAt, reported = false, onClosed, onReportNotFixed }: Props) {
+  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -38,30 +35,9 @@ export default function ResolutionPanel({ ticketId, autoCloseAt, reported = fals
     setError("");
     try {
       await confirmMaintenanceResolution(ticketId, true);
-      onAnswered("Closed");
+      onClosed();
     } catch (err) {
       setError(errorText(err, "Could not record your confirmation."));
-      setBusy(false);
-    }
-  }
-
-  async function submitNotFixed(e: FormEvent) {
-    e.preventDefault();
-    if (message.trim().length < MIN_CHARS) {
-      setError("Tell us what is still wrong, in at least a sentence.");
-      return;
-    }
-    if (photos.length === 0) {
-      setError("Add at least one photo so we can see the problem.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      await reportNotFixed(ticketId, message.trim(), photos);
-      onAnswered("Reported");
-    } catch (err) {
-      setError(errorText(err, "Could not send your report."));
       setBusy(false);
     }
   }
@@ -72,9 +48,9 @@ export default function ResolutionPanel({ ticketId, autoCloseAt, reported = fals
         <div className={styles.head}>
           <span className={styles.icon}><Hourglass size={18} aria-hidden="true" /></span>
           <div>
-            <h2 id="resolution-title">Management is reviewing your report</h2>
+            <h2 id="resolution-title">Your report was sent</h2>
             <p>
-              We told management the problem is still there. They will decide whether to send a technician back and update this page.
+              Management has your message and photos. You will see their answer on this page and in your notifications.
               This request will not close in the meantime.
             </p>
           </div>
@@ -96,18 +72,16 @@ export default function ResolutionPanel({ ticketId, autoCloseAt, reported = fals
         </div>
       </div>
 
-      {mode === "ask" ? (
+      {!confirming ? (
         <div className={styles.actions}>
-          <button type="button" className={styles.primary} onClick={() => setMode("confirm")}>
+          <button type="button" className={styles.primary} onClick={() => setConfirming(true)}>
             <CheckCircle2 size={16} aria-hidden="true" /> Yes, it is fixed
           </button>
-          <button type="button" className={styles.secondary} onClick={() => setMode("notFixed")}>
+          <button type="button" className={styles.secondary} onClick={onReportNotFixed}>
             <RotateCcw size={16} aria-hidden="true" /> No, it is not fixed
           </button>
         </div>
-      ) : null}
-
-      {mode === "confirm" ? (
+      ) : (
         <div className={styles.confirm}>
           <p>Close this request? You can still message management if something comes up.</p>
           {error ? <p className={styles.error} role="alert">{error}</p> : null}
@@ -115,39 +89,12 @@ export default function ResolutionPanel({ ticketId, autoCloseAt, reported = fals
             <button type="button" className={styles.primary} onClick={() => void confirmFixed()} disabled={busy}>
               {busy ? "Saving…" : "Yes, close it"}
             </button>
-            <button type="button" className={styles.secondary} onClick={() => { setMode("ask"); setError(""); }} disabled={busy}>
+            <button type="button" className={styles.secondary} onClick={() => { setConfirming(false); setError(""); }} disabled={busy}>
               Back
             </button>
           </div>
         </div>
-      ) : null}
-
-      {mode === "notFixed" ? (
-        <form className={styles.form} onSubmit={submitNotFixed} noValidate>
-          <label htmlFor="not-fixed-message">What is still wrong?</label>
-          <textarea
-            id="not-fixed-message"
-            rows={4}
-            maxLength={1000}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="e.g. The sink under the faucet is still dripping after you ran the water."
-            required
-          />
-          <span className={styles.label}>Photos of the problem (required)</span>
-          <PhotoPicker files={photos} onChange={setPhotos} onReject={setError} inputId="not-fixed-photos" />
-          {error ? <p className={styles.error} role="alert">{error}</p> : null}
-          <div className={styles.actions}>
-            <button type="submit" className={styles.primary} disabled={busy}>
-              {busy ? "Sending…" : "Send to management"}
-            </button>
-            <button type="button" className={styles.secondary} onClick={() => { setMode("ask"); setError(""); }} disabled={busy}>
-              Back
-            </button>
-          </div>
-          <p className={styles.note}>Management will be notified and will decide on the next step.</p>
-        </form>
-      ) : null}
+      )}
     </section>
   );
 }
