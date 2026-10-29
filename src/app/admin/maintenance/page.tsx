@@ -37,15 +37,17 @@ import {
   Scale,
   History,
   RotateCcw,
+  Star,
 } from "lucide-react";
 
 import styles from "@/components/styles/Maintenance.module.css";
 import AdminShell from "@/components/admin/admin-shell";
-import { parseServerDate } from "@/lib/datetime";
+import { formatServerDateTime, parseServerDate } from "@/lib/datetime";
 import AuthImageGallery from "@/components/ui/auth-image-gallery";
 import MaintenanceHistoryView from "@/components/admin/maintenance-history-view";
 import TicketHistoryTrail from "@/components/admin/ticket-history-trail";
 import ConductReportsView from "@/components/admin/conduct-reports-view";
+import QualityView, { type QualityTab } from "@/components/admin/quality-view";
 import DeadlineCalendar from "@/components/admin/deadline-calendar";
 import { cleanPersonName } from "@/lib/names";
 import DeadlinePolicyModal from "@/components/admin/deadline-policy-modal";
@@ -67,7 +69,7 @@ import ListControls from "@/components/ui/list-controls";
 
 type Priority = "emergency" | "high" | "medium" | "low";
 type StaffStatus = "available" | "on-job" | "on-site" | "break" | "off-shift";
-type DetailView = "pending" | "ongoing" | "staff" | "available" | "calendar" | "history" | "conduct";
+type DetailView = "pending" | "ongoing" | "staff" | "available" | "calendar" | "history" | "conduct" | "quality";
 type ModalMode = "dispatch" | "decline" | "success" | "decline-success" | null;
 
 type PendingRequest = {
@@ -171,6 +173,11 @@ type StaffMember = {
   since?: string;
   tasksCompleted?: number;
   avgResolution?: string;
+  /** Average of the residents' ratings (once there are enough) and how many were given. */
+  ratingAverage?: number | null;
+  ratingCount?: number;
+  /** Set while an administrator keeps the technician from new assignments (UTC end). */
+  suspendedUntil?: string | null;
   email?: string | null;
   /** USER id, used for the staff chat. */
   userId?: number | null;
@@ -232,6 +239,9 @@ type DispatchBoardItem = {
   avg_resolution_minutes?: number | null;
   email?: string | null;
   user_id?: number | null;
+  rating_average?: number | null;
+  rating_count?: number | null;
+  suspended_until?: string | null;
 };
 
 type StaffHistoryItem = {
@@ -395,6 +405,9 @@ function adaptStaffItem(item: DispatchBoardItem): StaffMember {
     activeTaskCount: item.active_task_count ?? 0,
     tasksCompleted: item.tasks_completed ?? undefined,
     avgResolution: item.avg_resolution_minutes != null ? formatMinutes(item.avg_resolution_minutes) : undefined,
+    ratingAverage: item.rating_average ?? null,
+    ratingCount: item.rating_count ?? 0,
+    suspendedUntil: item.suspended_until ?? null,
     email: item.email ?? null,
     userId: item.user_id ?? null,
   };
@@ -596,6 +609,7 @@ function MaintenanceCommand() {
   }, []);
 
   const [detailView, setDetailView] = useState<DetailView>("pending");
+  const [qualityTab, setQualityTab] = useState<QualityTab>("ratings");
   const [selectedPendingId, setSelectedPendingId] = useState<string | null>(null);
   const [ticketChatId, setTicketChatId] = useState<string | null>(null);
   const [techProfileId, setTechProfileId] = useState<string | null>(null);
@@ -628,6 +642,8 @@ function MaintenanceCommand() {
   const historyTicket = searchParams.get("history");
   // The notification bell links here when a resident reports a technician.
   const openConduct = searchParams.get("conduct");
+  const openFeedback = searchParams.get("feedback");
+  const openSuspensions = searchParams.get("suspensions");
   const [historySearch, setHistorySearch] = useState("");
 
   const viewingJob = useMemo(
@@ -812,6 +828,21 @@ function MaintenanceCommand() {
     router.replace("/admin/maintenance", { scroll: false });
   }, [deepLinkTicket, ongoingJobs, pendingRequests, router]);
 
+  /** Jump to a ticket from a report or a rating: where it is now (dispatch queue, ongoing, or history). */
+  const openTicketFromReports = (id: number) => {
+    const key = String(id);
+    if (ongoingJobs.some((j) => j.id === key)) {
+      setViewingJobId(key);
+      setDetailView("ongoing");
+    } else if (pendingRequests.some((r) => r.id === key)) {
+      setSelectedPendingId(key);
+      setDetailView("pending");
+    } else {
+      setHistorySearch(`#${id}`);
+      setDetailView("history");
+    }
+  };
+
   useEffect(() => {
     if (!openConduct) return;
     /* eslint-disable react-hooks/set-state-in-effect -- one-shot sync from the URL, cleared right below. */
@@ -819,6 +850,15 @@ function MaintenanceCommand() {
     /* eslint-enable react-hooks/set-state-in-effect */
     router.replace("/admin/maintenance", { scroll: false });
   }, [openConduct, router]);
+
+  useEffect(() => {
+    if (!openFeedback && !openSuspensions) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-shot sync from the URL, cleared right below. */
+    setQualityTab(openSuspensions ? "suspensions" : "ratings");
+    setDetailView("quality");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    router.replace("/admin/maintenance", { scroll: false });
+  }, [openFeedback, openSuspensions, router]);
 
   useEffect(() => {
     if (!historyTicket) return;
@@ -882,6 +922,19 @@ function MaintenanceCommand() {
             }}
           >
             <ShieldAlert size={15} /> Reports
+          </button>
+          <button
+            type="button"
+            className={`${styles.calendarToggle} ${detailView === "quality" ? styles.calendarToggleActive : ""}`}
+            aria-pressed={detailView === "quality"}
+            onClick={() => {
+              setTicketChatId(null);
+              setTechProfileId(null);
+              setViewingJobId(null);
+              setDetailView((v) => (v === "quality" ? "pending" : "quality"));
+            }}
+          >
+            <Star size={15} /> Ratings
           </button>
           <button
             type="button"
@@ -986,6 +1039,13 @@ function MaintenanceCommand() {
               onJobTab={setJobTab}
               onOpenJob={(id) => setViewingJobId(id)}
             />
+          ) : detailView === "quality" ? (
+            <QualityView
+              key={qualityTab}
+              initialTab={qualityTab}
+              onChanged={loadAll}
+              onOpenTicket={openTicketFromReports}
+            />
           ) : detailView === "conduct" ? (
             <ConductReportsView
               onSentBack={(id) => {
@@ -994,19 +1054,7 @@ function MaintenanceCommand() {
                 setSelectedPendingId(String(id));
                 setDetailView("pending");
               }}
-              onOpenTicket={(id) => {
-                const key = String(id);
-                if (ongoingJobs.some((j) => j.id === key)) {
-                  setViewingJobId(key);
-                  setDetailView("ongoing");
-                } else if (pendingRequests.some((r) => r.id === key)) {
-                  setSelectedPendingId(key);
-                  setDetailView("pending");
-                } else {
-                  setHistorySearch(`#${id}`);
-                  setDetailView("history");
-                }
-              }}
+              onOpenTicket={openTicketFromReports}
             />
           ) : detailView === "history" ? (
             <MaintenanceHistoryView
@@ -3148,6 +3196,8 @@ function DispatchFlowModal({
                   className={`${styles.techCard} ${
                     selectedTechId === tech.id ? styles.techCardSelected : ""
                   }`}
+                  disabled={Boolean(tech.suspendedUntil)}
+                  title={tech.suspendedUntil ? `Suspended from new assignments until ${formatServerDateTime(tech.suspendedUntil)}` : undefined}
                   onClick={() => onSelectTech(tech.id)}
                 >
                   <div className={styles.techInfo}>
@@ -3165,7 +3215,9 @@ function DispatchFlowModal({
                         {tech.status === "available" && <BadgeCheck size={14} />}
                       </strong>
                       <p>
-                        {tech.status === "available"
+                        {tech.suspendedUntil
+                          ? `Suspended until ${formatServerDateTime(tech.suspendedUntil)}`
+                          : tech.status === "available"
                           ? "Available Now"
                           : isOffShift(tech)
                           ? `${tech.status === "off-shift" ? "Off shift" : "In progress · off shift"}${tech.shift !== NOT_AVAILABLE ? ` · ${tech.shift}` : ""}`
@@ -3173,6 +3225,11 @@ function DispatchFlowModal({
                       </p>
                       <p>
                         <span className={styles.specTag}>{tech.specialty || "No specialization"}</span>
+                        {tech.ratingAverage != null ? (
+                          <span className={styles.generalTag} title={`${tech.ratingCount} rating${tech.ratingCount === 1 ? "" : "s"} from residents`}>
+                            ★ {tech.ratingAverage.toFixed(1)} ({tech.ratingCount})
+                          </span>
+                        ) : null}
                         {ticket.previousStaffId && ticket.previousStaffId === String(tech.id) ? (
                           <span className={styles.previousTag}>
                             {ticket.reopened ? "Worked on this before" : "Last technician"}
