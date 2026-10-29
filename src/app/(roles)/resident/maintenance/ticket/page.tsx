@@ -32,6 +32,7 @@ import {
 import AuthPhotos from "@/components/maintenance/AuthPhotos";
 import FollowUpPanel from "@/components/maintenance/FollowUpPanel";
 import ResolutionPanel from "@/components/maintenance/ResolutionPanel";
+import FeedbackPanel from "@/components/maintenance/FeedbackPanel";
 import ReportProblemDialog from "@/components/maintenance/ReportProblemDialog";
 import TicketChatDialog from "@/components/maintenance/TicketChatDialog";
 import { parseServerDate } from "@/lib/datetime";
@@ -331,6 +332,15 @@ function TicketDetail() {
           reported={reported}
           onClosed={() => void handleAnswered("Closed")}
           onReportNotFixed={() => setReportOpen({ start: "notFixed" })}
+        />
+      ) : null}
+
+      {stage === "Resolved" || stage === "Closed" ? (
+        <FeedbackPanel
+          ticketId={ticket.id}
+          feedback={ticket.feedback}
+          canGive={Boolean(ticket.can_give_feedback)}
+          onSaved={(saved) => setTicket((current) => (current ? { ...current, feedback: saved, can_give_feedback: true } : current))}
         />
       ) : null}
 

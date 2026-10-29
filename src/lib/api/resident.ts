@@ -64,6 +64,31 @@ export interface MaintenanceTicket {
   follow_up_count?: number;
   /** When the next follow-up may be sent; empty when one can be sent now. */
   follow_up_available_at?: string | null;
+  /** The finished job can be rated (or the rating changed) right now. */
+  can_give_feedback?: boolean;
+  /** The rating given so far. */
+  feedback?: TicketFeedback | null;
+}
+
+export interface TicketFeedback {
+  rating: number;
+  comment: string | null;
+  tags: string[];
+  created_at: string;
+  /** Still inside the first 24 hours, when the rating can be changed. */
+  can_edit: boolean;
+  /** Management's one-way answer; the resident cannot reply. */
+  management_reply: string | null;
+}
+
+export const FEEDBACK_TAGS = ["On time", "Polite", "Tidy", "Good work", "Explained clearly", "Late", "Rude", "Messy", "Poor work"] as const;
+
+/** Rates a finished ticket: 1 to 5 stars, a comment (needed for 1 or 2 stars) and quick tags. */
+export async function giveMaintenanceFeedback(
+  ticketId: number,
+  body: { rating: number; comment?: string; tags?: string[] }
+): Promise<{ message: string; rating: number }> {
+  return apiClient.post(`/api/v1/resident/maintenance/tickets/${ticketId}/feedback`, body);
 }
 
 export const TECHNICIAN_REPORT_CATEGORIES = [
