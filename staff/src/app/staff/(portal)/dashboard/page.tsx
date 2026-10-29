@@ -36,6 +36,7 @@ import { useStaffSession } from "@/contexts/StaffSessionContext";
 import styles from "./dashboard.module.css";
 import { parseServerDate } from "@/lib/datetime";
 import { ListControls } from "@/components/ListControls";
+import { StandingPanel } from "@/components/StandingPanel";
 
 type Filter = "all" | "pending" | "progress" | "done";
 type TaskStatus = "pending" | "progress" | "done";
@@ -203,6 +204,8 @@ export default function StaffDashboardPage() {
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [maintOpen, setMaintOpen] = useState(false);
+  // An administrator suspended the technician from new assignments: they cannot log new tasks until it ends.
+  const [suspended, setSuspended] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [submittedUnit, setSubmittedUnit] = useState("");
   const [busyTaskId, setBusyTaskId] = useState<number | null>(null);
@@ -399,12 +402,20 @@ export default function StaffDashboardPage() {
               </Link>
             ) : null}
             {isMaintenance ? (
-              <button type="button" className={styles.heroPrimary} onClick={() => setMaintOpen(true)}>
+              <button
+                type="button"
+                className={styles.heroPrimary}
+                onClick={() => setMaintOpen(true)}
+                disabled={suspended}
+                title={suspended ? "You are suspended from new assignments" : undefined}
+              >
                 <IconDoc size={18} /> New Maintenance Log
               </button>
             ) : null}
           </div>
         </section>
+
+        {isMaintenance ? <StandingPanel key={reloadTick} onSuspended={setSuspended} /> : null}
 
         <section className={styles.stats} aria-label="Summary">
           {isMaintenance ? (

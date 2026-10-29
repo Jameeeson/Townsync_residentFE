@@ -15,7 +15,9 @@ import styles from "./NotificationBell.module.css";
 type View = "all" | "unread" | "read";
 
 const POLL_MS = 60_000;
-const TYPE_LABEL: Record<string, string> = { task: "Task", visitor: "Visitor", overdue: "Overdue", alert: "Alert" };
+const TYPE_LABEL: Record<string, string> = {
+  task: "Task", visitor: "Visitor", overdue: "Overdue", alert: "Alert", suspension: "Suspension", rating: "Rating",
+};
 
 function ago(value: string | null): string {
   const d = parseServerDate(value);

@@ -68,9 +68,15 @@
   transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
-.heroPrimary:hover {
+.heroPrimary:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: var(--shadow-lg);
+}
+
+.heroPrimary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .heroPrimary:focus-visible {

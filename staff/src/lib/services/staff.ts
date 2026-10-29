@@ -75,6 +75,19 @@ export type StaffNotifications = {
   items: StaffNotificationItem[];
 };
 
+export type MyStanding = {
+  /** Set while an administrator keeps the technician from new assignments. */
+  suspension: { ends_at: string; days_left: number; reason: string | null } | null;
+  rating: { count: number; average: number | null; distribution: Record<number, number> };
+  min_ratings_for_average: number;
+  recent: { id: number; ticket_id: number; rating: number; comment: string | null; tags: string[]; created_at: string; category: string | null }[];
+};
+
+/** The technician's own ratings, recent comments (never the resident's name) and any suspension. */
+export function getMyStanding() {
+  return api.get<MyStanding>("/api/v1/staff/dashboard/standing");
+}
+
 export function getStaffNotifications() {
   return api.get<StaffNotifications>("/api/v1/staff/dashboard/notifications");
 }
